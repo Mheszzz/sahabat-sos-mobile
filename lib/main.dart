@@ -1,16 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:sahabat_sos_mobile/app.dart';
 
 void main() {
-  runApp(const MainApp());
-}
-
-class MainApp extends StatelessWidget {
-  const MainApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: Scaffold(body: Center(child: Text('Hello World!'))),
-    );
-  }
+  WidgetsFlutterBinding.ensureInitialized();
+  // TODO: Initialize Dependency Injection (GetIt) and local storage here
+  
+  runApp(const SahabatSosApp());
 }
