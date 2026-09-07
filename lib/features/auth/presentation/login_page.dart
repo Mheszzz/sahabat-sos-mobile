@@ -63,7 +63,7 @@ class _LoginPageState extends State<LoginPage> {
                         _buildPinField(),
                         const SizedBox(height: 12),
                         const Text(
-                          'Dapat berupa PIN numerik cepat 6 digit atau sandi\nalfanumerik.',
+                          'Kata sandi harus mengandung kombinasi huruf\nbesar, huruf kecil, dan angka.',
                           style: TextStyle(
                             fontSize: 13,
                             color: Color(0xFF6B7080),
@@ -113,13 +113,6 @@ class _LoginPageState extends State<LoginPage> {
               iconColor: primaryDark,
               onTap: () {},
             ),
-            const SizedBox(width: 12),
-            _circleIconButton(
-              icon: Icons.person_outline_rounded,
-              bg: primaryDark,
-              iconColor: Colors.white,
-              onTap: () {},
-            ),
           ],
         ),
       ],
@@ -153,14 +146,6 @@ class _LoginPageState extends State<LoginPage> {
           children: const [
             _LabelWithIcon(
                 icon: Icons.badge_outlined, label: 'Masukkan Email'),
-            Text(
-              'Wajib diisi',
-              style: TextStyle(
-                fontSize: 12,
-                color: Color(0xFF6B7080),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -207,22 +192,6 @@ class _LoginPageState extends State<LoginPage> {
           children: [
             const _LabelWithIcon(
                 icon: Icons.lock_outline_rounded, label: 'Masukkan Kata Sandi'),
-            TextButton(
-              onPressed: () => setState(() => _obscurePin = !_obscurePin),
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.zero,
-                minimumSize: const Size(0, 0),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: Text(
-                _obscurePin ? 'Tutup PIN' : 'Buka PIN',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: accentTeal,
-                ),
-              ),
-            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -235,14 +204,13 @@ class _LoginPageState extends State<LoginPage> {
             controller: _pinController,
             obscureText: _obscurePin,
             keyboardType: TextInputType.visiblePassword,
-            inputFormatters: [LengthLimitingTextInputFormatter(6)],
             style: const TextStyle(fontSize: 16, color: Color(0xFF1B1B2F)),
             decoration: InputDecoration(
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
               ),
-              hintText: 'Masukkan 6 angka PIN atau sandi',
+              hintText: 'Masukkan kata sandi',
               hintStyle: const TextStyle(
                 fontSize: 15,
                 color: Color(0xFF8A8FA3),
@@ -335,14 +303,12 @@ class _LoginPageState extends State<LoginPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: const [
-            Icon(Icons.login, size: 22),
-            SizedBox(width: 12),
             Text(
               'Masuk ke Akun',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
             SizedBox(width: 12),
-            Icon(Icons.arrow_forward, size: 22),
+            Icon(Icons.login, size: 22),
           ],
         ),
       ),

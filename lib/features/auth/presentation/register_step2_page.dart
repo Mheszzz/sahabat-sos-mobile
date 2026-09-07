@@ -20,15 +20,11 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
 
   _NeedType _selectedNeed = _NeedType.disabilitasNetra;
 
-  final Set<String> _selectedMobilityAids = {'Tongkat Pemandu'};
+  final Set<String> _selectedMobilityAids = {};
 
-  final TextEditingController _medicalNotesController = TextEditingController(
-    text: 'cth. Alergi penisilin, riwayat asma akut,\nbutuh bantuan panduan verbal saat kepanikan.',
-  );
-  final TextEditingController _contactNameController =
-      TextEditingController(text: 'Siti Rahmawati (Ibu Kandung)');
-  final TextEditingController _contactPhoneController =
-      TextEditingController(text: '812 8899 4432');
+  final TextEditingController _medicalNotesController = TextEditingController();
+  final TextEditingController _contactNameController = TextEditingController();
+  final TextEditingController _contactPhoneController = TextEditingController();
 
   bool _voiceGuidanceEnabled = true;
   bool _hapticVibrationEnabled = true;
@@ -47,41 +43,73 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
     return Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildProgressSection(),
-              const SizedBox(height: 18),
-              _buildCardContainer(
-                child: const Text(
-                  'Personalisasi Perlindungan\nDarurat',
-                  style: TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1A1A2E),
-                    height: 1.3,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  child: IntrinsicHeight(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildProgressSection(),
+                        const SizedBox(height: 18),
+                        _buildBrandRow(),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Personalisasi Perlindungan\nDarurat',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1A1A2E),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Penentuan profil disabilitas, sensor SOS &\nkontak darurat untuk ketepatan bantuan.',
+                          style: TextStyle(fontSize: 13.5, color: mutedText, height: 1.4),
+                        ),
+                        const SizedBox(height: 22),
+                        _buildSectionHeader(Icons.accessibility_new_rounded, 'Kebutuhan Utama'),
+                        const SizedBox(height: 12),
+                        _buildNeedGrid(),
+                        const SizedBox(height: 22),
+                        _buildMedicalNeedsCard(),
+                        const SizedBox(height: 22),
+                        _buildEmergencyContactCard(),
+                        const SizedBox(height: 22),
+                        _buildSensorCard(),
+                        const Spacer(),
+                        const SizedBox(height: 22),
+                        _buildSubmitButton(),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 18),
-              _buildSectionHeader(Icons.accessibility_new_rounded, 'Kebutuhan Utama'),
-              const SizedBox(height: 12),
-              _buildNeedGrid(),
-              const SizedBox(height: 18),
-              _buildMedicalNeedsCard(),
-              const SizedBox(height: 18),
-              _buildEmergencyContactCard(),
-              const SizedBox(height: 18),
-              _buildSensorCard(),
-              const SizedBox(height: 22),
-              _buildSubmitButton(),
-              const SizedBox(height: 12),
-            ],
-          ),
+            );
+          },
         ),
       ),
+    );
+  }
+
+  Widget _buildBrandRow() {
+    return Row(
+      children: const [
+        Text(
+          'Sahabat SOS',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: primaryDark,
+          ),
+        ),
+        SizedBox(width: 6),
+        Icon(Icons.verified_rounded, size: 16, color: accentTeal),
+      ],
     );
   }
 
@@ -90,28 +118,15 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: const [
-            Row(
-              children: [
-                Icon(Icons.verified_user_outlined, size: 15, color: accentTeal),
-                SizedBox(width: 6),
-                Text(
-                  'Langkah 2 dari 2: Personalisasi Darurat',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A1A2E),
-                  ),
-                ),
-              ],
-            ),
+            Icon(Icons.verified_user_outlined, size: 15, color: accentTeal),
+            SizedBox(width: 6),
             Text(
-              '100%',
+              'Langkah 2 dari 2: Personalisasi Darurat',
               style: TextStyle(
-                fontSize: 12.5,
+                fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: accentTeal,
+                color: Color(0xFF1A1A2E),
               ),
             ),
           ],
@@ -134,25 +149,6 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildCardContainer({required Widget child, EdgeInsetsGeometry? padding}) {
-    return Container(
-      width: double.infinity,
-      padding: padding ?? const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: child,
     );
   }
 
@@ -287,69 +283,68 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
   }
 
   Widget _buildMedicalNeedsCard() {
-    return _buildCardContainer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionHeader(Icons.medical_services_outlined, 'Kebutuhan Khusus & Medis'),
-          const SizedBox(height: 14),
-          const Text(
-            'Alat Bantu Mobilitas / Penginderaan:',
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1A1A2E),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.medical_services_outlined, 'Kebutuhan Khusus & Medis'),
+        const SizedBox(height: 14),
+        const Text(
+          'Alat Bantu Mobilitas / Penginderaan:',
+          style: TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1A1A2E),
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _buildChip('Tongkat Pemandu', checkStyle: true),
-              _buildChip('Kursi Roda'),
-              _buildChip('Alat Dengar'),
-              _buildChip('Pemandu Hewan'),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text(
-                'Catatan Medis Penting',
-                style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A2E),
-                ),
-              ),
-              Text(
-                '(Disampaikan ke\nParamedis)',
-                textAlign: TextAlign.right,
-                style: TextStyle(fontSize: 11, color: mutedText, height: 1.2),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Container(
-            decoration: BoxDecoration(
-              color: fieldFill,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: TextField(
-              controller: _medicalNotesController,
-              maxLines: 3,
-              style: const TextStyle(fontSize: 13.5, color: Color(0xFF1A1A2E), height: 1.4),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.all(14),
-                suffixIcon: Icon(Icons.mic_none_rounded, color: Color(0xFF8A8FA3)),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _buildChip('Tongkat Pemandu', checkStyle: true),
+            _buildChip('Kursi Roda'),
+            _buildChip('Alat Dengar'),
+            _buildChip('Pemandu Hewan'),
+          ],
+        ),
+        const SizedBox(height: 18),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: const [
+            Text(
+              'Catatan Medis Penting',
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1A1A2E),
               ),
             ),
+            Text(
+              '(Disampaikan ke\nParamedis)',
+              textAlign: TextAlign.right,
+              style: TextStyle(fontSize: 11, color: mutedText, height: 1.2),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Container(
+          decoration: BoxDecoration(
+            color: fieldFill,
+            borderRadius: BorderRadius.circular(14),
           ),
-        ],
-      ),
+          child: TextField(
+            controller: _medicalNotesController,
+            maxLines: 3,
+            style: const TextStyle(fontSize: 13.5, color: Color(0xFF1A1A2E), height: 1.4),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              hintText: 'cth. Alergi penisilin, riwayat asma...',
+              hintStyle: TextStyle(fontSize: 13.5, color: Color(0xFFB0B4C4)),
+              contentPadding: EdgeInsets.all(14),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -396,62 +391,64 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
   }
 
   Widget _buildEmergencyContactCard() {
-    return _buildCardContainer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionHeader(Icons.badge_outlined, 'Kontak Darurat Utama'),
-          const SizedBox(height: 16),
-          _buildLabelRequired('Nama Kontak / Hubungan Keluarga'),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: fieldFill,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: TextField(
-              controller: _contactNameController,
-              style: const TextStyle(fontSize: 14.5, color: Color(0xFF1A1A2E)),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                suffixIcon: Icon(Icons.badge_outlined, color: Color(0xFF8A8FA3)),
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.badge_outlined, 'Kontak Darurat Utama'),
+        const SizedBox(height: 16),
+        _buildLabelRequired('Nama Kontak / Hubungan Keluarga'),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: fieldFill,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: TextField(
+            controller: _contactNameController,
+            style: const TextStyle(fontSize: 14.5, color: Color(0xFF1A1A2E)),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              hintText: 'Masukkan nama kontak',
+              hintStyle: TextStyle(fontSize: 14, color: Color(0xFFB0B4C4)),
+              contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              suffixIcon: Icon(Icons.badge_outlined, color: Color(0xFF8A8FA3)),
             ),
           ),
-          const SizedBox(height: 16),
-          _buildLabelRequired('Nomor WhatsApp / Panggilan Aktif'),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: fieldFill,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: TextField(
-              controller: _contactPhoneController,
-              keyboardType: TextInputType.phone,
-              style: const TextStyle(fontSize: 14.5, color: Color(0xFF1A1A2E)),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                prefixIcon: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 14),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: 1,
-                    child: Text(
-                      '+62',
-                      style: TextStyle(fontSize: 14.5, color: Color(0xFF1A1A2E)),
-                    ),
+        ),
+        const SizedBox(height: 16),
+        _buildLabelRequired('Nomor WhatsApp / Panggilan Aktif'),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: fieldFill,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: TextField(
+            controller: _contactPhoneController,
+            keyboardType: TextInputType.phone,
+            style: const TextStyle(fontSize: 14.5, color: Color(0xFF1A1A2E)),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              hintText: 'Masukkan nomor WhatsApp',
+              hintStyle: TextStyle(fontSize: 14, color: Color(0xFFB0B4C4)),
+              contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              prefixIcon: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 14),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: 1,
+                  child: Text(
+                    '+62',
+                    style: TextStyle(fontSize: 14.5, color: Color(0xFF1A1A2E)),
                   ),
                 ),
-                prefixIconConstraints: BoxConstraints(minWidth: 0, minHeight: 0),
-                suffixIcon: Icon(Icons.smartphone_outlined, color: Color(0xFF8A8FA3)),
               ),
+              prefixIconConstraints: BoxConstraints(minWidth: 0, minHeight: 0),
+              suffixIcon: Icon(Icons.smartphone_outlined, color: Color(0xFF8A8FA3)),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -475,34 +472,32 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
   }
 
   Widget _buildSensorCard() {
-    return _buildCardContainer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionHeader(Icons.tune_rounded, 'Sensor & Aksesibilitas'),
-          const SizedBox(height: 16),
-          _buildSensorToggleRow(
-            icon: Icons.record_voice_over_outlined,
-            label: 'Panduan Suara Otomatis',
-            value: _voiceGuidanceEnabled,
-            onChanged: (v) => setState(() => _voiceGuidanceEnabled = v),
-          ),
-          const SizedBox(height: 16),
-          _buildSensorToggleRow(
-            icon: Icons.vibration_rounded,
-            label: 'Getaran Haptik Penuh',
-            value: _hapticVibrationEnabled,
-            onChanged: (v) => setState(() => _hapticVibrationEnabled = v),
-          ),
-          const SizedBox(height: 16),
-          _buildSensorToggleRow(
-            icon: Icons.flashlight_on_outlined,
-            label: 'Sirene & Strobo Flash',
-            value: _sirenStroboEnabled,
-            onChanged: (v) => setState(() => _sirenStroboEnabled = v),
-          ),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.tune_rounded, 'Sensor & Aksesibilitas'),
+        const SizedBox(height: 16),
+        _buildSensorToggleRow(
+          icon: Icons.record_voice_over_outlined,
+          label: 'Panduan Suara Otomatis',
+          value: _voiceGuidanceEnabled,
+          onChanged: (v) => setState(() => _voiceGuidanceEnabled = v),
+        ),
+        const SizedBox(height: 16),
+        _buildSensorToggleRow(
+          icon: Icons.vibration_rounded,
+          label: 'Getaran Haptik Penuh',
+          value: _hapticVibrationEnabled,
+          onChanged: (v) => setState(() => _hapticVibrationEnabled = v),
+        ),
+        const SizedBox(height: 16),
+        _buildSensorToggleRow(
+          icon: Icons.flashlight_on_outlined,
+          label: 'Sirene & Strobo Flash',
+          value: _sirenStroboEnabled,
+          onChanged: (v) => setState(() => _sirenStroboEnabled = v),
+        ),
+      ],
     );
   }
 

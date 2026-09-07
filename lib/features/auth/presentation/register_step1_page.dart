@@ -47,9 +47,9 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildProgressSection(),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 12),
                         _buildBrandRow(),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 6),
                         const Text(
                           'Daftar Akun Sahabat SOS',
                           style: TextStyle(
@@ -58,38 +58,24 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
                             color: Color(0xFF1A1A2E),
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 4),
                         const Text(
                           'Lengkapi data untuk perlindungan darurat\nterpadu dan respons relawan cepat.',
                           style: TextStyle(fontSize: 13.5, color: mutedText, height: 1.4),
                         ),
-                        const SizedBox(height: 22),
-                        const Text(
-                          'Pilih Profil Kebutuhan',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1A1A2E),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Sangat penting untuk penyesuaian sensor SOS &\ninteraksi tim penolong.',
-                          style: TextStyle(fontSize: 13, color: mutedText, height: 1.4),
-                        ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 20),
                         _buildGoogleCard(),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
                         _buildDividerWithText('ATAU DAFTAR MANUAL'),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 16),
                         _buildUsernameField(),
-                        const SizedBox(height: 18),
-                        _buildPasswordField(),
-                        const SizedBox(height: 18),
-                        _buildTermsCheckbox(),
-                        const SizedBox(height: 20),
-                        _buildContinueButton(),
                         const SizedBox(height: 14),
+                        _buildPasswordField(),
+                        const SizedBox(height: 14),
+                        _buildTermsCheckbox(),
+                        const SizedBox(height: 32),
+                        _buildContinueButton(),
+                        const SizedBox(height: 16),
                         _buildNextStepHint(),
                         const Spacer(),
                         const SizedBox(height: 20),
@@ -128,28 +114,15 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: const [
-            Row(
-              children: [
-                Icon(Icons.person_add_alt_1_outlined, size: 15, color: accentTeal),
-                SizedBox(width: 6),
-                Text(
-                  'Langkah 1 dari 2: Registrasi Akun',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A1A2E),
-                  ),
-                ),
-              ],
-            ),
+            Icon(Icons.person_add_alt_1_outlined, size: 15, color: accentTeal),
+            SizedBox(width: 6),
             Text(
-              '50%',
+              'Langkah 1 dari 2: Registrasi Akun',
               style: TextStyle(
-                fontSize: 12.5,
+                fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: accentTeal,
+                color: Color(0xFF1A1A2E),
               ),
             ),
           ],
@@ -250,19 +223,11 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: const [
             Text(
-              'Username (Gmail)',
+              'Username (Email)',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
                 color: Color(0xFF1A1A2E),
-              ),
-            ),
-            Text(
-              '*Wajib',
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFFE0483F),
               ),
             ),
           ],
@@ -302,14 +267,6 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
                 color: Color(0xFF1A1A2E),
-              ),
-            ),
-            Text(
-              '*Wajib',
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFFE0483F),
               ),
             ),
           ],
