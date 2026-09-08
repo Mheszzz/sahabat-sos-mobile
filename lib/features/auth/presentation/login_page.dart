@@ -11,9 +11,9 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  static const Color primaryDark = Color(0xFF043329); // Dark green
+  static const Color primaryDark = Color(0xFF006D77); // Dark green
   static const Color accentTeal = Color(0xFF1E8B75); // Teal/green accent text
-  static const Color bgColor = Color(0xFFFAFAFC); // Very light greyish
+  static const Color bgColor = Color(0xFFEFEFEF); // Very light greyish
   static const Color cardColor = Colors.white;
 
   final TextEditingController _emailController = TextEditingController();
@@ -274,7 +274,7 @@ class _LoginPageState extends State<LoginPage> {
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
           child: const Text(
-            'Lupa PIN / Sandi?',
+            'Lupa Sandi?',
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,

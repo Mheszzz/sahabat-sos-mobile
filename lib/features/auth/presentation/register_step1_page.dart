@@ -10,9 +10,9 @@ class RegisterStep1Page extends StatefulWidget {
 }
 
 class _RegisterStep1PageState extends State<RegisterStep1Page> {
-  static const Color primaryDark = Color(0xFF0D3B2E);
+  static const Color primaryDark = Color(0xFF006D77);
   static const Color accentTeal = Color(0xFF0E9F6E);
-  static const Color bgColor = Color(0xFFF3F5FB);
+  static const Color bgColor = Color(0xFFEFEFEF);
   static const Color fieldFill = Color(0xFFEFF1F8);
   static const Color mutedText = Color(0xFF6B7080);
 

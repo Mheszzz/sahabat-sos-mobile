@@ -12,9 +12,9 @@ class RegisterStep2Page extends StatefulWidget {
 }
 
 class _RegisterStep2PageState extends State<RegisterStep2Page> {
-  static const Color primaryDark = Color(0xFF0D3B2E);
+  static const Color primaryDark = Color(0xFF006D77);
   static const Color accentTeal = Color(0xFF0E9F6E);
-  static const Color bgColor = Color(0xFFF3F5FB);
+  static const Color bgColor = Color(0xFFEFEFEF);
   static const Color fieldFill = Color(0xFFEFF1F8);
   static const Color mutedText = Color(0xFF6B7080);
 
@@ -172,44 +172,50 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
   Widget _buildNeedGrid() {
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildNeedCard(
-                type: _NeedType.disabilitasNetra,
-                icon: Icons.visibility_off_outlined,
-                label: 'Disabilitas Netra',
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _buildNeedCard(
+                  type: _NeedType.disabilitasNetra,
+                  icon: Icons.visibility_off_outlined,
+                  label: 'Disabilitas Netra',
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildNeedCard(
-                type: _NeedType.tunarunguWicara,
-                icon: Icons.hearing_disabled_outlined,
-                label: 'Tunarungu /\nWicara',
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildNeedCard(
+                  type: _NeedType.tunarunguWicara,
+                  icon: Icons.hearing_disabled_outlined,
+                  label: 'Tunarungu /\nWicara',
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildNeedCard(
-                type: _NeedType.fisikMotorik,
-                icon: Icons.accessible_rounded,
-                label: 'Fisik / Motorik',
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _buildNeedCard(
+                  type: _NeedType.fisikMotorik,
+                  icon: Icons.accessible_rounded,
+                  label: 'Fisik / Motorik',
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildNeedCard(
-                type: _NeedType.umumLansia,
-                icon: Icons.groups_outlined,
-                label: 'Umum / Lansia',
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildNeedCard(
+                  type: _NeedType.umumLansia,
+                  icon: Icons.groups_outlined,
+                  label: 'Umum / Lansia',
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
