@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:sahabat_sos_mobile/features/auth/presentation/login_page.dart';
 import 'package:sahabat_sos_mobile/features/auth/presentation/register_step1_page.dart';
 import 'package:sahabat_sos_mobile/features/auth/presentation/register_step2_page.dart';
+import 'package:sahabat_sos_mobile/features/dashboard/presentation/dashboard_page.dart';
 
 import 'routes.dart';
 
@@ -29,6 +30,10 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.registerStep2,
         builder: (context, state) => const RegisterStep2Page(),
+      ),
+      GoRoute(
+        path: AppRoutes.dashboard,
+        builder: (context, state) => const DashboardPage(),
       ),
       // TODO: Add more routes here (Home User, Home Relawan, dll)
     ],
