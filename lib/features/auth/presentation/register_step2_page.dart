@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:sahabat_sos_mobile/routing/routes.dart';
+import 'package:dio/dio.dart';
+import 'package:get_it/get_it.dart' as get_it;
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/constants/api_constants.dart';
+import '../../../../routing/routes.dart';
 
-enum _NeedType { disabilitasNetra, tunarunguWicara, fisikMotorik, umumLansia }
+enum _NeedType { tunanetra, tunarungu, tunawicara, umum }
 
 class RegisterStep2Page extends StatefulWidget {
   const RegisterStep2Page({super.key});
@@ -18,23 +22,20 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
   static const Color fieldFill = Color(0xFFEFF1F8);
   static const Color mutedText = Color(0xFF6B7080);
 
-  _NeedType _selectedNeed = _NeedType.disabilitasNetra;
+  _NeedType _selectedNeed = _NeedType.umum;
 
-  final Set<String> _selectedMobilityAids = {};
-
-  final TextEditingController _medicalNotesController = TextEditingController();
-  final TextEditingController _contactNameController = TextEditingController();
-  final TextEditingController _contactPhoneController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _userPhoneController = TextEditingController();
 
   bool _voiceGuidanceEnabled = true;
   bool _hapticVibrationEnabled = true;
-  bool _sirenStroboEnabled = true;
+  bool _talkbackEnabled = false;
+  bool _largeTextEnabled = false;
 
   @override
   void dispose() {
-    _medicalNotesController.dispose();
-    _contactNameController.dispose();
-    _contactPhoneController.dispose();
+    _addressController.dispose();
+    _userPhoneController.dispose();
     super.dispose();
   }
 
@@ -72,13 +73,13 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                           style: TextStyle(fontSize: 13.5, color: mutedText, height: 1.4),
                         ),
                         const SizedBox(height: 22),
+                        _buildSectionHeader(Icons.person_outline, 'Informasi Pribadi'),
+                        const SizedBox(height: 12),
+                        _buildPersonalInfoCard(),
+                        const SizedBox(height: 22),
                         _buildSectionHeader(Icons.accessibility_new_rounded, 'Kebutuhan Utama'),
                         const SizedBox(height: 12),
                         _buildNeedGrid(),
-                        const SizedBox(height: 22),
-                        _buildMedicalNeedsCard(),
-                        const SizedBox(height: 22),
-                        _buildEmergencyContactCard(),
                         const SizedBox(height: 22),
                         _buildSensorCard(),
                         const Spacer(),
@@ -169,6 +170,76 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
     );
   }
 
+  Widget _buildPersonalInfoCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFDCE6DF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Nomor Telepon Pribadi',
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1A1A2E),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: fieldFill,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TextField(
+              controller: _userPhoneController,
+              keyboardType: TextInputType.phone,
+              style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                hintText: 'Contoh: 081234567890',
+                hintStyle: TextStyle(fontSize: 13, color: Color(0xFFB0B4C4)),
+                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                prefixIcon: Icon(Icons.phone_outlined, color: Color(0xFF8A8FA3)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Alamat Lengkap',
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1A1A2E),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: fieldFill,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TextField(
+              controller: _addressController,
+              maxLines: 3,
+              style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                hintText: 'Masukkan alamat tempat tinggal...',
+                hintStyle: TextStyle(fontSize: 13, color: Color(0xFFB0B4C4)),
+                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildNeedGrid() {
     return Column(
       children: [
@@ -178,17 +249,17 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
             children: [
               Expanded(
                 child: _buildNeedCard(
-                  type: _NeedType.disabilitasNetra,
+                  type: _NeedType.tunanetra,
                   icon: Icons.visibility_off_outlined,
-                  label: 'Disabilitas Netra',
+                  label: 'Tunanetra',
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _buildNeedCard(
-                  type: _NeedType.tunarunguWicara,
+                  type: _NeedType.tunarungu,
                   icon: Icons.hearing_disabled_outlined,
-                  label: 'Tunarungu /\nWicara',
+                  label: 'Tunarungu',
                 ),
               ),
             ],
@@ -201,17 +272,17 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
             children: [
               Expanded(
                 child: _buildNeedCard(
-                  type: _NeedType.fisikMotorik,
-                  icon: Icons.accessible_rounded,
-                  label: 'Fisik / Motorik',
+                  type: _NeedType.tunawicara,
+                  icon: Icons.speaker_notes_off_outlined,
+                  label: 'Tunawicara',
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _buildNeedCard(
-                  type: _NeedType.umumLansia,
-                  icon: Icons.groups_outlined,
-                  label: 'Umum / Lansia',
+                  type: _NeedType.umum,
+                  icon: Icons.person_outline_rounded,
+                  label: 'Umum',
                 ),
               ),
             ],
@@ -288,195 +359,6 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
     );
   }
 
-  Widget _buildMedicalNeedsCard() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader(Icons.medical_services_outlined, 'Kebutuhan Khusus & Medis'),
-        const SizedBox(height: 14),
-        const Text(
-          'Alat Bantu Mobilitas / Penginderaan:',
-          style: TextStyle(
-            fontSize: 13.5,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF1A1A2E),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            _buildChip('Tongkat Pemandu', checkStyle: true),
-            _buildChip('Kursi Roda'),
-            _buildChip('Alat Dengar'),
-            _buildChip('Pemandu Hewan'),
-          ],
-        ),
-        const SizedBox(height: 18),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: const [
-            Text(
-              'Catatan Medis Penting',
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1A1A2E),
-              ),
-            ),
-            Text(
-              '(Disampaikan ke\nParamedis)',
-              textAlign: TextAlign.right,
-              style: TextStyle(fontSize: 11, color: mutedText, height: 1.2),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Container(
-          decoration: BoxDecoration(
-            color: fieldFill,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: TextField(
-            controller: _medicalNotesController,
-            maxLines: 3,
-            style: const TextStyle(fontSize: 13.5, color: Color(0xFF1A1A2E), height: 1.4),
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              hintText: 'cth. Alergi penisilin, riwayat asma...',
-              hintStyle: TextStyle(fontSize: 13.5, color: Color(0xFFB0B4C4)),
-              contentPadding: EdgeInsets.all(14),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildChip(String label, {bool checkStyle = false}) {
-    final bool selected = _selectedMobilityAids.contains(label);
-    return InkWell(
-      borderRadius: BorderRadius.circular(30),
-      onTap: () {
-        setState(() {
-          if (selected) {
-            _selectedMobilityAids.remove(label);
-          } else {
-            _selectedMobilityAids.add(label);
-          }
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? primaryDark : fieldFill,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              selected ? Icons.check : Icons.add,
-              size: 15,
-              color: selected ? Colors.white : const Color(0xFF6B7080),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: selected ? Colors.white : const Color(0xFF1A1A2E),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmergencyContactCard() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader(Icons.badge_outlined, 'Kontak Darurat Utama'),
-        const SizedBox(height: 16),
-        _buildLabelRequired('Nama Kontak / Hubungan Keluarga'),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: fieldFill,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: TextField(
-            controller: _contactNameController,
-            style: const TextStyle(fontSize: 14.5, color: Color(0xFF1A1A2E)),
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              hintText: 'Masukkan nama kontak',
-              hintStyle: TextStyle(fontSize: 14, color: Color(0xFFB0B4C4)),
-              contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              suffixIcon: Icon(Icons.badge_outlined, color: Color(0xFF8A8FA3)),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        _buildLabelRequired('Nomor WhatsApp / Panggilan Aktif'),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: fieldFill,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: TextField(
-            controller: _contactPhoneController,
-            keyboardType: TextInputType.phone,
-            style: const TextStyle(fontSize: 14.5, color: Color(0xFF1A1A2E)),
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              hintText: 'Masukkan nomor WhatsApp',
-              hintStyle: TextStyle(fontSize: 14, color: Color(0xFFB0B4C4)),
-              contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              prefixIcon: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 14),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: 1,
-                  child: Text(
-                    '+62',
-                    style: TextStyle(fontSize: 14.5, color: Color(0xFF1A1A2E)),
-                  ),
-                ),
-              ),
-              prefixIconConstraints: BoxConstraints(minWidth: 0, minHeight: 0),
-              suffixIcon: Icon(Icons.smartphone_outlined, color: Color(0xFF8A8FA3)),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLabelRequired(String label) {
-    return RichText(
-      text: TextSpan(
-        style: const TextStyle(
-          fontSize: 13.5,
-          fontWeight: FontWeight.w700,
-          color: Color(0xFF1A1A2E),
-        ),
-        children: [
-          TextSpan(text: label),
-          const TextSpan(
-            text: ' *',
-            style: TextStyle(color: Color(0xFFE0483F)),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSensorCard() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -498,10 +380,17 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
         ),
         const SizedBox(height: 16),
         _buildSensorToggleRow(
-          icon: Icons.flashlight_on_outlined,
-          label: 'Sirene & Strobo Flash',
-          value: _sirenStroboEnabled,
-          onChanged: (v) => setState(() => _sirenStroboEnabled = v),
+          icon: Icons.hearing_rounded,
+          label: 'TalkBack / Pembaca Layar',
+          value: _talkbackEnabled,
+          onChanged: (v) => setState(() => _talkbackEnabled = v),
+        ),
+        const SizedBox(height: 16),
+        _buildSensorToggleRow(
+          icon: Icons.text_increase_rounded,
+          label: 'Teks Besar / High Contrast',
+          value: _largeTextEnabled,
+          onChanged: (v) => setState(() => _largeTextEnabled = v),
         ),
       ],
     );
@@ -545,12 +434,77 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
     );
   }
 
+  Future<void> _submitProfile() async {
+    final dio = get_it.GetIt.instance<Dio>();
+    final prefs = get_it.GetIt.instance<SharedPreferences>();
+    final token = prefs.getString('auth_token');
+
+    if (token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sesi tidak ditemukan, silakan login ulang.')));
+      return;
+    }
+
+    if (_addressController.text.isEmpty || _userPhoneController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nomor Telepon & Alamat wajib diisi!')));
+      return;
+    }
+
+    String kategori = 'umum';
+    if (_selectedNeed == _NeedType.tunanetra) kategori = 'tunanetra';
+    if (_selectedNeed == _NeedType.tunarungu) kategori = 'tunarungu';
+    if (_selectedNeed == _NeedType.tunawicara) kategori = 'tunawicara';
+
+    try {
+      // Menampilkan Loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final response = await dio.post(
+        ApiConstants.completeProfile,
+        data: {
+          'alamat': _addressController.text,
+          'no_telp': _userPhoneController.text,
+          'kategori_user': kategori,
+          'getaran': _hapticVibrationEnabled,
+          'talkback': _talkbackEnabled,
+          'panduan_suara': _voiceGuidanceEnabled,
+          'text_besar': _largeTextEnabled,
+          'status_ketersediaan': 'aktif',
+        },
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      if (context.mounted) Navigator.pop(context); // Tutup Loading
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profil berhasil disimpan!')));
+        context.go(AppRoutes.dashboard);
+      } else {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menyimpan profil: ${response.data}')));
+      }
+    } catch (e) {
+      if (context.mounted) Navigator.pop(context); // Tutup Loading
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi kesalahan: $e')));
+    }
+  }
+
   Widget _buildSubmitButton() {
     return SizedBox(
       width: double.infinity,
       height: 58,
       child: ElevatedButton(
-        onPressed: () {},
+        onPressed: _submitProfile,
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryDark,
           foregroundColor: Colors.white,

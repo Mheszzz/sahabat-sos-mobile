@@ -1,6 +1,7 @@
 class ApiConstants {
-  // Use 10.0.2.2 for Android emulator, 127.0.0.1 for iOS simulator, or your computer's local IP for physical device
-  static const String baseUrl = 'http://10.0.2.2:8000/api';
+  // Gunakan IP komputer lokal (192.168.1.2) agar bisa diakses oleh HP Fisik di jaringan Wi-Fi yang sama
+  static const String baseUrl = 'http://192.168.1.2:8000/api';
   
-  static const String authGoogle = '$baseUrl/auth/google';
+  static const String authGoogle = '$baseUrl/auth/google/mobile';
+  static const String completeProfile = '$baseUrl/user/complete-profile';
 }
