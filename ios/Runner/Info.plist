@@ -4,6 +4,10 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Aplikasi membutuhkan akses lokasi untuk mendeteksi posisi Anda saat ini dan membagikannya ke layanan darurat.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Aplikasi membutuhkan akses lokasi untuk mendeteksi posisi Anda saat ini dan membagikannya ke layanan darurat.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

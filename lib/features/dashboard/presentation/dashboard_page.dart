@@ -1,9 +1,115 @@
+import 'dart:async';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sahabat_sos_mobile/routing/routes.dart';
+import 'package:sahabat_sos_mobile/core/services/location_service.dart';
+import 'package:sahabat_sos_mobile/core/di/injection.dart';
+import 'package:geolocator/geolocator.dart';
 
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
+
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  final _locationService = sl<LocationService>();
+  StreamSubscription<ServiceStatus>? _serviceStatusStream;
+  bool _isDialogShowing = false;
+  final MapController _mapController = MapController();
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLocation();
+    _listenToLocationServiceChanges();
+    
+    // Auto-center map saat lokasi berubah
+    _locationService.currentPosition.addListener(() {
+      final pos = _locationService.currentPosition.value;
+      if (pos != null) {
+        _mapController.move(LatLng(pos.latitude, pos.longitude), 17.0);
+      }
+    });
+  }
+
+  void _listenToLocationServiceChanges() {
+// ... same as before
+    _serviceStatusStream = Geolocator.getServiceStatusStream().listen(
+      (ServiceStatus status) {
+        if (status == ServiceStatus.disabled) {
+          _locationService.stopTracking();
+          if (!_isDialogShowing) {
+            _showLocationDeniedDialog();
+          }
+        } else if (status == ServiceStatus.enabled) {
+          if (_isDialogShowing) {
+            Navigator.pop(context); // Tutup dialog
+            _isDialogShowing = false;
+          }
+          _checkLocation(); 
+        }
+      },
+    );
+  }
+
+  Future<void> _checkLocation() async {
+    final hasPermission = await _locationService.requestPermission();
+    if (!hasPermission) {
+      if (!mounted) return;
+      if (!_isDialogShowing) {
+        _showLocationDeniedDialog();
+      }
+    } else {
+      _locationService.startTracking();
+    }
+  }
+
+  void _showLocationDeniedDialog() {
+    _isDialogShowing = true;
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Wajib menyalakan GPS
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Akses Lokasi Dibutuhkan'),
+          content: const Text(
+            'Aplikasi ini membutuhkan akses GPS untuk mendeteksi lokasi keadaan darurat.\n\nHarap nyalakan GPS dan berikan izin lokasi di pengaturan HP Anda.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                _isDialogShowing = false;
+                context.go(AppRoutes.login);
+              },
+              child: const Text('Batal & Keluar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                _isDialogShowing = false;
+                Navigator.pop(context);
+                _checkLocation(); // Cek lagi
+              },
+              child: const Text('Coba Lagi'),
+            ),
+          ],
+        );
+      },
+    ).then((_) {
+      _isDialogShowing = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    _serviceStatusStream?.cancel();
+    _locationService.stopTracking();
+    _mapController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -11,52 +117,87 @@ class DashboardPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Dashboard Sementara'),
         backgroundColor: const Color(0xFF006D77),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => context.go(AppRoutes.login),
+          )
+        ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.check_circle_outline,
-              color: Color(0xFF0E9F6E),
-              size: 100,
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Berhasil Masuk!',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1A1A2E),
+      body: ValueListenableBuilder<Position?>(
+        valueListenable: _locationService.currentPosition,
+        builder: (context, position, child) {
+          if (position == null) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: Color(0xFF006D77)),
+                  SizedBox(height: 16),
+                  Text('Menunggu Sinyal GPS...'),
+                ],
               ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Login / Registrasi Anda berhasil.\nIni adalah halaman dashboard sementara.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                color: Color(0xFF6B7080),
+            );
+          }
+
+          final latLng = LatLng(position.latitude, position.longitude);
+
+          return Stack(
+            children: [
+              FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter: latLng,
+                  initialZoom: 17.0,
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.sahabat_sos_mobile.app',
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: latLng,
+                        width: 50,
+                        height: 50,
+                        child: const Icon(
+                          Icons.my_location,
+                          color: Colors.blue,
+                          size: 40,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 48),
-            ElevatedButton.icon(
-              onPressed: () {
-                context.go(AppRoutes.login);
-              },
-              icon: const Icon(Icons.logout),
-              label: const Text('Keluar'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF006D77),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+              Positioned(
+                bottom: 20,
+                left: 20,
+                right: 20,
+                child: Card(
+                  elevation: 4,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Lokasi Anda Saat Ini',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        Text('Lat: ${position.latitude}'),
+                        Text('Lng: ${position.longitude}'),
+                        Text('Akurasi: ±${position.accuracy.toStringAsFixed(1)} meter'),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
   }
