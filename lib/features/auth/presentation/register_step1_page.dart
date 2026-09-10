@@ -15,21 +15,9 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
   static const Color primaryDark = Color(0xFF006D77);
   static const Color accentTeal = Color(0xFF0E9F6E);
   static const Color bgColor = Color(0xFFEFEFEF);
-  static const Color fieldFill = Color(0xFFEFF1F8);
   static const Color mutedText = Color(0xFF6B7080);
 
-  final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-
-  bool _obscurePassword = true;
   bool _agreedToTerms = true;
-
-  @override
-  void dispose() {
-    _usernameController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,25 +128,26 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
     );
   }
 
+  bool _isLoading = false;
+
   Widget _buildGoogleCard(BuildContext context) {
     return InkWell(
-      onTap: () async {
+      onTap: _isLoading ? null : () async {
+        setState(() {
+          _isLoading = true;
+        });
         try {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Memulai Registrasi Google...')),
-          );
-
           final authDataSource = get_it.GetIt.instance<AuthRemoteDataSource>();
           final result = await authDataSource.signInWithGoogle();
 
           if (!context.mounted) return;
 
+          setState(() {
+            _isLoading = false;
+          });
+
           if (result != null) {
             final bool isProfileComplete = result['is_profile_complete'] ?? false;
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Berhasil Registrasi dengan Google!')),
-            );
 
             if (isProfileComplete) {
               context.go(AppRoutes.dashboard);
@@ -172,6 +161,9 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
           }
         } catch (e) {
           if (!context.mounted) return;
+          setState(() {
+            _isLoading = false;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Gagal Registrasi: $e')),
           );
@@ -187,16 +179,25 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
       ),
       child: Row(
         children: [
-          Image.network(
-            'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png',
-            width: 26,
-            height: 26,
-            errorBuilder: (_, __, ___) => const Icon(
-              Icons.error_outline,
-              size: 26,
-              color: Colors.red,
-            ),
-          ),
+          _isLoading
+              ? const SizedBox(
+                  width: 26,
+                  height: 26,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(primaryDark),
+                  ),
+                )
+              : Image.network(
+                  'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png',
+                  width: 26,
+                  height: 26,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.error_outline,
+                    size: 26,
+                    color: Colors.red,
+                  ),
+                ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(

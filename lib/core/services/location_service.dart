@@ -6,6 +6,7 @@ import 'package:geocoding/geocoding.dart' as geo;
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
+import 'package:flutter/foundation.dart';
 
 class LocationService {
   final Dio dio;
@@ -15,6 +16,7 @@ class LocationService {
 
   StreamSubscription<Position>? _positionStreamSubscription;
   final ValueNotifier<Position?> currentPosition = ValueNotifier(null);
+  Position? _lastGeocodedPosition;
 
   /// Memeriksa status GPS dan Izin (Permissions).
   /// Memaksa user menyalakan GPS dan memberikan izin.
@@ -51,22 +53,22 @@ class LocationService {
     if (Platform.isAndroid) {
       // Untuk Android: Memaksa menggunakan chip GPS perangkat langsung (bukan estimasi Google / WiFi)
       locationSettings = AndroidSettings(
-        accuracy: LocationAccuracy.best,
-        distanceFilter: 5, // Update setiap bergeser 5 meter
-        forceLocationManager: true, // INI KUNCI untuk akurasi maksimal di Android
-        intervalDuration: const Duration(seconds: 5), // Update max tiap 5 detik
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 15, // Update setiap bergeser 15 meter
+        forceLocationManager: false, // Gunakan Fused Location Provider (lebih hemat baterai)
+        intervalDuration: const Duration(seconds: 10), // Update max tiap 10 detik
       );
     } else if (Platform.isIOS || Platform.isMacOS) {
       // Untuk iOS: Menggunakan akurasi khusus navigasi yang paling detail
       locationSettings = AppleSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
+        accuracy: LocationAccuracy.best,
         activityType: ActivityType.otherNavigation,
-        distanceFilter: 5,
+        distanceFilter: 15,
       );
     } else {
       locationSettings = const LocationSettings(
-        accuracy: LocationAccuracy.best,
-        distanceFilter: 5,
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 15,
       );
     }
 
@@ -84,23 +86,34 @@ class LocationService {
     _positionStreamSubscription = null;
   }
 
-  /// Mengirim koordinat dan alamat ke Backend
+  /// Mengirim koordinat dan alamat ke Backend (dengan throttle geocoding)
   Future<void> _sendLocationToBackend(Position position) async {
     try {
       final token = prefs.getString('auth_token');
       if (token == null) return; // User belum login
 
-      // Opsional: Dapatkan teks alamat (reverse geocoding)
+      // Throttle geocoding: hanya geocode jika bergerak > 50 meter dari posisi terakhir
       String alamat = "Lokasi Tidak Diketahui";
       try {
-        final geocoding = geo.Geocoding();
-        List<geo.Placemark> placemarks = await geocoding.placemarkFromCoordinates(
-          position.latitude,
-          position.longitude,
-        );
-        if (placemarks.isNotEmpty) {
-          geo.Placemark place = placemarks.first;
-          alamat = "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
+        bool shouldGeocode = _lastGeocodedPosition == null ||
+            Geolocator.distanceBetween(
+              _lastGeocodedPosition!.latitude,
+              _lastGeocodedPosition!.longitude,
+              position.latitude,
+              position.longitude,
+            ) > 50;
+
+        if (shouldGeocode) {
+          final geocoding = geo.Geocoding();
+          List<geo.Placemark> placemarks = await geocoding.placemarkFromCoordinates(
+            position.latitude,
+            position.longitude,
+          );
+          if (placemarks.isNotEmpty) {
+            geo.Placemark place = placemarks.first;
+            alamat = "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
+          }
+          _lastGeocodedPosition = position;
         }
       } catch (e) {
         // Abaikan jika geocoding gagal, tetap kirim koordinat
@@ -121,9 +134,9 @@ class LocationService {
           },
         ),
       );
-      print('✅ Lokasi berhasil diupdate: Lat ${position.latitude}, Lng ${position.longitude}');
+      debugPrint('✅ Lokasi berhasil diupdate: Lat ${position.latitude}, Lng ${position.longitude}');
     } catch (e) {
-      print('❌ Gagal mengupdate lokasi ke server: $e');
+      debugPrint('❌ Gagal mengupdate lokasi ke server: $e');
     }
   }
 }

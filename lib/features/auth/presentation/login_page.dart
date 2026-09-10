@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sahabat_sos_mobile/routing/routes.dart';
 import 'package:get_it/get_it.dart' as get_it;
@@ -14,22 +13,7 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   static const Color primaryDark = Color(0xFF006D77); // Dark green
-  static const Color accentTeal = Color(0xFF1E8B75); // Teal/green accent text
   static const Color bgColor = Color(0xFFEFEFEF); // Very light greyish
-  static const Color cardColor = Colors.white;
-
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _pinController = TextEditingController();
-
-  bool _obscurePin = true;
-  bool _rememberMe = true;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _pinController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -120,30 +104,30 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  bool _isLoading = false;
+
   Widget _buildGoogleButton() {
     return SizedBox(
       width: double.infinity,
       height: 60,
       child: OutlinedButton(
-        onPressed: () async {
+        onPressed: _isLoading ? null : () async {
+          setState(() {
+            _isLoading = true;
+          });
           try {
-            // Tampilkan loading indicator (opsional)
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Memulai Google Sign In...')),
-            );
-
             // Panggil remote data source dari GetIt
             final authDataSource = get_it.GetIt.instance<AuthRemoteDataSource>();
             final result = await authDataSource.signInWithGoogle();
 
             if (!context.mounted) return;
 
+            setState(() {
+              _isLoading = false;
+            });
+
             if (result != null) {
               final bool isProfileComplete = result['is_profile_complete'] ?? false;
-              
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Berhasil Login dengan Google!')),
-              );
               
               if (isProfileComplete) {
                 context.go(AppRoutes.dashboard);
@@ -157,6 +141,9 @@ class _LoginPageState extends State<LoginPage> {
             }
           } catch (e) {
             if (!context.mounted) return;
+            setState(() {
+              _isLoading = false;
+            });
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Gagal Login: $e')),
             );
@@ -169,30 +156,39 @@ class _LoginPageState extends State<LoginPage> {
             borderRadius: BorderRadius.circular(16),
           ),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.network(
-              'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png',
-              width: 24,
-              height: 24,
-              errorBuilder: (_, __, ___) => const Icon(
-                Icons.error_outline,
-                size: 24,
-                color: Colors.red,
+        child: _isLoading
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(primaryDark),
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.network(
+                    'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png',
+                    width: 24,
+                    height: 24,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.error_outline,
+                      size: 24,
+                      color: Colors.red,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Masuk dengan Akun Google',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1B1B2F),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'Masuk dengan Akun Google',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1B1B2F),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -219,31 +215,6 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _LabelWithIcon extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _LabelWithIcon({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: const Color(0xFF0E7A5F)), // Teal color
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF1B1B2F),
-          ),
-        ),
-      ],
     );
   }
 }

@@ -4,4 +4,7 @@ class ApiConstants {
   
   static const String authGoogle = '$baseUrl/auth/google/mobile';
   static const String completeProfile = '$baseUrl/user/complete-profile';
+  static const String me = '$baseUrl/user/me';
+  
+  static const String laporan = '$baseUrl/laporan';
 }
