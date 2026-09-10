@@ -59,6 +59,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
           final bool isProfileComplete = response.data['is_profile_complete'] ?? false;
           
           await prefs.setString('auth_token', backendToken);
+          await prefs.setBool('is_profile_complete', isProfileComplete);
           
           return {
             'token': backendToken,

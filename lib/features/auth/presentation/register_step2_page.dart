@@ -24,6 +24,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
 
   _NeedType _selectedNeed = _NeedType.umum;
 
+  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _userPhoneController = TextEditingController();
 
@@ -33,7 +34,40 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
   bool _largeTextEnabled = false;
 
   @override
+  void initState() {
+    super.initState();
+    _fetchUserProfile();
+  }
+
+  Future<void> _fetchUserProfile() async {
+    final dio = get_it.GetIt.instance<Dio>();
+    final prefs = get_it.GetIt.instance<SharedPreferences>();
+    final token = prefs.getString('auth_token');
+
+    if (token == null) return;
+
+    try {
+      final response = await dio.get(
+        ApiConstants.me,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      if (response.statusCode == 200) {
+        final userData = response.data['user'];
+        if (userData != null && userData['name'] != null) {
+          setState(() {
+            _nameController.text = userData['name'];
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Gagal fetch profile: $e');
+    }
+  }
+
+  @override
   void dispose() {
+    _nameController.dispose();
     _addressController.dispose();
     _userPhoneController.dispose();
     super.dispose();
@@ -181,6 +215,34 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const Text(
+            'Nama Lengkap',
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1A1A2E),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: fieldFill,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TextField(
+              controller: _nameController,
+              keyboardType: TextInputType.name,
+              style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                hintText: 'Contoh: Budi Santoso',
+                hintStyle: TextStyle(fontSize: 13, color: Color(0xFFB0B4C4)),
+                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                prefixIcon: Icon(Icons.person_outline, color: Color(0xFF8A8FA3)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           const Text(
             'Nomor Telepon Pribadi',
             style: TextStyle(
@@ -444,8 +506,8 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
       return;
     }
 
-    if (_addressController.text.isEmpty || _userPhoneController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nomor Telepon & Alamat wajib diisi!')));
+    if (_nameController.text.isEmpty || _addressController.text.isEmpty || _userPhoneController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nama, Nomor Telepon & Alamat wajib diisi!')));
       return;
     }
 
@@ -465,6 +527,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
       final response = await dio.post(
         ApiConstants.completeProfile,
         data: {
+          'name': _nameController.text,
           'alamat': _addressController.text,
           'no_telp': _userPhoneController.text,
           'kategori_user': kategori,
@@ -485,6 +548,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
       if (context.mounted) Navigator.pop(context); // Tutup Loading
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        await prefs.setBool('is_profile_complete', true);
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profil berhasil disimpan!')));
         context.go(AppRoutes.dashboard);

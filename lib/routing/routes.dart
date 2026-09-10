@@ -6,4 +6,5 @@ class AppRoutes {
   static const String dashboard = '/dashboard';
   static const String homeUser = '/home-user';
   static const String homeVolunteer = '/home-volunteer';
+  static const String quickReport = '/quick-report';
 }

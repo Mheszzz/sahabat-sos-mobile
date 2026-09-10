@@ -10,7 +10,11 @@ Future<void> initInjection() async {
   // External
   final sharedPreferences = await SharedPreferences.getInstance();
   sl.registerLazySingleton(() => sharedPreferences);
-  sl.registerLazySingleton(() => Dio());
+  sl.registerLazySingleton(() => Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 15),
+    sendTimeout: const Duration(seconds: 30),
+  )));
 
   // Data sources
   sl.registerLazySingleton<AuthRemoteDataSource>(
