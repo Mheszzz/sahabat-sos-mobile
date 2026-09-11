@@ -72,6 +72,16 @@ class LocationService {
       );
     }
 
+    // Dapatkan posisi saat ini secara langsung terlebih dahulu
+    Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    ).then((Position position) async {
+      currentPosition.value = position;
+      await _sendLocationToBackend(position);
+    }).catchError((e) {
+      debugPrint("Gagal mendapatkan posisi awal: $e");
+    });
+
     _positionStreamSubscription = Geolocator.getPositionStream(
       locationSettings: locationSettings,
     ).listen((Position position) async {
@@ -86,6 +96,8 @@ class LocationService {
     _positionStreamSubscription = null;
   }
 
+  String _lastGeocodedAddress = "Lokasi Tidak Diketahui";
+
   /// Mengirim koordinat dan alamat ke Backend (dengan throttle geocoding)
   Future<void> _sendLocationToBackend(Position position) async {
     try {
@@ -93,7 +105,6 @@ class LocationService {
       if (token == null) return; // User belum login
 
       // Throttle geocoding: hanya geocode jika bergerak > 50 meter dari posisi terakhir
-      String alamat = "Lokasi Tidak Diketahui";
       try {
         bool shouldGeocode = _lastGeocodedPosition == null ||
             Geolocator.distanceBetween(
@@ -111,7 +122,7 @@ class LocationService {
           );
           if (placemarks.isNotEmpty) {
             geo.Placemark place = placemarks.first;
-            alamat = "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
+            _lastGeocodedAddress = "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
           }
           _lastGeocodedPosition = position;
         }
@@ -125,7 +136,7 @@ class LocationService {
         data: {
           'latitude': position.latitude,
           'longitude': position.longitude,
-          'lokasi_user': alamat,
+          'lokasi_user': _lastGeocodedAddress,
         },
         options: Options(
           headers: {
