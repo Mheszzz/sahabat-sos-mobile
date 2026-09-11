@@ -9,6 +9,8 @@ import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'history_screen.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 
 class ReportDetailScreen extends StatefulWidget {
   final HistoryItem item;
@@ -31,10 +33,52 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   StreamSubscription? _positionSub;
   StreamSubscription? _completeSub;
 
+  // Fresh data from API
+  String? _freshStatus;
+  String? _freshDescription;
+  String? _freshOfficerInfo;
+  bool _isFetchingDetail = false;
+
   @override
   void initState() {
     super.initState();
     _initAudioPlayer();
+    _fetchDetailFromApi();
+  }
+
+  /// Fetch fresh detail from API to get latest status, officer info, etc.
+  Future<void> _fetchDetailFromApi() async {
+    setState(() => _isFetchingDetail = true);
+    try {
+      final prefs = sl<SharedPreferences>();
+      final token = prefs.getString('auth_token');
+      if (token == null) return;
+
+      final response = await sl<Dio>().get(
+        '${ApiConstants.laporan}/${widget.item.id}',
+        options: Options(headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        }),
+      );
+
+      if (response.statusCode == 200 && mounted) {
+        final data = response.data['data'];
+        if (data != null) {
+          setState(() {
+            _freshStatus = data['status'];
+            _freshDescription = data['deskripsi'];
+            if (data['relawan'] != null) {
+              _freshOfficerInfo = 'Relawan: ${data['relawan']['name'] ?? '-'}';
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Gagal fetch detail laporan: $e');
+    } finally {
+      if (mounted) setState(() => _isFetchingDetail = false);
+    }
   }
 
   bool _isCompleted = false;
@@ -197,7 +241,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final statusString = widget.item.status.toString().split('.').last;
+    final statusString = _freshStatus ?? widget.item.status.toString().split('.').last;
     final statusColor = _getStatusColor(statusString);
     final statusIcon = _getStatusIcon(statusString);
     final hasImage = widget.item.imageUrl != null;

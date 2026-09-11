@@ -132,7 +132,7 @@ class LocationService {
 
       // API Call ke Laravel
       await dio.post(
-        '${ApiConstants.baseUrl}/user/update-location',
+        ApiConstants.updateLocation,
         data: {
           'latitude': position.latitude,
           'longitude': position.longitude,

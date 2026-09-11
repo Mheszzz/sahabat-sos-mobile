@@ -598,6 +598,18 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
       child: OutlinedButton(
         onPressed: () async {
           final prefs = get_it.GetIt.instance<SharedPreferences>();
+          final token = prefs.getString('auth_token');
+          // Revoke token di server
+          try {
+            final dio = get_it.GetIt.instance<Dio>();
+            await dio.post(
+              ApiConstants.logout,
+              options: Options(headers: {
+                'Authorization': 'Bearer $token',
+                'Accept': 'application/json',
+              }),
+            );
+          } catch (_) {}
           await prefs.remove('auth_token');
           await prefs.remove('is_profile_complete');
           if (context.mounted) {

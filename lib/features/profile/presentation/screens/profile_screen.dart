@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../routing/routes.dart';
+import 'package:get_it/get_it.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -31,7 +32,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _highContrast = false; // Local state only based on requirements
   bool _largeText = true;
 
-  final Dio _dio = Dio();
+  Dio get _dio => GetIt.instance<Dio>();
 
   @override
   void initState() {
@@ -717,6 +718,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: ElevatedButton.icon(
         onPressed: () async {
           final prefs = await SharedPreferences.getInstance();
+          final token = prefs.getString('auth_token');
+          // Revoke token di server
+          try {
+            await _dio.post(
+              ApiConstants.logout,
+              options: Options(headers: {
+                'Authorization': 'Bearer $token',
+                'Accept': 'application/json',
+              }),
+            );
+          } catch (_) {}
           await prefs.remove('auth_token');
           await prefs.remove('is_profile_complete');
           if (context.mounted) {
