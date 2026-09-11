@@ -1,10 +1,29 @@
-# sahabat_sos_mobile
+# Sahabat SOS Mobile
 
-A new Flutter project.
+Aplikasi Sahabat SOS Mobile (Flutter).
 
-## Cara Instalasi
+## Cara Menjalankan dengan Docker (Rekomendasi)
 
-Setelah melakukan *clone* repositori ini, ikuti langkah-langkah berikut untuk menjalankan aplikasi:
+Agar lebih mudah dan tidak perlu melakukan instalasi SDK Android atau Flutter, Anda dapat menjalankan versi Web dari aplikasi ini menggunakan Docker.
+
+1. Pastikan Anda sudah menginstal [Docker](https://docs.docker.com/get-docker/) dan Docker Compose di komputer Anda.
+2. Buka terminal, lalu arahkan ke direktori proyek ini.
+3. Jalankan perintah berikut untuk membangun dan menghidupkan container:
+   ```bash
+   docker-compose up --build -d
+   ```
+4. Setelah proses selesai, buka browser Anda dan akses aplikasi di:
+   **http://localhost:8080**
+5. Untuk mematikan aplikasi, jalankan perintah:
+   ```bash
+   docker-compose down
+   ```
+
+---
+
+## Cara Instalasi Manual (Development)
+
+Jika Anda ingin melakukan modifikasi kode atau menjalankan di emulator Android/iOS secara *native*, ikuti langkah-langkah berikut:
 
 1. Pastikan Anda sudah menginstal [Flutter SDK](https://docs.flutter.dev/get-started/install).
 2. Buka terminal, lalu arahkan ke direktori proyek.

@@ -1,7 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
+import 'package:sahabat_sos_mobile/core/di/injection.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -22,6 +26,12 @@ class _DashboardPageState extends State<DashboardPage>
   int _tapCount = 0;
   Timer? _tapTimer;
 
+  // Beranda data from API
+  String _userName = '';
+  int _activeSos = 0;
+  int _totalLaporan = 0;
+  bool _isBerandaLoading = true;
+
   @override
   void initState() {
     super.initState();
@@ -32,6 +42,38 @@ class _DashboardPageState extends State<DashboardPage>
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.88).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
+    _fetchBeranda();
+  }
+
+  Future<void> _fetchBeranda() async {
+    try {
+      final prefs = sl<SharedPreferences>();
+      final token = prefs.getString('auth_token');
+      if (token == null) return;
+
+      final response = await sl<Dio>().get(
+        ApiConstants.beranda,
+        options: Options(headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        }),
+      );
+
+      if (response.statusCode == 200 && mounted) {
+        final data = response.data;
+        setState(() {
+          _userName = data['user']?['name'] ?? '';
+          _activeSos = data['summary']?['active_sos'] ?? 0;
+          _totalLaporan = data['summary']?['total_laporan'] ?? 0;
+          _isBerandaLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Gagal fetch beranda: $e');
+      if (mounted) {
+        setState(() => _isBerandaLoading = false);
+      }
+    }
   }
 
   @override
@@ -83,12 +125,12 @@ class _DashboardPageState extends State<DashboardPage>
       centerTitle: false,
       titleSpacing: 16,
       title: Row(
-        children: const [
-          Icon(Icons.accessibility_new, color: primaryTeal, size: 24),
-          SizedBox(width: 8),
+        children: [
+          const Icon(Icons.accessibility_new, color: primaryTeal, size: 24),
+          const SizedBox(width: 8),
           Text(
-            'Sahabat SOS',
-            style: TextStyle(
+            _userName.isNotEmpty ? 'Halo, $_userName' : 'Sahabat SOS',
+            style: const TextStyle(
               color: primaryTeal,
               fontWeight: FontWeight.bold,
               fontSize: 20,
@@ -272,73 +314,71 @@ class _DashboardPageState extends State<DashboardPage>
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: const BoxDecoration(
-              color: primaryTeal,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.watch, color: Colors.white, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: _isBerandaLoading
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(8.0),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          : Row(
               children: [
-                const Text(
-                  'Tombol SOS Yani',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    color: Colors.black87,
-                  ),
+                _buildStatItem(
+                  icon: Icons.warning_amber_rounded,
+                  label: 'SOS Aktif',
+                  value: '$_activeSos',
+                  color: Colors.red,
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF00BFA5), // Brighter teal/green
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Terhubung',
-                      style: TextStyle(fontSize: 11, color: Colors.black54),
-                    ),
-                  ],
+                Container(
+                  width: 1,
+                  height: 40,
+                  color: Colors.grey.shade200,
+                ),
+                _buildStatItem(
+                  icon: Icons.description_outlined,
+                  label: 'Total Laporan',
+                  value: '$_totalLaporan',
+                  color: primaryTeal,
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _buildStatItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Expanded(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 18),
           ),
+          const SizedBox(width: 10),
           Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.battery_full, size: 14, color: Colors.black87),
-                  SizedBox(width: 4),
-                  Text(
-                    '85%',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
               ),
-              const SizedBox(height: 4),
-              const Text(
-                'Sync: 5m lalu',
-                style: TextStyle(fontSize: 10, color: Colors.black54),
+              Text(
+                label,
+                style: const TextStyle(fontSize: 10, color: Colors.black54),
               ),
             ],
           ),

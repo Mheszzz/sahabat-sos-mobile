@@ -7,6 +7,10 @@ import '../../../../core/constants/api_constants.dart';
 abstract class AuthRemoteDataSource {
   /// Mengembalikan Map berisi token JWT dan status is_profile_complete, atau null jika dibatalkan
   Future<Map<String, dynamic>?> signInWithGoogle();
+  Future<Map<String, dynamic>> registerWithEmail({required String name, required String email, required String password, required String role});
+  Future<Map<String, dynamic>> loginWithEmail({required String email, required String password});
+  Future<Map<String, dynamic>> sendOtp({required String email});
+  Future<Map<String, dynamic>> verifyOtp({required String email, required String otp});
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -74,6 +78,125 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     } catch (e) {
       print("Error Google Sign-In: $e");
       rethrow;
+    }
+  }
+  @override
+  Future<Map<String, dynamic>> registerWithEmail({
+    required String name,
+    required String email,
+    required String password,
+    required String role,
+  }) async {
+    try {
+      final response = await dio.post(
+        ApiConstants.authRegister,
+        data: {
+          'name': name,
+          'email': email,
+          'password': password,
+          'role': role,
+          'persetujuan_privasi': true,
+        },
+        options: Options(headers: {'Accept': 'application/json'}),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return response.data;
+      } else {
+        throw Exception(response.data['message'] ?? 'Registrasi gagal');
+      }
+    } on DioException catch (e) {
+      final msg = e.response?.data?['message'] ?? e.message ?? 'Registrasi gagal';
+      throw Exception(msg);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> loginWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final response = await dio.post(
+        ApiConstants.authLogin,
+        data: {
+          'email': email,
+          'password': password,
+        },
+        options: Options(headers: {'Accept': 'application/json'}),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final String backendToken = response.data['access_token'];
+        final bool isProfileComplete = response.data['is_profile_complete'] ?? false;
+
+        await prefs.setString('auth_token', backendToken);
+        await prefs.setBool('is_profile_complete', isProfileComplete);
+
+        return {
+          'token': backendToken,
+          'is_profile_complete': isProfileComplete,
+        };
+      } else {
+        throw Exception(response.data['message'] ?? 'Login gagal');
+      }
+    } on DioException catch (e) {
+      final msg = e.response?.data?['message'] ?? e.message ?? 'Login gagal';
+      throw Exception(msg);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> sendOtp({required String email}) async {
+    try {
+      final response = await dio.post(
+        ApiConstants.sendOtp,
+        data: {'email': email},
+        options: Options(headers: {'Accept': 'application/json'}),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return response.data;
+      } else {
+        throw Exception(response.data['message'] ?? 'Gagal mengirim OTP');
+      }
+    } on DioException catch (e) {
+      final msg = e.response?.data?['message'] ?? e.message ?? 'Gagal mengirim OTP';
+      throw Exception(msg);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> verifyOtp({
+    required String email,
+    required String otp,
+  }) async {
+    try {
+      final response = await dio.post(
+        ApiConstants.verifyOtp,
+        data: {
+          'email': email,
+          'otp': otp,
+        },
+        options: Options(headers: {'Accept': 'application/json'}),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Jika backend mengembalikan token setelah verifikasi
+        if (response.data['access_token'] != null) {
+          final String backendToken = response.data['access_token'];
+          final bool isProfileComplete = response.data['is_profile_complete'] ?? false;
+
+          await prefs.setString('auth_token', backendToken);
+          await prefs.setBool('is_profile_complete', isProfileComplete);
+        }
+        return response.data;
+      } else {
+        throw Exception(response.data['message'] ?? 'Verifikasi OTP gagal');
+      }
+    } on DioException catch (e) {
+      final msg = e.response?.data?['message'] ?? e.message ?? 'Verifikasi OTP gagal';
+      throw Exception(msg);
     }
   }
 }

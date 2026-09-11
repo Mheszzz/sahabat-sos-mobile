@@ -43,7 +43,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
   late final AudioRecorder _audioRecorder;
   late final AnimationController _pulseController;
 
-  final List<_ReportCategory> _categories = [
+  final List<_ReportCategory> _categories = <_ReportCategory>[
     _ReportCategory('Butuh Pendamping', 'Relawan & Petugas', 'butuh_pendamping', Icons.people_alt_rounded, Color(0xFF1565C0)),
     _ReportCategory('Kondisi Medis', 'Ambulans & Obat', 'kondisi_medis', Icons.local_hospital_rounded, Color(0xFFD32F2F)),
     _ReportCategory('Ancaman / Bahaya', 'Keamanan Cepat', 'ancaman_bahaya', Icons.shield_rounded, Color(0xFFE65100)),
@@ -52,7 +52,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     _ReportCategory('Lainnya', 'Bantuan Khusus', 'lainnya', Icons.more_horiz_rounded, Color(0xFF546E7A)),
   ];
 
-  final List<Map<String, dynamic>> _quickMessages = [
+  final List<Map<String, dynamic>> _quickMessages = <Map<String, dynamic>>[
     {'icon': Icons.check_circle, 'text': 'Saya butuh bantuan di lokasi saya'},
     {'icon': Icons.hearing_disabled, 'text': 'Saya tidak dapat berbicara / mendengar'},
     {'icon': Icons.phone_in_talk_outlined, 'text': 'Tolong hubungi kontak keluarga saya'},
@@ -72,6 +72,90 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       duration: const Duration(milliseconds: 1000),
     );
     _locationFuture = _fetchLocationInBackground();
+    _fetchOptionsFromApi();
+  }
+
+  /// Fetch kategori laporan & pesan cepat dari API, fallback ke data hardcoded jika gagal
+  Future<void> _fetchOptionsFromApi() async {
+    try {
+      final prefs = sl<SharedPreferences>();
+      final token = prefs.getString('auth_token');
+      if (token == null) return;
+
+      final response = await sl<Dio>().get(
+        ApiConstants.laporanOptions,
+        options: Options(headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        }),
+      );
+
+      if (response.statusCode == 200 && mounted) {
+        final data = response.data;
+
+        // Parse kategori
+        final List? apiKategori = data['kategori_laporan'];
+        if (apiKategori != null && apiKategori.isNotEmpty) {
+          final newCategories = apiKategori.map<_ReportCategory>((item) {
+            return _ReportCategory(
+              item['title'] ?? '',
+              item['subtitle'] ?? '',
+              item['id'] ?? '',
+              _getCategoryIcon(item['id'] ?? ''),
+              _getCategoryColor(item['id'] ?? ''),
+            );
+          }).toList();
+
+          setState(() {
+            _categories
+              ..clear()
+              ..addAll(newCategories);
+            _selectedCategory = 0;
+          });
+        }
+
+        // Parse pesan cepat
+        final List? apiPesan = data['pesan_cepat'];
+        if (apiPesan != null && apiPesan.isNotEmpty) {
+          final newMessages = apiPesan.map<Map<String, dynamic>>((text) {
+            return {'icon': Icons.check_circle, 'text': text};
+          }).toList();
+
+          setState(() {
+            _quickMessages
+              ..clear()
+              ..addAll(newMessages);
+            _selectedQuickMessage = 0;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Gagal fetch laporan options, menggunakan data default: $e');
+    }
+  }
+
+  IconData _getCategoryIcon(String id) {
+    switch (id) {
+      case 'butuh_pendamping': return Icons.people_alt_rounded;
+      case 'kondisi_medis': return Icons.local_hospital_rounded;
+      case 'ancaman_bahaya': return Icons.shield_rounded;
+      case 'tersesat': return Icons.explore_rounded;
+      case 'aksesibilitas_rusak': return Icons.accessible_rounded;
+      case 'lainnya': return Icons.more_horiz_rounded;
+      default: return Icons.help_outline_rounded;
+    }
+  }
+
+  Color _getCategoryColor(String id) {
+    switch (id) {
+      case 'butuh_pendamping': return const Color(0xFF1565C0);
+      case 'kondisi_medis': return const Color(0xFFD32F2F);
+      case 'ancaman_bahaya': return const Color(0xFFE65100);
+      case 'tersesat': return const Color(0xFF00838F);
+      case 'aksesibilitas_rusak': return const Color(0xFF6A1B9A);
+      case 'lainnya': return const Color(0xFF546E7A);
+      default: return const Color(0xFF546E7A);
+    }
   }
 
   Future<void> _fetchLocationInBackground() async {
