@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geocoding/geocoding.dart' as geo;
@@ -58,6 +59,10 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     {'icon': Icons.accessible, 'text': 'Saya butuh bantuan mobilitas / kursi roda'},
   ];
 
+  Position? _cachedPosition;
+  String? _cachedAddress;
+  Future<void>? _locationFuture;
+
   @override
   void initState() {
     super.initState();
@@ -66,6 +71,33 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     );
+    _locationFuture = _fetchLocationInBackground();
+  }
+
+  Future<void> _fetchLocationInBackground() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) return;
+      }
+      if (permission == LocationPermission.deniedForever) return;
+
+      _cachedPosition = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      
+      final placemarks = await geo.Geocoding().placemarkFromCoordinates(
+          _cachedPosition!.latitude, _cachedPosition!.longitude);
+      if (placemarks.isNotEmpty) {
+        final place = placemarks.first;
+        _cachedAddress = "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
+      }
+    } catch (e) {
+      debugPrint("Gagal pre-fetch lokasi: $e");
+    }
   }
 
   @override
@@ -113,13 +145,18 @@ class _QuickReportScreenState extends State<QuickReportScreen>
 
           try {
             final tempDir = await getTemporaryDirectory();
-            // Gunakan format WAV karena lebih stabil dan tidak rawan crash codec di HP tertentu
-            final filePath = '${tempDir.path}/rekaman_sos_${DateTime.now().millisecondsSinceEpoch}.m4a';
-            
-            await _audioRecorder.start(
-              const RecordConfig(encoder: AudioEncoder.aacLc), 
-              path: filePath
+            // Trik cerdas: Gunakan format WAV agar 100% lolos validasi finfo backend,
+            // TETAPI kita turunkan kualitasnya ke standar telepon (8kHz, Mono).
+            // Hasilnya: Ukuran file akan sama kecilnya dengan kompresi M4A/3GP (sekitar 16 KB/detik)
+            // tanpa memicu error salah tebak format dari server.
+            final filePath = '${tempDir.path}/rekaman_sos_${DateTime.now().millisecondsSinceEpoch}.wav';
+            final config = const RecordConfig(
+              encoder: AudioEncoder.wav, 
+              sampleRate: 8000, 
+              numChannels: 1,
             );
+            
+            await _audioRecorder.start(config, path: filePath);
           } catch (e) {
             // Revert state jika hardware gagal memulai
             setState(() { _isRecording = false; });
@@ -152,43 +189,55 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     });
 
     try {
-      // 1. Get Location (with timeout to prevent hanging on emulators)
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        throw Exception('GPS tidak aktif. Mohon nyalakan GPS.');
-      }
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          throw Exception('Izin lokasi ditolak.');
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        throw Exception('Izin lokasi diblokir permanen.');
-      }
-
-      Position? position;
-      try {
-        position = await Geolocator.getCurrentPosition(
-          timeLimit: const Duration(seconds: 5),
-        );
-      } catch (e) {
-        // Fallback or just throw if timeout
-        throw Exception('Gagal mendapatkan lokasi: Waktu habis (Mungkin Anda menggunakan emulator tanpa fix GPS).');
+      // 1. Get Location (Tunggu hasil pre-fetch jika belum selesai)
+      if (_locationFuture != null) {
+        await _locationFuture;
       }
       
-      String address = "Lokasi Tidak Diketahui";
-      try {
-        final geocoding = geo.Geocoding();
-        final placemarks = await geocoding.placemarkFromCoordinates(position.latitude, position.longitude);
-        if (placemarks.isNotEmpty) {
-          final place = placemarks.first;
-          address = "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
+      Position? position = _cachedPosition;
+      String address = _cachedAddress ?? "Lokasi Tidak Diketahui";
+
+      // Jika background fetch gagal, lakukan fallback sinkron sekali lagi
+      if (position == null) {
+        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!serviceEnabled) {
+          throw Exception('GPS tidak aktif. Mohon nyalakan GPS.');
         }
-      } catch (_) {}
+
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+          if (permission == LocationPermission.denied) {
+            throw Exception('Izin lokasi ditolak.');
+          }
+        }
+
+        if (permission == LocationPermission.deniedForever) {
+          throw Exception('Izin lokasi diblokir permanen.');
+        }
+
+        try {
+          position = await Geolocator.getCurrentPosition(
+            timeLimit: const Duration(seconds: 10),
+            desiredAccuracy: LocationAccuracy.high,
+          );
+        } catch (e) {
+          // Fallback to last known position if current position times out
+          position = await Geolocator.getLastKnownPosition();
+          if (position == null) {
+            throw Exception('Gagal mendapatkan lokasi. Pastikan GPS aktif.');
+          }
+        }
+        
+        try {
+          final placemarks = await geo.Geocoding().placemarkFromCoordinates(position.latitude, position.longitude)
+              .timeout(const Duration(seconds: 5));
+          if (placemarks.isNotEmpty) {
+            final place = placemarks.first;
+            address = "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
+          }
+        } catch (_) {}
+      }
 
       // 2. Prepare Data
       final prefs = sl<SharedPreferences>();
@@ -217,7 +266,10 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       if (_selectedAudio != null) {
         formData.files.add(MapEntry(
           'rekam_suara',
-          await MultipartFile.fromFile(_selectedAudio!.path),
+          await MultipartFile.fromFile(
+            _selectedAudio!.path,
+            contentType: MediaType('audio', 'wav'),
+          ),
         ));
       }
 
@@ -226,6 +278,8 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         ApiConstants.laporan,
         data: formData,
         options: Options(
+          sendTimeout: const Duration(minutes: 3),
+          receiveTimeout: const Duration(minutes: 3),
           headers: {
             'Authorization': 'Bearer $token',
             'Accept': 'application/json',
@@ -403,7 +457,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         crossAxisCount: 2,
         mainAxisSpacing: 10,
         crossAxisSpacing: 10,
-        childAspectRatio: 2.0,
+        childAspectRatio: 1.85,
       ),
       itemBuilder: (context, index) {
         final category = _categories[index];
@@ -461,7 +515,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                           fontSize: 12.5,
                           color: isSelected ? Colors.white : Colors.black87,
                         ),
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 3),
@@ -847,109 +901,76 @@ class _QuickReportScreenState extends State<QuickReportScreen>
   }
 
   Widget _buildLocationTile() {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: const [
-                Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
-                SizedBox(width: 8),
-                Text('Lokasi GPS otomatis disertakan saat mengirim.'),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FDF4), // Sangat soft green/teal
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBBF7D0)), // Soft border
+      ),
+      child: Row(
+        children: [
+          // GPS icon with satellite ring
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: const Color(0xFFDCFCE7),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.my_location_rounded,
+              color: Color(0xFF166534), // Dark green
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Bagikan Lokasi Akurat',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Color(0xFF166534),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'GPS otomatis aktif saat mengirim',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: const Color(0xFF166534).withOpacity(0.75),
+                  ),
+                ),
               ],
             ),
-            backgroundColor: primaryTeal,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF00695C), Color(0xFF00897B)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: primaryTeal.withOpacity(0.35),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFBBF7D0),
+              borderRadius: BorderRadius.circular(20),
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // GPS icon with satellite ring
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
-                  width: 1.5,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.gps_fixed_rounded, size: 14, color: const Color(0xFF15803D)),
+                const SizedBox(width: 4),
+                const Text(
+                  'Aktif',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF15803D),
+                  ),
                 ),
-              ),
-              child: const Icon(
-                Icons.my_location_rounded,
-                color: Colors.white,
-                size: 24,
-              ),
+              ],
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Bagikan Lokasi Akurat',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'GPS otomatis aktif saat mengirim',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withOpacity(0.75),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.gps_fixed_rounded, size: 14, color: Colors.white.withOpacity(0.9)),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Aktif',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white.withOpacity(0.9),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

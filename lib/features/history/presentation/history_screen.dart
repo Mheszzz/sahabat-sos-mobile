@@ -115,7 +115,11 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   HistoryItem _mapToHistoryItem(dynamic data) {
-    String kategori = data['kategori_laporan'] ?? 'Lainnya';
+    String rawKategori = data['kategori_laporan'] ?? 'Lainnya';
+    String kategori = rawKategori.replaceAll('_', ' ').split(' ').map((word) {
+      if (word.isEmpty) return '';
+      return word[0].toUpperCase() + word.substring(1).toLowerCase();
+    }).join(' ');
     String statusStr = data['status'] ?? 'aktif';
     
     HistoryType type = HistoryType.laporan;
@@ -463,7 +467,7 @@ class _HistoryPageState extends State<HistoryPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
                     padding: const EdgeInsets.all(10),
@@ -487,11 +491,16 @@ class _HistoryPageState extends State<HistoryPage> {
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
                         ),
                         const SizedBox(height: 4),
-                        Text(item.dateTime, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                        Row(
+                          children: [
+                            Text(item.dateTime, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                            const SizedBox(width: 10),
+                            _buildStatusBadge(statusLabel, statusColor),
+                          ],
+                        ),
                       ],
                     ),
                   ),
-                  _buildStatusBadge(statusLabel, statusColor),
                 ],
               ),
               const Padding(

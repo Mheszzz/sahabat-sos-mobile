@@ -21,6 +21,14 @@ class _MainScreenState extends State<MainScreen> {
     _selectedIndex = widget.initialIndex;
   }
 
+  @override
+  void didUpdateWidget(MainScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialIndex != oldWidget.initialIndex) {
+      _selectedIndex = widget.initialIndex;
+    }
+  }
+
   static const Color primaryTeal = Color(0xFF00695C);
 
   final List<Widget> _pages = [
@@ -31,6 +39,16 @@ class _MainScreenState extends State<MainScreen> {
     const ProfileScreen(),
   ];
 
+  static const Color _unselectedColor = Color(0xFF37474F);
+
+  final List<_NavItem> _navItems = const [
+    _NavItem(icon: Icons.home_outlined, selectedIcon: Icons.home, label: 'Home'),
+    _NavItem(icon: Icons.campaign_outlined, selectedIcon: Icons.campaign, label: 'Report'),
+    _NavItem(icon: Icons.settings_input_antenna_outlined, selectedIcon: Icons.settings_input_antenna, label: 'Devices'),
+    _NavItem(icon: Icons.history_outlined, selectedIcon: Icons.history, label: 'History'),
+    _NavItem(icon: Icons.person_outline, selectedIcon: Icons.person, label: 'Profile'),
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -38,43 +56,81 @@ class _MainScreenState extends State<MainScreen> {
         index: _selectedIndex,
         children: _pages,
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        backgroundColor: Colors.white,
-        indicatorColor: primaryTeal.withOpacity(0.2),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home, color: primaryTeal),
-            label: 'Home',
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: List.generate(_navItems.length, (index) {
+                final isSelected = _selectedIndex == index;
+                final item = _navItems[index];
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedIndex = index;
+                    });
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeInOut,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isSelected ? 20 : 12,
+                      vertical: isSelected ? 12 : 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected ? primaryTeal : Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isSelected ? item.selectedIcon : item.icon,
+                          color: isSelected ? Colors.white : _unselectedColor,
+                          size: 26,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          item.label,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : _unselectedColor,
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.campaign_outlined),
-            selectedIcon: Icon(Icons.campaign, color: primaryTeal),
-            label: 'Report',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_input_antenna_outlined),
-            selectedIcon: Icon(Icons.settings_input_antenna, color: primaryTeal),
-            label: 'Devices',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.history_outlined),
-            selectedIcon: Icon(Icons.history, color: primaryTeal),
-            label: 'History',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person, color: primaryTeal),
-            label: 'Profile',
-          ),
-        ],
+        ),
       ),
     );
   }
+}
+
+class _NavItem {
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+
+  const _NavItem({
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+  });
 }

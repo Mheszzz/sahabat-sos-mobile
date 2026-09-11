@@ -23,6 +23,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _category = 'Umum';
   String _phone = '-';
   String _location = '-';
+  String _address = '-';
   String _avatarUrl = 'https://placehold.co/100x100.png';
 
   bool _voiceGuide = true;
@@ -62,7 +63,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _fullUserData = userData;
           _name = userData['name'] ?? 'Pengguna';
           _phone = userData['no_telp'] ?? 'Belum diatur';
-          _location = userData['lokasi_user'] ?? 'Lokasi belum diatur';
+          _location = userData['lokasi_user'] ?? 'Mendeteksi lokasi...';
+          _address = userData['alamat'] ?? 'Alamat belum diatur';
           
           String cat = userData['kategori_user'] ?? 'umum';
           _category = cat.substring(0, 1).toUpperCase() + cat.substring(1);
@@ -115,68 +117,147 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'tunanetra':
+        return Icons.visibility_off_outlined;
+      case 'tunarungu':
+        return Icons.hearing_disabled_outlined;
+      case 'tunawicara':
+        return Icons.speaker_notes_off_outlined;
+      case 'umum':
+      default:
+        return Icons.person_outline_rounded;
+    }
+  }
+
   Future<void> _showEditProfileDialog() async {
     if (_fullUserData == null) return;
 
     final nameController = TextEditingController(text: _fullUserData!['name'] ?? '');
     final emailController = TextEditingController(text: _fullUserData!['email'] ?? '');
-    final categoryController = TextEditingController(text: _fullUserData!['kategori_user'] ?? '');
     final phoneController = TextEditingController(text: _fullUserData!['no_telp'] ?? '');
-    final locationController = TextEditingController(text: _fullUserData!['lokasi_user'] ?? '');
     final addressController = TextEditingController(text: _fullUserData!['alamat'] ?? '');
 
-    final result = await showDialog<bool>(
+    String selectedCategory = _fullUserData!['kategori_user']?.toString().toLowerCase() ?? 'umum';
+    if (!['umum', 'tunanetra', 'tunarungu', 'tunawicara'].contains(selectedCategory)) {
+      selectedCategory = 'umum';
+    }
+
+    final result = await showModalBottomSheet<bool>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Edit Profil'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Nama Lengkap'),
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 48,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Edit Profil',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1A1A2E),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    _buildModernTextField(nameController, 'Nama Lengkap', Icons.person_outline),
+                    const SizedBox(height: 16),
+                    _buildModernTextField(emailController, 'Email', Icons.email_outlined, keyboardType: TextInputType.emailAddress),
+                    const SizedBox(height: 16),
+                    
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF5F6F8),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: selectedCategory,
+                          isExpanded: true,
+                          icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF8A8FA3)),
+                          items: [
+                            {'value': 'umum', 'label': 'Umum', 'icon': Icons.person_outline_rounded},
+                            {'value': 'tunanetra', 'label': 'Tunanetra', 'icon': Icons.visibility_off_outlined},
+                            {'value': 'tunarungu', 'label': 'Tunarungu', 'icon': Icons.hearing_disabled_outlined},
+                            {'value': 'tunawicara', 'label': 'Tunawicara', 'icon': Icons.speaker_notes_off_outlined},
+                          ].map((item) {
+                            return DropdownMenuItem<String>(
+                              value: item['value'] as String,
+                              child: Row(
+                                children: [
+                                  Icon(item['icon'] as IconData, color: const Color(0xFF8A8FA3), size: 20),
+                                  const SizedBox(width: 12),
+                                  Text(item['label'] as String, style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E))),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (String? newValue) {
+                            if (newValue != null) {
+                              setModalState(() {
+                                selectedCategory = newValue;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    _buildModernTextField(phoneController, 'Nomor Telepon', Icons.phone_outlined, keyboardType: TextInputType.phone),
+                    const SizedBox(height: 16),
+                    _buildModernTextField(addressController, 'Alamat Tempat Tinggal (Cth: Jl. Merdeka...)', Icons.home_outlined),
+                    const SizedBox(height: 32),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryTeal,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'Simpan Perubahan',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
                 ),
-                TextField(
-                  controller: emailController,
-                  decoration: const InputDecoration(labelText: 'Email'),
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                TextField(
-                  controller: categoryController,
-                  decoration: const InputDecoration(labelText: 'Kategori (Contoh: Umum, Disabilitas)'),
-                ),
-                TextField(
-                  controller: phoneController,
-                  decoration: const InputDecoration(labelText: 'Nomor Telepon'),
-                  keyboardType: TextInputType.phone,
-                ),
-                TextField(
-                  controller: locationController,
-                  decoration: const InputDecoration(
-                    labelText: 'Lokasi Utama',
-                    hintText: 'Contoh: Rumah / Kantor',
-                  ),
-                ),
-                TextField(
-                  controller: addressController,
-                  decoration: const InputDecoration(labelText: 'Alamat Lengkap'),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(backgroundColor: primaryTeal, foregroundColor: Colors.white),
-              child: const Text('Simpan'),
-            ),
-          ],
+              ),
+            );
+          },
         );
       },
     );
@@ -190,10 +271,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Map<String, dynamic> dataToUpdate = {
             'name': nameController.text.isNotEmpty ? nameController.text : '-',
             'email': emailController.text,
-            'kategori_user': categoryController.text.isNotEmpty ? categoryController.text : 'umum',
+            'kategori_user': selectedCategory,
             'alamat': addressController.text.isNotEmpty ? addressController.text : '-',
             'no_telp': phoneController.text.isNotEmpty ? phoneController.text : '-',
-            'lokasi_user': locationController.text,
             'getaran': _haptic ? 1 : 0,
             'panduan_suara': _voiceGuide ? 1 : 0,
             'text_besar': _largeText ? 1 : 0,
@@ -356,7 +436,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.stars_rounded, color: Color(0xFFEF6C00), size: 16),
+                Icon(_getCategoryIcon(_category), color: const Color(0xFFEF6C00), size: 16),
                 const SizedBox(width: 6),
                 Text(
                   _category,
@@ -366,45 +446,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: _buildHeaderInfoItem(
-                  icon: Icons.phone_android_rounded,
-                  label: 'Telepon Darurat',
-                  value: _phone,
-                ),
-              ),
-              Container(width: 1, height: 40, color: Colors.grey.shade300),
-              Expanded(
-                child: _buildHeaderInfoItem(
-                  icon: Icons.location_on_rounded,
-                  label: 'Lokasi Utama',
-                  value: _location,
-                ),
-              ),
-            ],
+          _buildInfoBox(
+            icon: Icons.phone_android_rounded,
+            label: 'Telepon Darurat',
+            value: _phone,
+          ),
+          const SizedBox(height: 12),
+          _buildInfoBox(
+            icon: Icons.location_on_rounded,
+            label: 'Lokasi Saat Ini',
+            value: _location,
+          ),
+          const SizedBox(height: 12),
+          _buildInfoBox(
+            icon: Icons.home_work_rounded,
+            label: 'Alamat Lengkap',
+            value: _address,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildHeaderInfoItem({required IconData icon, required String label, required String value}) {
-    return Column(
-      children: [
-        Icon(icon, color: primaryTeal, size: 24),
-        const SizedBox(height: 6),
-        Text(label, style: const TextStyle(fontSize: 11, color: Colors.black54)),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
+  Widget _buildInfoBox({required IconData icon, required String label, required String value}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: primaryTeal, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -639,6 +730,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
           foregroundColor: const Color(0xFFD32F2F),
           elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernTextField(TextEditingController controller, String hint, IconData icon, {TextInputType? keyboardType}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F6F8),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)),
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          hintText: hint,
+          hintStyle: const TextStyle(fontSize: 13, color: Color(0xFFB0B4C4)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+          prefixIcon: Icon(icon, color: const Color(0xFF8A8FA3)),
         ),
       ),
     );

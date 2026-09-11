@@ -119,6 +119,8 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                         const Spacer(),
                         const SizedBox(height: 22),
                         _buildSubmitButton(),
+                        const SizedBox(height: 12),
+                        _buildLogoutButton(),
                       ],
                     ),
                   ),
@@ -585,6 +587,31 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
           ],
+        ),
+      ),
+    );
+  }
+  Widget _buildLogoutButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 58,
+      child: OutlinedButton(
+        onPressed: () async {
+          final prefs = get_it.GetIt.instance<SharedPreferences>();
+          await prefs.remove('auth_token');
+          await prefs.remove('is_profile_complete');
+          if (context.mounted) {
+            context.go(AppRoutes.login);
+          }
+        },
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF1A1A2E),
+          side: const BorderSide(color: Color(0xFFE1E4EE)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+        child: const Text(
+          'Batalkan & Kembali',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
       ),
     );
