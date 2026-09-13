@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../routing/routes.dart';
 import 'package:get_it/get_it.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../data/datasources/profile_remote_data_source.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -21,6 +23,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _fullUserData;
   
   String _name = 'Memuat...';
+  String _email = '-';
   String _category = 'Umum';
   String _phone = '-';
   String _location = '-';
@@ -40,29 +43,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _fetchProfile();
   }
 
+  Future<void> _pickAndUploadImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 80,
+    );
+    
+    if (pickedFile != null) {
+      setState(() {
+        _isLoading = true;
+      });
+      try {
+        final profileDataSource = GetIt.instance<ProfileRemoteDataSource>();
+        // Gunakan endpoint POST /pengguna/profile (update) yang juga menerima foto_profile
+        await profileDataSource.updateProfileWithFoto({}, pickedFile);
+        
+        // Refresh profil setelah berhasil upload foto
+        await _fetchProfile();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Foto profil berhasil diperbarui!')),
+          );
+        }
+      } catch (e) {
+        debugPrint("Error upload foto: $e");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal mengupload foto: $e')),
+          );
+        }
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   Future<void> _fetchProfile() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
-      
-      if (token == null) {
-        setState(() { _isLoading = false; });
-        return;
-      }
+      final profileDataSource = GetIt.instance<ProfileRemoteDataSource>();
+      final response = await profileDataSource.getProfile();
 
-      final response = await _dio.get(
-        ApiConstants.me,
-        options: Options(headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final userData = response.data['user'];
+      final userData = response['data'] ?? response['user'];
+      if (userData != null) {
         setState(() {
           _fullUserData = userData;
           _name = userData['name'] ?? 'Pengguna';
+          _email = userData['email'] ?? '-';
           _phone = userData['no_telp'] ?? 'Belum diatur';
           _location = userData['lokasi_user'] ?? 'Mendeteksi lokasi...';
           _address = userData['alamat'] ?? 'Alamat belum diatur';
@@ -70,12 +101,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
           String cat = userData['kategori_user'] ?? 'umum';
           _category = cat.substring(0, 1).toUpperCase() + cat.substring(1);
           
-          _voiceGuide = (userData['panduan_suara'] == 1 || userData['panduan_suara'] == true);
-          _haptic = (userData['getaran'] == 1 || userData['getaran'] == true);
-          _largeText = (userData['text_besar'] == 1 || userData['text_besar'] == true);
+          // The API returns aksesibilitas as an object if hit via /pengguna/profile
+          if (userData['aksesibilitas'] != null) {
+            _voiceGuide = userData['aksesibilitas']['panduan_suara'] == true;
+            _haptic = userData['aksesibilitas']['getaran'] == true;
+            _largeText = userData['aksesibilitas']['text_besar'] == true;
+          } else {
+            _voiceGuide = (userData['panduan_suara'] == 1 || userData['panduan_suara'] == true);
+            _haptic = (userData['getaran'] == 1 || userData['getaran'] == true);
+            _largeText = (userData['text_besar'] == 1 || userData['text_besar'] == true);
+          }
           
-          if (userData['foto_profile'] != null) {
-            _avatarUrl = userData['foto_profile'];
+          if (userData['foto_profile'] != null && userData['foto_profile'].toString().isNotEmpty) {
+            String foto = userData['foto_profile'];
+            if (foto.startsWith('http://') || foto.startsWith('https://')) {
+              _avatarUrl = foto;
+            } else {
+              // Gunakan API route khusus agar tidak terblokir CORS saat dev Web
+              _avatarUrl = '${ApiConstants.baseUrl}/storage-file/$foto';
+            }
           }
           
           _isLoading = false;
@@ -94,25 +138,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _fullUserData![key] = value ? 1 : 0;
     
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
-      if (token == null) return;
-
-      // completeProfile requires alamat and no_telp
       Map<String, dynamic> dataToUpdate = {
-        'alamat': _fullUserData!['alamat'] ?? '-',
-        'no_telp': _fullUserData!['no_telp'] ?? '-',
         key: value ? 1 : 0,
       };
 
-      await _dio.post(
-        ApiConstants.completeProfile,
-        data: dataToUpdate,
-        options: Options(headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        }),
-      );
+      final profileDataSource = GetIt.instance<ProfileRemoteDataSource>();
+      await profileDataSource.updateProfile(dataToUpdate);
     } catch (e) {
       debugPrint("Error updating setting $key: $e");
     }
@@ -191,7 +222,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 24),
                     _buildModernTextField(nameController, 'Nama Lengkap', Icons.person_outline),
                     const SizedBox(height: 16),
-                    _buildModernTextField(emailController, 'Email', Icons.email_outlined, keyboardType: TextInputType.emailAddress),
+                    _buildModernTextField(emailController, 'Email', Icons.email_outlined, keyboardType: TextInputType.emailAddress, readOnly: true),
                     const SizedBox(height: 16),
                     
                     Container(
@@ -271,7 +302,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (token != null) {
           Map<String, dynamic> dataToUpdate = {
             'name': nameController.text.isNotEmpty ? nameController.text : '-',
-            'email': emailController.text,
+            // email is usually handled by auth, but backend might not accept it in this endpoint. 
+            // We pass it just in case, or backend will ignore it.
             'kategori_user': selectedCategory,
             'alamat': addressController.text.isNotEmpty ? addressController.text : '-',
             'no_telp': phoneController.text.isNotEmpty ? phoneController.text : '-',
@@ -280,19 +312,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
             'text_besar': _largeText ? 1 : 0,
           };
 
-          await _dio.post(
-            ApiConstants.completeProfile,
-            data: dataToUpdate,
-            options: Options(headers: {
-              'Authorization': 'Bearer $token',
-              'Accept': 'application/json',
-            }),
-          );
+          final profileDataSource = GetIt.instance<ProfileRemoteDataSource>();
+          await profileDataSource.updateProfile(dataToUpdate);
           
           await _fetchProfile(); // Refresh data after update
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Profil berhasil diperbarui')),
+            );
+          }
         }
       } catch (e) {
         debugPrint("Error updating profile: $e");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal mengupdate profil: $e')),
+          );
+        }
         setState(() { _isLoading = false; });
       }
     }
@@ -399,16 +435,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: primaryTeal.withOpacity(0.3), width: 3),
-            ),
-            child: CircleAvatar(
-              radius: 46,
-              backgroundColor: Colors.grey.shade200,
-              backgroundImage: NetworkImage(_avatarUrl),
+          GestureDetector(
+            onTap: _pickAndUploadImage,
+            child: Stack(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: primaryTeal.withOpacity(0.3), width: 3),
+                  ),
+                  child: CircleAvatar(
+                    radius: 46,
+                    backgroundColor: Colors.grey.shade200,
+                    backgroundImage: NetworkImage(_avatarUrl),
+                    onBackgroundImageError: (_, __) {
+                      // Fallback when image fails to load (e.g. 429 Too Many Requests)
+                      // No-op here, flutter handles it by showing background color
+                    },
+                  ),
+                ),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: primaryTeal,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),
@@ -427,7 +487,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const Icon(Icons.verified, color: primaryTeal, size: 20),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
+          Text(
+            _email,
+            style: const TextStyle(fontSize: 14, color: Colors.black54),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
@@ -460,7 +526,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 12),
           _buildInfoBox(
-            icon: Icons.home_work_rounded,
+            icon: Icons.home_rounded,
             label: 'Alamat Lengkap',
             value: _address,
           ),
@@ -478,9 +544,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         border: Border.all(color: Colors.grey.shade200),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, color: primaryTeal, size: 20),
+          Icon(icon, color: primaryTeal, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -747,16 +813,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildModernTextField(TextEditingController controller, String hint, IconData icon, {TextInputType? keyboardType}) {
+  Widget _buildModernTextField(TextEditingController controller, String hint, IconData icon, {TextInputType? keyboardType, bool readOnly = false}) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F6F8),
+        color: readOnly ? const Color(0xFFE2E4EA) : const Color(0xFFF5F6F8),
         borderRadius: BorderRadius.circular(12),
       ),
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
-        style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)),
+        readOnly: readOnly,
+        style: TextStyle(
+          fontSize: 14, 
+          color: readOnly ? const Color(0xFF8A8FA3) : const Color(0xFF1A1A2E)
+        ),
         decoration: InputDecoration(
           border: InputBorder.none,
           hintText: hint,

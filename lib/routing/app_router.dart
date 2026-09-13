@@ -6,6 +6,7 @@ import 'package:sahabat_sos_mobile/features/auth/presentation/register_step2_pag
 import 'package:sahabat_sos_mobile/features/main/presentation/main_screen.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/map_page.dart';
 import 'package:sahabat_sos_mobile/features/reports/presentation/quick_report_screen.dart';
+import 'package:sahabat_sos_mobile/features/sos/presentation/emergency_contacts_page.dart';
 
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -82,6 +83,10 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.quickReport,
         builder: (context, state) => const QuickReportScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.emergencyContacts,
+        builder: (context, state) => const EmergencyContactsPage(),
       ),
       // TODO: Add more routes here (Home User, Home Relawan, dll)
     ],

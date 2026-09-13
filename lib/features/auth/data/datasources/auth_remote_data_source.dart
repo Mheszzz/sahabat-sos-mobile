@@ -18,7 +18,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   final SharedPreferences prefs;
   
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId: kIsWeb ? '355219118861-82gvltkbr04m7j5l77och0ntj1vldmrn.apps.googleusercontent.com' : '355219118861-e5g4epemc4v5he571v5qoe455ko6cn64.apps.googleusercontent.com',
+    clientId: kIsWeb ? '757209543690-bpjk959q2se7oq0eos1olm6urg35oicp.apps.googleusercontent.com' : '757209543690-jpg1blpas12drdam7leck0ha4pk7sluo.apps.googleusercontent.com',
     serverClientId: kIsWeb ? null : '355219118861-82gvltkbr04m7j5l77och0ntj1vldmrn.apps.googleusercontent.com',
     scopes: ['email', 'profile'],
   );

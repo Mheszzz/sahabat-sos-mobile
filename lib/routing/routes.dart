@@ -8,4 +8,5 @@ class AppRoutes {
   static const String homeUser = '/home-user';
   static const String homeVolunteer = '/home-volunteer';
   static const String quickReport = '/quick-report';
+  static const String emergencyContacts = '/emergency-contacts';
 }
