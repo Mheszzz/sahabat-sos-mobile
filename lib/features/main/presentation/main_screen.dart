@@ -3,6 +3,8 @@ import 'package:sahabat_sos_mobile/features/dashboard/presentation/dashboard_pag
 import 'package:sahabat_sos_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:sahabat_sos_mobile/features/reports/presentation/quick_report_screen.dart';
 import 'package:sahabat_sos_mobile/features/history/presentation/history_screen.dart';
+import 'package:sahabat_sos_mobile/features/device/presentation/pages/device_page.dart';
+
 
 class MainScreen extends StatefulWidget {
   final int initialIndex;
@@ -34,7 +36,7 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _pages = [
     const DashboardPage(),
     const QuickReportScreen(),
-    const Center(child: Text('Devices Page')),
+    const DevicePage(),
     const HistoryPage(),
     const ProfileScreen(),
   ];

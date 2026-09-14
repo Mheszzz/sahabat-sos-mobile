@@ -395,7 +395,7 @@ class _DashboardPageState extends State<DashboardPage>
         route: '/quick-report',
       ),
       _MenuItemData(icon: Icons.cell_tower, label: 'Perangkat Saya'),
-      _MenuItemData(icon: Icons.badge, label: 'Kontak Darurat'),
+      _MenuItemData(icon: Icons.badge, label: 'Kontak Darurat', route: '/emergency-contacts'),
       _MenuItemData(icon: Icons.history, label: 'Riwayat Bantuan'),
     ];
 
