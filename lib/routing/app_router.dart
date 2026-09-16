@@ -6,6 +6,12 @@ import 'package:sahabat_sos_mobile/features/auth/presentation/register_step2_pag
 import 'package:sahabat_sos_mobile/features/main/presentation/main_screen.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/map_page.dart';
 import 'package:sahabat_sos_mobile/features/reports/presentation/quick_report_screen.dart';
+import 'package:sahabat_sos_mobile/features/sos/presentation/emergency_contacts_page.dart';
+import 'package:sahabat_sos_mobile/features/sos/presentation/sos_status_page.dart';
+import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_list_screen.dart';
+import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_scan_screen.dart';
+import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_detail_screen.dart';
+import 'package:sahabat_sos_mobile/features/profile/presentation/screens/edit_profile_screen.dart';
 
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -83,7 +89,37 @@ class AppRouter {
         path: AppRoutes.quickReport,
         builder: (context, state) => const QuickReportScreen(),
       ),
-      // TODO: Add more routes here (Home User, Home Relawan, dll)
+      GoRoute(
+        path: AppRoutes.emergencyContacts,
+        builder: (context, state) => const EmergencyContactsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.sosStatus,
+        builder: (context, state) => const SosStatusPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.editProfile,
+        builder: (context, state) {
+          final userData = state.extra as Map<String, dynamic>? ?? {};
+          return EditProfileScreen(userData: userData);
+        },
+      ),
+      // Tuya Device Management
+      GoRoute(
+        path: AppRoutes.tuyaDevices,
+        builder: (context, state) => const TuyaDeviceListScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.tuyaDeviceScan,
+        builder: (context, state) => const TuyaDeviceScanScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.tuyaDeviceDetail,
+        builder: (context, state) {
+          final deviceId = state.pathParameters['id'] ?? '';
+          return TuyaDeviceDetailScreen(deviceId: deviceId);
+        },
+      ),
     ],
   );
 }

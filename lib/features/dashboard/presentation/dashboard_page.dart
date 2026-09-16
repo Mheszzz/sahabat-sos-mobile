@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -86,32 +87,46 @@ class _DashboardPageState extends State<DashboardPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F8),
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
       appBar: _buildAppBar(context),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 16),
-              Expanded(flex: 10, child: _buildSosButton()),
-              const SizedBox(height: 16),
-              const Text(
-                'Tekan tombol 5 kali dengan cepat\nuntuk meminta bantuan.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.black54,
-                  height: 1.4,
-                ),
-              ),
-              const Spacer(flex: 2),
-              _buildDeviceStatusCard(),
-              const SizedBox(height: 12),
-              _buildMenuGrid(),
-              const SizedBox(height: 8),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFE0F7FA), // Light blue/teal
+              Color(0xFFF5F6F8), // Greyish white
+              Color(0xFFE0F2F1), // Light teal
             ],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 16),
+                Expanded(flex: 10, child: _buildSosButton()),
+                const SizedBox(height: 12),
+                const Text(
+                  'Tekan tombol 5 kali dengan cepat\nuntuk meminta bantuan.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.black54,
+                    height: 1.3,
+                  ),
+                ),
+                const Spacer(flex: 1),
+                _buildDeviceStatusCard(),
+                const SizedBox(height: 12),
+                _buildMenuGrid(),
+                const SizedBox(height: 120), // Reserve enough space for the floating navbar
+              ],
+            ),
           ),
         ),
       ),
@@ -120,7 +135,7 @@ class _DashboardPageState extends State<DashboardPage>
 
   PreferredSizeWidget _buildAppBar(BuildContext context) {
     return AppBar(
-      backgroundColor: const Color(0xFFF5F6F8), // Match background
+      backgroundColor: Colors.transparent, // Glassy look for app bar
       elevation: 0,
       centerTitle: false,
       titleSpacing: 16,
@@ -188,10 +203,7 @@ class _DashboardPageState extends State<DashboardPage>
             _tapCount++;
             if (_tapCount >= 5) {
               _tapCount = 0;
-              // TODO: trigger emergency SOS action
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('SOS Darurat Dipicu!')),
-              );
+              context.push('/sos-status');
             }
 
             _tapTimer?.cancel();
@@ -308,40 +320,58 @@ class _DashboardPageState extends State<DashboardPage>
 
   Widget _buildDeviceStatusCard() {
     return Container(
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: _isBerandaLoading
-          ? const Center(
-              child: Padding(
-                padding: EdgeInsets.all(8.0),
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            )
-          : Row(
-              children: [
-                _buildStatItem(
-                  icon: Icons.warning_amber_rounded,
-                  label: 'SOS Aktif',
-                  value: '$_activeSos',
-                  color: Colors.red,
-                ),
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: Colors.grey.shade200,
-                ),
-                _buildStatItem(
-                  icon: Icons.description_outlined,
-                  label: 'Total Laporan',
-                  value: '$_totalLaporan',
-                  color: primaryTeal,
-                ),
-              ],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.5),
             ),
+            child: _isBerandaLoading
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : Row(
+                    children: [
+                      _buildStatItem(
+                        icon: Icons.warning_amber_rounded,
+                        label: 'SOS Aktif',
+                        value: '$_activeSos',
+                        color: Colors.red,
+                      ),
+                      Container(
+                        width: 1,
+                        height: 40,
+                        color: Colors.grey.withOpacity(0.3),
+                      ),
+                      _buildStatItem(
+                        icon: Icons.description_outlined,
+                        label: 'Total Laporan',
+                        value: '$_totalLaporan',
+                        color: primaryTeal,
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -395,7 +425,7 @@ class _DashboardPageState extends State<DashboardPage>
         route: '/quick-report',
       ),
       _MenuItemData(icon: Icons.cell_tower, label: 'Perangkat Saya'),
-      _MenuItemData(icon: Icons.badge, label: 'Kontak Darurat'),
+      _MenuItemData(icon: Icons.badge, label: 'Kontak Darurat', route: '/emergency-contacts'),
       _MenuItemData(icon: Icons.history, label: 'Riwayat Bantuan'),
     ];
 
@@ -405,9 +435,9 @@ class _DashboardPageState extends State<DashboardPage>
       itemCount: items.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 1.8, // Make cards flatter/smaller vertically
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 1.8, // Make cards flatter to save vertical space
       ),
       itemBuilder: (context, index) {
         final item = items[index];
@@ -417,37 +447,54 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Widget _buildMenuCard(IconData icon, String label, {String? route}) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
+    return Container(
+      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          if (route != null) {
-            context.push(route);
-          }
-        },
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: primaryTeal, size: 26),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 11,
-                  color: Colors.black87,
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Material(
+            color: Colors.white.withOpacity(0.4),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: Colors.white.withOpacity(0.6), width: 1.5),
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () {
+                if (route != null) {
+                  context.push(route);
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, color: primaryTeal, size: 32),
+                    const SizedBox(height: 8),
+                    Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),

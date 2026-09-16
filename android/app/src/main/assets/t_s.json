@@ -1,0 +1,10 @@
+{
+  "_comment": "Replace this file with the actual t_s.json downloaded from Tuya IoT Platform (iot.tuya.com)",
+  "_instructions": [
+    "1. Go to iot.tuya.com > App > App SDK",
+    "2. Create or select your app",
+    "3. Enter package name: com.example.sahabat_sos_mobile",
+    "4. Download the security configuration file",
+    "5. Replace this entire file with the downloaded t_s.json"
+  ]
+}

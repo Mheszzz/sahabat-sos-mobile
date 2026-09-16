@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -38,12 +39,36 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   String? _freshDescription;
   String? _freshOfficerInfo;
   bool _isFetchingDetail = false;
+  String? _userRole;
 
   @override
   void initState() {
     super.initState();
     _initAudioPlayer();
     _fetchDetailFromApi();
+    _fetchUserRole();
+  }
+
+  Future<void> _fetchUserRole() async {
+    try {
+      final prefs = sl<SharedPreferences>();
+      final token = prefs.getString('auth_token');
+      if (token == null) return;
+      final response = await sl<Dio>().get(
+        ApiConstants.me,
+        options: Options(headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        }),
+      );
+      if (response.statusCode == 200 && mounted) {
+        setState(() {
+          _userRole = response.data['data']['role'];
+        });
+      }
+    } catch (e) {
+      debugPrint('Gagal fetch user role: $e');
+    }
   }
 
   /// Fetch fresh detail from API to get latest status, officer info, etc.
@@ -78,6 +103,46 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       debugPrint('Gagal fetch detail laporan: $e');
     } finally {
       if (mounted) setState(() => _isFetchingDetail = false);
+    }
+  }
+
+  Future<void> _updateStatus(String newStatus) async {
+    try {
+      final prefs = sl<SharedPreferences>();
+      final token = prefs.getString('auth_token');
+      if (token == null) return;
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final response = await sl<Dio>().put(
+        ApiConstants.laporanStatus(widget.item.id),
+        data: {'status': newStatus},
+        options: Options(headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        }),
+      );
+
+      if (mounted) Navigator.pop(context); // close loading
+
+      if (response.statusCode == 200 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Status berhasil diperbarui')),
+        );
+        _fetchDetailFromApi(); // refresh
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      debugPrint('Gagal update status: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memperbarui status: $e')),
+        );
+      }
     }
   }
 
@@ -239,6 +304,36 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     ));
   }
 
+  Widget _buildGlassContainer({required Widget child, BorderRadius? borderRadius}) {
+    final radius = borderRadius ?? BorderRadius.circular(16);
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.4),
+              borderRadius: radius,
+              border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.5),
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final statusString = _freshStatus ?? widget.item.status.toString().split('.').last;
@@ -247,9 +342,10 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     final hasImage = widget.item.imageUrl != null;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F6),
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
@@ -270,10 +366,22 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           ],
         ),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          child: Column(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFE0F7FA), // Light blue/teal
+              Color(0xFFF5F6F8), // Greyish white
+              Color(0xFFE0F2F1), // Light teal
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Title and Status
@@ -314,6 +422,36 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                 ],
               ),
               const SizedBox(height: 20),
+
+              if (_userRole == 'relawan' || _userRole == 'admin') ...[
+                _buildGlassContainer(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                    children: [
+                      const Text(
+                        'Update Status Laporan:',
+                        style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF00695C)),
+                      ),
+                      const Spacer(),
+                      DropdownButton<String>(
+                        value: ['aktif', 'proses', 'selesai'].contains(statusString) ? statusString : 'aktif',
+                        items: ['aktif', 'proses', 'selesai']
+                            .map((e) => DropdownMenuItem(value: e, child: Text(e.toUpperCase())))
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null && val != statusString) {
+                            _updateStatus(val);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
 
               // Image Card
               if (hasImage) ...[
@@ -375,14 +513,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               ],
 
               // Info Section (Waktu & Lokasi & Map)
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
-                  ],
-                ),
+              _buildGlassContainer(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -482,14 +613,10 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               // Officer Info Card
               if (widget.item.officerInfo != null) ...[
                 const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE0F2F1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFB2DFDB)),
-                  ),
-                  child: Row(
+                _buildGlassContainer(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
                     children: [
                       const CircleAvatar(
                         backgroundColor: Color(0xFF00695C),
@@ -509,19 +636,13 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                     ],
                   ),
                 ),
+                ),
               ],
 
               // Description Card
               if (widget.item.description != null && widget.item.description!.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
-                    ],
-                  ),
+                _buildGlassContainer(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
@@ -633,27 +754,11 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                 ),
               ],
 
-              const SizedBox(height: 32),
-              
-              // Back Button
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: OutlinedButton.icon(
-                  onPressed: () => context.pop(),
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text('Kembali ke Riwayat', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF00695C),
-                    side: const BorderSide(color: Color(0xFF00695C), width: 2),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
               const SizedBox(height: 24),
             ],
           ),
         ),
+      ),
       ),
     );
   }
