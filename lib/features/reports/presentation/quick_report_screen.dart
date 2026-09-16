@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:geolocator/geolocator.dart';
@@ -25,7 +26,13 @@ class _ReportCategory {
   final String id;
   final IconData icon;
   final Color iconColor;
-  _ReportCategory(this.title, this.subtitle, this.id, this.icon, this.iconColor);
+  _ReportCategory(
+    this.title,
+    this.subtitle,
+    this.id,
+    this.icon,
+    this.iconColor,
+  );
 }
 
 class _QuickReportScreenState extends State<QuickReportScreen>
@@ -38,26 +45,16 @@ class _QuickReportScreenState extends State<QuickReportScreen>
   bool _isLoading = false;
   File? _selectedImage;
   File? _selectedAudio;
-  
+
   bool _isRecording = false;
   late final AudioRecorder _audioRecorder;
   late final AnimationController _pulseController;
 
-  final List<_ReportCategory> _categories = <_ReportCategory>[
-    _ReportCategory('Butuh Pendamping', 'Relawan & Petugas', 'butuh_pendamping', Icons.people_alt_rounded, Color(0xFF1565C0)),
-    _ReportCategory('Kondisi Medis', 'Ambulans & Obat', 'kondisi_medis', Icons.local_hospital_rounded, Color(0xFFD32F2F)),
-    _ReportCategory('Ancaman / Bahaya', 'Keamanan Cepat', 'ancaman_bahaya', Icons.shield_rounded, Color(0xFFE65100)),
-    _ReportCategory('Tersesat', 'Panduan Arah', 'tersesat', Icons.explore_rounded, Color(0xFF00838F)),
-    _ReportCategory('Aksesibilitas Rusak', 'Bantuan Akses', 'aksesibilitas_rusak', Icons.accessible_rounded, Color(0xFF6A1B9A)),
-    _ReportCategory('Lainnya', 'Bantuan Khusus', 'lainnya', Icons.more_horiz_rounded, Color(0xFF546E7A)),
-  ];
+  bool _isLoadingOptions = true;
+  String? _optionsError;
 
-  final List<Map<String, dynamic>> _quickMessages = <Map<String, dynamic>>[
-    {'icon': Icons.check_circle, 'text': 'Saya butuh bantuan di lokasi saya'},
-    {'icon': Icons.hearing_disabled, 'text': 'Saya tidak dapat berbicara / mendengar'},
-    {'icon': Icons.phone_in_talk_outlined, 'text': 'Tolong hubungi kontak keluarga saya'},
-    {'icon': Icons.accessible, 'text': 'Saya butuh bantuan mobilitas / kursi roda'},
-  ];
+  final List<_ReportCategory> _categories = [];
+  final List<Map<String, dynamic>> _quickMessages = [];
 
   Position? _cachedPosition;
   String? _cachedAddress;
@@ -75,19 +72,31 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     _fetchOptionsFromApi();
   }
 
-  /// Fetch kategori laporan & pesan cepat dari API, fallback ke data hardcoded jika gagal
+  /// Fetch kategori laporan & pesan cepat dari API
   Future<void> _fetchOptionsFromApi() async {
+    setState(() {
+      _isLoadingOptions = true;
+      _optionsError = null;
+    });
     try {
       final prefs = sl<SharedPreferences>();
       final token = prefs.getString('auth_token');
-      if (token == null) return;
+      if (token == null) {
+        setState(() {
+          _optionsError = 'Token tidak ditemukan';
+          _isLoadingOptions = false;
+        });
+        return;
+      }
 
       final response = await sl<Dio>().get(
         ApiConstants.laporanOptions,
-        options: Options(headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        }),
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
       );
 
       if (response.statusCode == 200 && mounted) {
@@ -98,20 +107,16 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         if (apiKategori != null && apiKategori.isNotEmpty) {
           final newCategories = apiKategori.map<_ReportCategory>((item) {
             return _ReportCategory(
-              item['title'] ?? '',
-              item['subtitle'] ?? '',
-              item['id'] ?? '',
+              item['nama_kategori'] ?? item['title'] ?? '',
+              item['deskripsi'] ?? item['subtitle'] ?? '',
+              item['nama_kategori'] ?? item['id'] ?? '',
               _getCategoryIcon(item['id'] ?? ''),
               _getCategoryColor(item['id'] ?? ''),
             );
           }).toList();
 
-          setState(() {
-            _categories
-              ..clear()
-              ..addAll(newCategories);
-            _selectedCategory = 0;
-          });
+          _categories.clear();
+          _categories.addAll(newCategories);
         }
 
         // Parse pesan cepat
@@ -121,40 +126,62 @@ class _QuickReportScreenState extends State<QuickReportScreen>
             return {'icon': Icons.check_circle, 'text': text};
           }).toList();
 
-          setState(() {
-            _quickMessages
-              ..clear()
-              ..addAll(newMessages);
-            _selectedQuickMessage = 0;
-          });
+          _quickMessages.clear();
+          _quickMessages.addAll(newMessages);
         }
+
+        setState(() {
+          _selectedCategory = 0;
+          _selectedQuickMessage = 0;
+          _isLoadingOptions = false;
+        });
       }
     } catch (e) {
-      debugPrint('Gagal fetch laporan options, menggunakan data default: $e');
+      debugPrint('Gagal fetch laporan options: $e');
+      if (mounted) {
+        setState(() {
+          _optionsError = 'Gagal memuat data dari server';
+          _isLoadingOptions = false;
+        });
+      }
     }
   }
 
   IconData _getCategoryIcon(String id) {
     switch (id) {
-      case 'butuh_pendamping': return Icons.people_alt_rounded;
-      case 'kondisi_medis': return Icons.local_hospital_rounded;
-      case 'ancaman_bahaya': return Icons.shield_rounded;
-      case 'tersesat': return Icons.explore_rounded;
-      case 'aksesibilitas_rusak': return Icons.accessible_rounded;
-      case 'lainnya': return Icons.more_horiz_rounded;
-      default: return Icons.help_outline_rounded;
+      case 'butuh_pendamping':
+        return Icons.people_alt_rounded;
+      case 'kondisi_medis':
+        return Icons.local_hospital_rounded;
+      case 'ancaman_bahaya':
+        return Icons.shield_rounded;
+      case 'tersesat':
+        return Icons.explore_rounded;
+      case 'aksesibilitas_rusak':
+        return Icons.accessible_rounded;
+      case 'lainnya':
+        return Icons.more_horiz_rounded;
+      default:
+        return Icons.help_outline_rounded;
     }
   }
 
   Color _getCategoryColor(String id) {
     switch (id) {
-      case 'butuh_pendamping': return const Color(0xFF1565C0);
-      case 'kondisi_medis': return const Color(0xFFD32F2F);
-      case 'ancaman_bahaya': return const Color(0xFFE65100);
-      case 'tersesat': return const Color(0xFF00838F);
-      case 'aksesibilitas_rusak': return const Color(0xFF6A1B9A);
-      case 'lainnya': return const Color(0xFF546E7A);
-      default: return const Color(0xFF546E7A);
+      case 'butuh_pendamping':
+        return const Color(0xFF1565C0);
+      case 'kondisi_medis':
+        return const Color(0xFFD32F2F);
+      case 'ancaman_bahaya':
+        return const Color(0xFFE65100);
+      case 'tersesat':
+        return const Color(0xFF00838F);
+      case 'aksesibilitas_rusak':
+        return const Color(0xFF6A1B9A);
+      case 'lainnya':
+        return const Color(0xFF546E7A);
+      default:
+        return const Color(0xFF546E7A);
     }
   }
 
@@ -172,12 +199,15 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       _cachedPosition = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
-      
-      final placemarks = await geo.Geocoding().placemarkFromCoordinates(
-          _cachedPosition!.latitude, _cachedPosition!.longitude);
+
+      final placemarks = await geo.placemarkFromCoordinates(
+        _cachedPosition!.latitude,
+        _cachedPosition!.longitude,
+      );
       if (placemarks.isNotEmpty) {
         final place = placemarks.first;
-        _cachedAddress = "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
+        _cachedAddress =
+            "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
       }
     } catch (e) {
       debugPrint("Gagal pre-fetch lokasi: $e");
@@ -233,17 +263,20 @@ class _QuickReportScreenState extends State<QuickReportScreen>
             // TETAPI kita turunkan kualitasnya ke standar telepon (8kHz, Mono).
             // Hasilnya: Ukuran file akan sama kecilnya dengan kompresi M4A/3GP (sekitar 16 KB/detik)
             // tanpa memicu error salah tebak format dari server.
-            final filePath = '${tempDir.path}/rekaman_sos_${DateTime.now().millisecondsSinceEpoch}.wav';
+            final filePath =
+                '${tempDir.path}/rekaman_sos_${DateTime.now().millisecondsSinceEpoch}.wav';
             final config = const RecordConfig(
-              encoder: AudioEncoder.wav, 
-              sampleRate: 8000, 
+              encoder: AudioEncoder.wav,
+              sampleRate: 8000,
               numChannels: 1,
             );
-            
+
             await _audioRecorder.start(config, path: filePath);
           } catch (e) {
             // Revert state jika hardware gagal memulai
-            setState(() { _isRecording = false; });
+            setState(() {
+              _isRecording = false;
+            });
             _pulseController.stop();
             rethrow;
           }
@@ -260,9 +293,9 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         setState(() {
           _isRecording = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error merekam: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error merekam: $e')));
       }
     }
   }
@@ -277,7 +310,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       if (_locationFuture != null) {
         await _locationFuture;
       }
-      
+
       Position? position = _cachedPosition;
       String address = _cachedAddress ?? "Lokasi Tidak Diketahui";
 
@@ -312,24 +345,30 @@ class _QuickReportScreenState extends State<QuickReportScreen>
             throw Exception('Gagal mendapatkan lokasi. Pastikan GPS aktif.');
           }
         }
-        
+
         try {
-          final placemarks = await geo.Geocoding().placemarkFromCoordinates(position.latitude, position.longitude)
-              .timeout(const Duration(seconds: 5));
+          final placemarks = await geo.placemarkFromCoordinates(
+            position.latitude,
+            position.longitude,
+          ).timeout(const Duration(seconds: 5));
           if (placemarks.isNotEmpty) {
             final place = placemarks.first;
-            address = "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
+            address =
+                "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
           }
         } catch (_) {}
       }
 
       // 2. Prepare Data
       final prefs = sl<SharedPreferences>();
-      final token = prefs.getString('auth_token') ?? ''; // fallback for testing if no token
+      final token =
+          prefs.getString('auth_token') ??
+          ''; // fallback for testing if no token
       final dio = sl<Dio>();
 
       final selectedCategory = _categories[_selectedCategory];
-      final selectedQuickMessage = _quickMessages[_selectedQuickMessage]['text'];
+      final selectedQuickMessage =
+          _quickMessages[_selectedQuickMessage]['text'];
 
       final formData = FormData.fromMap({
         'kategori_laporan': selectedCategory.id,
@@ -341,20 +380,24 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       });
 
       if (_selectedImage != null) {
-        formData.files.add(MapEntry(
-          'foto_laporan',
-          await MultipartFile.fromFile(_selectedImage!.path),
-        ));
+        formData.files.add(
+          MapEntry(
+            'foto_laporan',
+            await MultipartFile.fromFile(_selectedImage!.path),
+          ),
+        );
       }
 
       if (_selectedAudio != null) {
-        formData.files.add(MapEntry(
-          'rekam_suara',
-          await MultipartFile.fromFile(
-            _selectedAudio!.path,
-            contentType: MediaType('audio', 'wav'),
+        formData.files.add(
+          MapEntry(
+            'rekam_suara',
+            await MultipartFile.fromFile(
+              _selectedAudio!.path,
+              contentType: MediaType('audio', 'wav'),
+            ),
           ),
-        ));
+        );
       }
 
       // 3. Send to Backend
@@ -386,55 +429,84 @@ class _QuickReportScreenState extends State<QuickReportScreen>
           showDialog(
             context: context,
             barrierDismissible: false,
-            builder: (ctx) => AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Icon(Icons.check_circle, color: Colors.green, size: 60),
-              content: const Text(
-                'Laporan berhasil dikirim!\nRelawan terdekat sedang menuju lokasi Anda.',
-                textAlign: TextAlign.center,
-              ),
-              actions: [
-                Center(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      context.go('/dashboard?tab=3');
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryTeal,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    child: const Text('Lihat Riwayat', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
+            builder: (ctx) => BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: AlertDialog(
+                backgroundColor: Colors.white.withOpacity(0.3),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(color: Colors.white.withOpacity(0.5), width: 1.5),
                 ),
-              ],
+                title: const Icon(
+                  Icons.check_circle_rounded,
+                  color: primaryTeal,
+                  size: 65,
+                ),
+                content: const Text(
+                  'Laporan berhasil dikirim!\nRelawan terdekat sedang menuju lokasi Anda.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w500, height: 1.4),
+                ),
+                actions: [
+                  Center(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        context.go('/dashboard?tab=3');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryTeal,
+                        foregroundColor: Colors.white,
+                        elevation: 2,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Lihat Riwayat',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         }
       } else {
         throw Exception('Gagal mengirim laporan');
       }
-
     } on DioException catch (e) {
       if (mounted) {
         String errorMsg = e.message ?? 'Unknown error';
         if (e.response != null) {
-          errorMsg = e.response?.data.toString() ?? 'Error ${e.response?.statusCode}';
-        } else if (e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout) {
+          errorMsg =
+              e.response?.data.toString() ?? 'Error ${e.response?.statusCode}';
+        } else if (e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout) {
           errorMsg = 'Koneksi ke server timeout. Pastikan backend aktif.';
         } else if (e.type == DioExceptionType.connectionError) {
-          errorMsg = 'Tidak bisa connect ke server (Cek IP baseUrl ${ApiConstants.baseUrl})';
+          errorMsg =
+              'Tidak bisa connect ke server (Cek IP baseUrl ${ApiConstants.baseUrl})';
         }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal (Backend): $errorMsg'), backgroundColor: Colors.red, duration: const Duration(seconds: 4)),
+          SnackBar(
+            content: Text('Gagal (Backend): $errorMsg'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red, duration: const Duration(seconds: 4)),
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
         );
       }
     } finally {
@@ -449,49 +521,106 @@ class _QuickReportScreenState extends State<QuickReportScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: _buildAppBar(),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Kirim Laporan Cepat',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Pilih kategori dan kirim pesan bantuan tanpa\nharus mengetik panjang.',
-                style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.4),
-              ),
-              const SizedBox(height: 20),
-              _buildSectionHeader('Kategori Laporan', trailing: 'Pilih salah satu'),
-              const SizedBox(height: 10),
-              _buildCategoryGrid(),
-              const SizedBox(height: 20),
-              _buildSectionHeader('Pesan Cepat (Ketuk untuk menyisipkan)'),
-              const SizedBox(height: 10),
-              _buildQuickMessages(),
-              const SizedBox(height: 20),
-              _buildSectionHeader('Keterangan Tambahan (Opsional)'),
-              const SizedBox(height: 10),
-              _buildNotesField(),
-              const SizedBox(height: 20),
-              _buildSectionHeader('Lampiran & Koordinat Otomatis'),
-              const SizedBox(height: 10),
-              _buildVoiceRecordTile(),
-              const SizedBox(height: 10),
-              _buildPhotoTile(),
-              const SizedBox(height: 10),
-              _buildLocationTile(),
-              const SizedBox(height: 20),
-              _buildSendButton(),
-              const SizedBox(height: 10),
-              _buildFooterNote(),
-              const SizedBox(height: 12),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFE0F7FA), // Light blue/teal
+              Color(0xFFF5F6F8), // Greyish white
+              Color(0xFFE0F2F1), // Light teal
             ],
           ),
+        ),
+        child: SafeArea(
+          child: _isLoadingOptions
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.black87),
+                )
+              : _optionsError != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        color: Colors.black87,
+                        size: 48,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _optionsError!,
+                        style: const TextStyle(color: Colors.black87),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _fetchOptionsFromApi,
+                        child: const Text('Coba Lagi'),
+                      ),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'Kirim Laporan Cepat',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Pilih kategori dan kirim pesan bantuan tanpa\nharus mengetik panjang.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.black54,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildSectionHeader(
+                        'Kategori Laporan',
+                        trailing: 'Pilih salah satu',
+                      ),
+                      const SizedBox(height: 10),
+                      _buildCategoryGrid(),
+                      const SizedBox(height: 20),
+                      _buildSectionHeader(
+                        'Pesan Cepat (Ketuk untuk menyisipkan)',
+                      ),
+                      const SizedBox(height: 10),
+                      _buildQuickMessages(),
+                      const SizedBox(height: 20),
+                      _buildSectionHeader('Keterangan Tambahan (Opsional)'),
+                      const SizedBox(height: 10),
+                      _buildNotesField(),
+                      const SizedBox(height: 20),
+                      _buildSectionHeader('Lampiran & Koordinat Otomatis'),
+                      const SizedBox(height: 10),
+                      _buildVoiceRecordTile(),
+                      const SizedBox(height: 10),
+                      _buildPhotoTile(),
+                      const SizedBox(height: 10),
+                      _buildLocationTile(),
+                      const SizedBox(height: 20),
+                      _buildSendButton(),
+                      const SizedBox(height: 10),
+                      _buildFooterNote(),
+                      const SizedBox(height: 85), // Memberi ruang secukupnya agar pas di atas navbar
+                    ],
+                  ),
+                ),
         ),
       ),
     );
@@ -499,9 +628,9 @@ class _QuickReportScreenState extends State<QuickReportScreen>
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: Colors.white,
-      elevation: 0.5,
-      shadowColor: Colors.black12,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      iconTheme: const IconThemeData(color: primaryTeal),
       centerTitle: false,
       titleSpacing: 16,
       title: Row(
@@ -521,13 +650,44 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     );
   }
 
+  Widget _buildGlassCard({required Widget child, EdgeInsetsGeometry? padding}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: padding ?? const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+            ],
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(String title, {String? trailing}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+            color: Colors.black87,
+          ),
+        ),
         if (trailing != null)
-          Text(trailing, style: const TextStyle(fontSize: 12, color: Colors.black45)),
+          Text(
+            trailing,
+            style: const TextStyle(fontSize: 12, color: Colors.black54),
+          ),
       ],
     );
   }
@@ -549,71 +709,70 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         return InkWell(
           borderRadius: BorderRadius.circular(14),
           onTap: () => setState(() => _selectedCategory = index),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isSelected ? primaryTeal : Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: isSelected ? primaryTeal : Colors.grey.shade200,
-                width: isSelected ? 2 : 1,
-              ),
-              boxShadow: [
-                BoxShadow(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
                   color: isSelected
-                      ? primaryTeal.withOpacity(0.25)
-                      : Colors.black.withOpacity(0.05),
-                  blurRadius: isSelected ? 10 : 6,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
+                      ? primaryTeal.withOpacity(0.15)
+                      : Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
                     color: isSelected
-                        ? Colors.white.withOpacity(0.2)
-                        : category.iconColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    category.icon,
-                    size: 22,
-                    color: isSelected ? Colors.white : category.iconColor,
+                        ? primaryTeal.withOpacity(0.4)
+                        : Colors.white.withOpacity(0.2),
+                    width: isSelected ? 1.5 : 1,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        category.title,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12.5,
-                          color: isSelected ? Colors.white : Colors.black87,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: category.iconColor.withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        category.subtitle,
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          color: isSelected ? Colors.white70 : Colors.black45,
-                        ),
+                      child: Icon(
+                        category.icon,
+                        size: 22,
+                        color: Colors.black87,
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            category.title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12.5,
+                              color: Colors.black87,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            category.subtitle,
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         );
@@ -631,39 +790,51 @@ class _QuickReportScreenState extends State<QuickReportScreen>
           child: InkWell(
             borderRadius: BorderRadius.circular(24),
             onTap: () => setState(() => _selectedQuickMessage = index),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: isSelected ? primaryTeal : Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
                   ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    item['icon'] as IconData,
-                    size: 18,
-                    color: isSelected ? Colors.white : Colors.black54,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      item['text'] as String,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                        color: isSelected ? Colors.white : Colors.black87,
-                      ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? primaryTeal.withOpacity(0.15)
+                        : Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: isSelected
+                          ? primaryTeal.withOpacity(0.4)
+                          : Colors.white.withOpacity(0.2),
+                      width: isSelected ? 1.5 : 1,
                     ),
                   ),
-                ],
+                  child: Row(
+                    children: [
+                      Icon(
+                        item['icon'] as IconData,
+                        size: 18,
+                        color: isSelected ? primaryTeal : Colors.black87,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          item['text'] as String,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -673,207 +844,216 @@ class _QuickReportScreenState extends State<QuickReportScreen>
   }
 
   Widget _buildNotesField() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withOpacity(0.2)),
           ),
-        ],
-      ),
-      child: TextField(
-        controller: _notesController,
-        maxLines: 3,
-        decoration: const InputDecoration(
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.all(14),
-          hintText: 'Jelaskan patokan lokasi atau kebutuhan\nspesifik Anda di sini...',
-          hintStyle: TextStyle(color: Colors.black38, fontSize: 13),
+          child: TextField(
+            controller: _notesController,
+            maxLines: 3,
+            style: const TextStyle(color: Colors.black87),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.all(14),
+              hintText:
+                  'Jelaskan patokan lokasi atau kebutuhan\nspesifik Anda di sini...',
+              hintStyle: TextStyle(color: Colors.black54, fontSize: 13),
+            ),
+          ),
         ),
       ),
     );
   }
 
   Widget _buildVoiceRecordTile() {
-    return InkWell(
-      onTap: _pickAudio,
+    return ClipRRect(
       borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: _isRecording
-              ? const LinearGradient(
-                  colors: [Color(0xFFD32F2F), Color(0xFFFF5252)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          color: _isRecording ? null : Colors.white,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: InkWell(
+          onTap: _pickAudio,
           borderRadius: BorderRadius.circular(16),
-          border: _selectedAudio != null && !_isRecording
-              ? Border.all(color: Colors.green.shade400, width: 1.5)
-              : null,
-          boxShadow: [
-            BoxShadow(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
               color: _isRecording
-                  ? Colors.red.withOpacity(0.3)
-                  : Colors.black.withOpacity(0.06),
-              blurRadius: _isRecording ? 12 : 6,
-              offset: const Offset(0, 3),
+                  ? Colors.red.withOpacity(0.5)
+                  : Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _selectedAudio != null
+                    ? Colors.greenAccent
+                    : Colors.white.withOpacity(0.2),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _isRecording
+                      ? Colors.red.withOpacity(0.3)
+                      : Colors.black.withOpacity(0.06),
+                  blurRadius: _isRecording ? 12 : 6,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Animated mic icon
-            AnimatedBuilder(
-              animation: _pulseController,
-              builder: (context, child) {
-                return Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: _isRecording
-                        ? Colors.white.withOpacity(0.2 + _pulseController.value * 0.15)
-                        : (_selectedAudio != null
-                            ? Colors.green.shade50
-                            : const Color(0xFFFFF3E0)),
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: _isRecording
-                        ? [
-                            BoxShadow(
-                              color: Colors.white.withOpacity(0.2 + _pulseController.value * 0.2),
-                              blurRadius: 8 + _pulseController.value * 6,
-                              spreadRadius: _pulseController.value * 2,
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Icon(
-                    _isRecording
-                        ? Icons.stop_rounded
-                        : (_selectedAudio != null
-                            ? Icons.check_rounded
-                            : Icons.mic_rounded),
-                    color: _isRecording
-                        ? Colors.white
-                        : (_selectedAudio != null
-                            ? Colors.green.shade600
-                            : const Color(0xFFF57C00)),
-                    size: 24,
-                  ),
-                );
-              },
-            ),
-            const SizedBox(width: 14),
-            // Title and subtitle
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _isRecording
-                        ? 'Sedang Merekam...'
-                        : (_selectedAudio != null
-                            ? 'Rekaman Tersimpan'
-                            : 'Rekam Pesan Suara'),
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: _isRecording ? Colors.white : Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  if (_isRecording)
-                    // Animated waveform bars
-                    AnimatedBuilder(
-                      animation: _pulseController,
-                      builder: (context, child) {
-                        return Row(
-                          children: List.generate(12, (i) {
-                            final barHeight = 4.0 +
-                                (10.0 *
-                                    (((_pulseController.value + i * 0.15) % 1.0) *
-                                        (i.isEven ? 1.0 : 0.6)));
-                            return Container(
-                              width: 3,
-                              height: barHeight,
-                              margin: const EdgeInsets.only(right: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.8),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
+            child: Row(
+              children: [
+                // Animated mic icon
+                AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (context, child) {
+                    return Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: _isRecording
+                            ? Colors.white.withOpacity(
+                                0.2 + _pulseController.value * 0.15,
+                              )
+                            : (_selectedAudio != null
+                                  ? Colors.green.shade50
+                                  : const Color(0xFFFFF3E0)),
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: _isRecording
+                            ? [
+                                BoxShadow(
+                                  color: Colors.white.withOpacity(
+                                    0.2 + _pulseController.value * 0.2,
+                                  ),
+                                  blurRadius: 8 + _pulseController.value * 6,
+                                  spreadRadius: _pulseController.value * 2,
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Icon(
+                        _isRecording
+                            ? Icons.stop_rounded
+                            : (_selectedAudio != null
+                                  ? Icons.check_rounded
+                                  : Icons.mic_rounded),
+                        color: _isRecording
+                            ? Colors.white
+                            : (_selectedAudio != null
+                                  ? Colors.green.shade600
+                                  : const Color(0xFFF57C00)),
+                        size: 24,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 14),
+                // Title and subtitle
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _isRecording
+                            ? 'Sedang Merekam...'
+                            : (_selectedAudio != null
+                                  ? 'Rekaman Tersimpan'
+                                  : 'Rekam Pesan Suara'),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      if (_isRecording)
+                        // Animated waveform bars
+                        AnimatedBuilder(
+                          animation: _pulseController,
+                          builder: (context, child) {
+                            return Row(
+                              children: List.generate(12, (i) {
+                                final barHeight =
+                                    4.0 +
+                                    (10.0 *
+                                        (((_pulseController.value + i * 0.15) %
+                                                1.0) *
+                                            (i.isEven ? 1.0 : 0.6)));
+                                return Container(
+                                  width: 3,
+                                  height: barHeight,
+                                  margin: const EdgeInsets.only(right: 3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.8),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                );
+                              }),
                             );
-                          }),
-                        );
-                      },
-                    )
-                  else
-                    Text(
-                      _selectedAudio != null
-                          ? _selectedAudio!.path.split('/').last
-                          : 'Ketuk untuk mulai merekam suara',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _isRecording ? Colors.white70 : Colors.black45,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                ],
-              ),
-            ),
-            // Action indicator
-            if (!_isRecording)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: _selectedAudio != null
-                      ? Colors.green.shade50
-                      : const Color(0xFFFFF3E0),
-                  borderRadius: BorderRadius.circular(20),
+                          },
+                        )
+                      else
+                        Text(
+                          _selectedAudio != null
+                              ? _selectedAudio!.path.split('/').last
+                              : 'Ketuk untuk mulai merekam suara',
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _selectedAudio != null
-                          ? Icons.check_circle_rounded
-                          : Icons.mic_none_rounded,
-                      size: 16,
+                // Action indicator
+                if (!_isRecording)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
                       color: _selectedAudio != null
-                          ? Colors.green.shade600
-                          : const Color(0xFFF57C00),
+                          ? Colors.green.shade50
+                          : const Color(0xFFFFF3E0),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _selectedAudio != null ? 'Selesai' : 'Rekam',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _selectedAudio != null
-                            ? Colors.green.shade600
-                            : const Color(0xFFF57C00),
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _selectedAudio != null
+                              ? Icons.check_circle_rounded
+                              : Icons.mic_none_rounded,
+                          size: 16,
+                          color: _selectedAudio != null
+                              ? Colors.green.shade600
+                              : const Color(0xFFF57C00),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _selectedAudio != null ? 'Selesai' : 'Rekam',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              )
-            else
-              Text(
-                'Ketuk untuk stop',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.white.withOpacity(0.8),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-          ],
+                  )
+                else
+                  Text(
+                    'Ketuk untuk stop',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.white.withOpacity(0.8),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -881,180 +1061,197 @@ class _QuickReportScreenState extends State<QuickReportScreen>
 
   Widget _buildPhotoTile() {
     final hasPhoto = _selectedImage != null;
-    return InkWell(
+    return ClipRRect(
       borderRadius: BorderRadius.circular(16),
-      onTap: _pickImage,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          border: hasPhoto
-              ? Border.all(color: Colors.blue.shade400, width: 1.5)
-              : null,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Photo icon or preview
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: hasPhoto ? Colors.blue.shade50 : const Color(0xFFE3F2FD),
-                borderRadius: BorderRadius.circular(14),
-                image: hasPhoto
-                    ? DecorationImage(
-                        image: FileImage(_selectedImage!),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
+          onTap: _pickImage,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: hasPhoto
+                    ? Colors.blueAccent
+                    : Colors.white.withOpacity(0.2),
               ),
-              child: hasPhoto
-                  ? null
-                  : const Icon(
-                      Icons.camera_alt_rounded,
-                      color: Color(0xFF1565C0),
-                      size: 24,
-                    ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 6,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    hasPhoto ? 'Foto Terlampir' : 'Ambil Foto Keadaan',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Colors.black87,
-                    ),
+            child: Row(
+              children: [
+                // Photo icon or preview
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: hasPhoto
+                        ? Colors.blue.shade50
+                        : const Color(0xFFE3F2FD),
+                    borderRadius: BorderRadius.circular(14),
+                    image: hasPhoto
+                        ? DecorationImage(
+                            image: FileImage(_selectedImage!),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    hasPhoto
-                        ? _selectedImage!.path.split('/').last
-                        : 'Dokumentasikan situasi sekitar',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.black45,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: hasPhoto
+                      ? null
+                      : const Icon(
+                          Icons.camera_alt_rounded,
+                          color: Color(0xFF1565C0),
+                          size: 24,
+                        ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        hasPhoto ? 'Foto Terlampir' : 'Ambil Foto Keadaan',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        hasPhoto
+                            ? _selectedImage!.path.split('/').last
+                            : 'Dokumentasikan situasi sekitar',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: hasPhoto
+                        ? Colors.blue.shade50
+                        : const Color(0xFFE3F2FD),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        hasPhoto
+                            ? Icons.check_circle_rounded
+                            : Icons.camera_alt_outlined,
+                        size: 16,
+                        color: Colors.black87,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        hasPhoto ? 'Selesai' : 'Ambil',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: hasPhoto ? Colors.blue.shade50 : const Color(0xFFE3F2FD),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    hasPhoto ? Icons.check_circle_rounded : Icons.camera_alt_outlined,
-                    size: 16,
-                    color: hasPhoto ? Colors.blue.shade700 : const Color(0xFF1565C0),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    hasPhoto ? 'Selesai' : 'Ambil',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: hasPhoto ? Colors.blue.shade700 : const Color(0xFF1565C0),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildLocationTile() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0FDF4), // Sangat soft green/teal
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFBBF7D0)), // Soft border
-      ),
-      child: Row(
-        children: [
-          // GPS icon with satellite ring
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: const Color(0xFFDCFCE7),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(
-              Icons.my_location_rounded,
-              color: Color(0xFF166534), // Dark green
-              size: 24,
-            ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.2)),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Bagikan Lokasi Akurat',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: Color(0xFF166534),
-                  ),
+          child: Row(
+            children: [
+              // GPS icon with satellite ring
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDCFCE7),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'GPS otomatis aktif saat mengirim',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: const Color(0xFF166534).withOpacity(0.75),
-                  ),
+                child: const Icon(
+                  Icons.my_location_rounded,
+                  color: Colors.black87, // Dark green
+                  size: 24,
                 ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFFBBF7D0),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.gps_fixed_rounded, size: 14, color: const Color(0xFF15803D)),
-                const SizedBox(width: 4),
-                const Text(
-                  'Aktif',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Bagikan Lokasi Akurat',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'GPS otomatis aktif saat mengirim',
+                      style: TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+                  ],
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    size: 16,
                     color: Color(0xFF15803D),
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 4),
+                  const Text(
+                    'Aktif',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF15803D),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1067,15 +1264,24 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryTeal,
           foregroundColor: Colors.white,
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
-        icon: _isLoading 
-            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+        icon: _isLoading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
             : const Icon(Icons.send, size: 18),
         label: Text(
-          _isLoading ? 'Mengirim...' : 'Kirim Laporan Sekarang', 
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)
+          _isLoading ? 'Mengirim...' : 'Kirim Laporan Sekarang',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
         ),
       ),
     );
@@ -1085,12 +1291,12 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: const [
-        Icon(Icons.shield_outlined, size: 14, color: Colors.black45),
+        Icon(Icons.shield_outlined, size: 14, color: Colors.black54),
         SizedBox(width: 6),
         Flexible(
           child: Text(
             'Tim relawan siaga 24 jam • Respon rata-rata 90 detik',
-            style: TextStyle(fontSize: 11, color: Colors.black45),
+            style: TextStyle(fontSize: 11, color: Colors.black54),
             textAlign: TextAlign.center,
           ),
         ),

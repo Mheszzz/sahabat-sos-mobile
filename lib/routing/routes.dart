@@ -9,4 +9,11 @@ class AppRoutes {
   static const String homeVolunteer = '/home-volunteer';
   static const String quickReport = '/quick-report';
   static const String emergencyContacts = '/emergency-contacts';
+  static const String sosStatus = '/sos-status';
+  static const String editProfile = '/edit-profile';
+
+  // Tuya Device
+  static const String tuyaDevices = '/tuya-devices';
+  static const String tuyaDeviceScan = '/tuya-devices/scan';
+  static const String tuyaDeviceDetail = '/tuya-devices/:id';
 }

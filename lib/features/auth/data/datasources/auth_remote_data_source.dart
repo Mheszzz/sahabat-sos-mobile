@@ -18,8 +18,10 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   final SharedPreferences prefs;
   
   final GoogleSignIn _googleSignIn = GoogleSignIn(
+    // Web Client ID untuk Web, Android Client ID untuk Mobile
     clientId: kIsWeb ? '757209543690-bpjk959q2se7oq0eos1olm6urg35oicp.apps.googleusercontent.com' : '757209543690-jpg1blpas12drdam7leck0ha4pk7sluo.apps.googleusercontent.com',
-    serverClientId: kIsWeb ? null : '355219118861-82gvltkbr04m7j5l77och0ntj1vldmrn.apps.googleusercontent.com',
+    // Server Client ID (WAJIB Web Client ID) agar Android bisa minta Token/ServerAuthCode ke Laravel
+    serverClientId: kIsWeb ? null : '757209543690-bpjk959q2se7oq0eos1olm6urg35oicp.apps.googleusercontent.com',
     scopes: ['email', 'profile'],
   );
 

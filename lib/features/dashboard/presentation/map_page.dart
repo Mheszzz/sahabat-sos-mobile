@@ -7,6 +7,9 @@ import 'package:sahabat_sos_mobile/routing/routes.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
@@ -35,8 +38,40 @@ class _MapPageState extends State<MapPage> {
   void _onPositionUpdate() {
     final pos = _locationService.currentPosition.value;
     if (pos != null && _isFirstFix) {
-      _mapController.move(LatLng(pos.latitude, pos.longitude), 17.0);
+      _mapController.move(LatLng(pos.latitude, pos.longitude), 15.0);
       _isFirstFix = false;
+      _fetchNearbyReports(pos.latitude, pos.longitude);
+    }
+  }
+
+  List<dynamic> _nearbyReports = [];
+
+  Future<void> _fetchNearbyReports(double lat, double lng) async {
+    try {
+      final prefs = sl<SharedPreferences>();
+      final token = prefs.getString('auth_token');
+      if (token == null) return;
+
+      final response = await sl<Dio>().get(
+        ApiConstants.laporanNearby,
+        queryParameters: {
+          'latitude': lat,
+          'longitude': lng,
+          'radius': 10, // 10 KM
+        },
+        options: Options(headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        }),
+      );
+
+      if (response.statusCode == 200 && mounted) {
+        setState(() {
+          _nearbyReports = response.data['data'] ?? [];
+        });
+      }
+    } catch (e) {
+      debugPrint('Gagal fetch nearby reports: $e');
     }
   }
 
@@ -166,6 +201,47 @@ class _MapPageState extends State<MapPage> {
                           size: 40,
                         ),
                       ),
+                      ..._nearbyReports.map((report) {
+                        final lat = double.tryParse(report['latitude'].toString()) ?? 0.0;
+                        final lng = double.tryParse(report['longitude'].toString()) ?? 0.0;
+                        return Marker(
+                          point: LatLng(lat, lng),
+                          width: 40,
+                          height: 40,
+                          child: GestureDetector(
+                            onTap: () {
+                              showModalBottomSheet(
+                                context: context,
+                                builder: (ctx) => Container(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        report['kategori_laporan'] ?? 'Laporan Darurat',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text('Status: ${report['status']}'),
+                                      const SizedBox(height: 8),
+                                      Text(report['lokasi_laporan'] ?? ''),
+                                      const SizedBox(height: 16),
+                                      if (report['distance_km'] != null)
+                                        Text('Jarak: ${report['distance_km']} KM'),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                            child: const Icon(
+                              Icons.warning_amber_rounded,
+                              color: Colors.red,
+                              size: 40,
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     ],
                   ),
                 ],
