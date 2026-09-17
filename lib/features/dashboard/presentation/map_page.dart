@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +20,7 @@ class MapPage extends StatefulWidget {
 }
 
 class _MapPageState extends State<MapPage> {
+  static const Color primaryTeal = Color(0xFF00695C);
   final _locationService = sl<LocationService>();
   StreamSubscription<ServiceStatus>? _serviceStatusStream;
   bool _isDialogShowing = false;
@@ -113,6 +115,7 @@ class _MapPageState extends State<MapPage> {
       barrierDismissible: false, // Wajib menyalakan GPS
       builder: (context) {
         return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: const Text('Akses Lokasi Dibutuhkan'),
           content: const Text(
             'Aplikasi ini membutuhkan akses GPS untuk mendeteksi lokasi keadaan darurat.\n\nHarap nyalakan GPS dan berikan izin lokasi di pengaturan HP Anda.',
@@ -123,7 +126,7 @@ class _MapPageState extends State<MapPage> {
                 _isDialogShowing = false;
                 context.go(AppRoutes.login);
               },
-              child: const Text('Batal & Keluar'),
+              child: const Text('Batal & Keluar', style: TextStyle(color: Colors.grey)),
             ),
             ElevatedButton(
               onPressed: () {
@@ -131,6 +134,11 @@ class _MapPageState extends State<MapPage> {
                 Navigator.pop(context);
                 _checkLocation(); // Cek lagi
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryTeal,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
               child: const Text('Coba Lagi'),
             ),
           ],
@@ -150,13 +158,56 @@ class _MapPageState extends State<MapPage> {
     super.dispose();
   }
 
+  Widget _buildGlassContainer({required Widget child, EdgeInsetsGeometry? padding}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: padding ?? const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Peta Darurat'),
-        backgroundColor: const Color(0xFF006D77),
-        foregroundColor: Colors.white,
+        title: const Text(
+          'Peta Darurat',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: primaryTeal,
+          ),
+        ),
+        backgroundColor: Colors.white.withValues(alpha: 0.5),
+        elevation: 0,
+        centerTitle: true,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(color: Colors.transparent),
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: primaryTeal),
+          onPressed: () => context.pop(),
+        ),
       ),
       body: ValueListenableBuilder<Position?>(
         valueListenable: _locationService.currentPosition,
@@ -166,9 +217,9 @@ class _MapPageState extends State<MapPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(color: Color(0xFF006D77)),
+                  CircularProgressIndicator(color: primaryTeal),
                   SizedBox(height: 16),
-                  Text('Menunggu Sinyal GPS...'),
+                  Text('Menunggu Sinyal GPS...', style: TextStyle(color: primaryTeal, fontWeight: FontWeight.w500)),
                 ],
               ),
             );
@@ -191,89 +242,231 @@ class _MapPageState extends State<MapPage> {
                   ),
                   MarkerLayer(
                     markers: [
+                      // Marker Lokasi Saat Ini
                       Marker(
                         point: latLng,
-                        width: 50,
-                        height: 50,
-                        child: const Icon(
-                          Icons.my_location,
-                          color: Colors.blue,
-                          size: 40,
+                        width: 60,
+                        height: 60,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.blue.withValues(alpha: 0.2),
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.my_location,
+                              color: Colors.blue,
+                              size: 30,
+                            ),
+                          ),
                         ),
                       ),
+                      // Marker Laporan Darurat
                       ..._nearbyReports.map((report) {
                         final lat = double.tryParse(report['latitude'].toString()) ?? 0.0;
                         final lng = double.tryParse(report['longitude'].toString()) ?? 0.0;
                         return Marker(
                           point: LatLng(lat, lng),
-                          width: 40,
-                          height: 40,
+                          width: 50,
+                          height: 50,
                           child: GestureDetector(
                             onTap: () {
-                              showModalBottomSheet(
-                                context: context,
-                                builder: (ctx) => Container(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        report['kategori_laporan'] ?? 'Laporan Darurat',
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text('Status: ${report['status']}'),
-                                      const SizedBox(height: 8),
-                                      Text(report['lokasi_laporan'] ?? ''),
-                                      const SizedBox(height: 16),
-                                      if (report['distance_km'] != null)
-                                        Text('Jarak: ${report['distance_km']} KM'),
-                                    ],
-                                  ),
-                                ),
-                              );
+                              _showGlassBottomSheet(context, report);
                             },
                             child: const Icon(
-                              Icons.warning_amber_rounded,
-                              color: Colors.red,
+                              Icons.location_on,
+                              color: Colors.redAccent,
                               size: 40,
+                              shadows: [
+                                Shadow(
+                                  blurRadius: 10,
+                                  color: Colors.black26,
+                                  offset: Offset(0, 4),
+                                )
+                              ],
                             ),
                           ),
                         );
-                      }).toList(),
+                      }),
                     ],
                   ),
                 ],
               ),
+              
+              // Kartu Lokasi Bawah (Glassmorphism)
               Positioned(
-                bottom: 20,
+                bottom: 30,
                 left: 20,
                 right: 20,
-                child: Card(
-                  elevation: 4,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
+                child: SafeArea(
+                  child: _buildGlassContainer(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Lokasi Anda Saat Ini',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: primaryTeal.withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.gps_fixed, color: primaryTeal, size: 20),
+                            ),
+                            const SizedBox(width: 12),
+                            const Text(
+                              'Lokasi Anda Saat Ini',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: primaryTeal,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 8),
-                        Text('Lat: ${position.latitude}'),
-                        Text('Lng: ${position.longitude}'),
-                        Text('Akurasi: \u00b1${position.accuracy.toStringAsFixed(1)} meter'),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _buildInfoColumn('Latitude', position.latitude.toStringAsFixed(5)),
+                            _buildInfoColumn('Longitude', position.longitude.toStringAsFixed(5)),
+                            _buildInfoColumn('Akurasi', '±${position.accuracy.toStringAsFixed(1)} m'),
+                          ],
+                        ),
                       ],
                     ),
                   ),
                 ),
               ),
+
+              // Tombol Recenter Lokasi
+              Positioned(
+                bottom: 160,
+                right: 20,
+                child: FloatingActionButton(
+                  backgroundColor: Colors.white.withValues(alpha: 0.9),
+                  elevation: 2,
+                  onPressed: () {
+                    _mapController.move(latLng, 17.0);
+                  },
+                  child: const Icon(Icons.my_location, color: primaryTeal),
+                ),
+              )
             ],
           );
         },
       ),
     );
   }
+
+  Widget _buildInfoColumn(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: Colors.black54),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showGlassBottomSheet(BuildContext context, dynamic report) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.all(16),
+        child: _buildGlassContainer(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.warning_rounded, color: Colors.red),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      report['kategori_laporan'] ?? 'Laporan Darurat',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 18,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildDetailRow(Icons.info_outline, 'Status', report['status'] ?? '-'),
+              const SizedBox(height: 12),
+              _buildDetailRow(Icons.location_on_outlined, 'Lokasi', report['lokasi_laporan'] ?? 'Tidak diketahui'),
+              if (report['distance_km'] != null) ...[
+                const SizedBox(height: 12),
+                _buildDetailRow(Icons.route_outlined, 'Jarak', '${report['distance_km']} KM'),
+              ],
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: Colors.black54),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
+

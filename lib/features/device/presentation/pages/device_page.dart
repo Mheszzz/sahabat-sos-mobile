@@ -449,7 +449,7 @@ class DevicePage extends StatelessWidget {
             trailing: Switch(
               value: true,
               onChanged: (val) {},
-              activeColor: const Color(0xFF005C61),
+              activeThumbColor: const Color(0xFF005C61),
             ),
           ),
         ],

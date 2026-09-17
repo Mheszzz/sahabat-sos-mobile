@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -166,7 +168,7 @@ class _DashboardPageState extends State<DashboardPage>
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: primaryTeal.withOpacity(0.1),
+                  color: primaryTeal.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -199,11 +201,85 @@ class _DashboardPageState extends State<DashboardPage>
         onPointerUp: (_) => _animationController.reverse(),
         onPointerCancel: (_) => _animationController.reverse(),
         child: GestureDetector(
-          onTap: () {
+          onTap: () async {
             _tapCount++;
             if (_tapCount >= 5) {
               _tapCount = 0;
-              context.push('/sos-status');
+              
+              try {
+                // Show a loading indicator
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => const Center(child: CircularProgressIndicator()),
+                );
+                
+                // Get location
+                final locationService = sl<LocationService>();
+                bool hasPermission = await locationService.requestPermission();
+                if (!hasPermission) {
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Izin lokasi dibutuhkan untuk mengirim SOS')),
+                    );
+                  }
+                  return;
+                }
+                
+                Position position = await Geolocator.getCurrentPosition(
+                  desiredAccuracy: LocationAccuracy.high,
+                );
+                
+                final prefs = sl<SharedPreferences>();
+                final token = prefs.getString('auth_token');
+                
+                // Call API
+                final response = await sl<Dio>().post(
+                  ApiConstants.emergencyTrigger,
+                  data: {
+                    'latitude': position.latitude,
+                    'longitude': position.longitude,
+                  },
+                  options: Options(headers: {
+                    'Authorization': 'Bearer $token',
+                    'Accept': 'application/json',
+                  }),
+                );
+                
+                // Hide loading
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+                
+                if (response.statusCode == 201 && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Sinyal SOS berhasil dikirim.')),
+                  );
+                  context.push('/sos-status');
+                }
+              } catch (e) {
+                // Hide loading
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+                
+                if (e is DioException && e.response?.statusCode == 422) {
+                  // SOS still active
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(e.response?.data['message'] ?? 'SOS masih aktif')),
+                    );
+                    context.push('/sos-status');
+                  }
+                } else {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Gagal mengirim SOS: $e')),
+                    );
+                  }
+                }
+              }
             }
 
             _tapTimer?.cancel();
@@ -239,7 +315,7 @@ class _DashboardPageState extends State<DashboardPage>
                     boxShadow: [
                       // Bottom right dark shadow
                       BoxShadow(
-                        color: const Color(0xFF8B0000).withOpacity(0.5),
+                        color: const Color(0xFF8B0000).withValues(alpha: 0.5),
                         blurRadius: 20,
                         spreadRadius: 4,
                         offset: const Offset(8, 12),
@@ -253,7 +329,7 @@ class _DashboardPageState extends State<DashboardPage>
                       ),
                       // Additional soft glow around
                       BoxShadow(
-                        color: sosRed.withOpacity(0.3),
+                        color: sosRed.withValues(alpha: 0.3),
                         blurRadius: 30,
                         spreadRadius: 10,
                       ),
@@ -324,7 +400,7 @@ class _DashboardPageState extends State<DashboardPage>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -337,9 +413,9 @@ class _DashboardPageState extends State<DashboardPage>
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.4),
+              color: Colors.white.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.5),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
             ),
             child: _isBerandaLoading
                 ? const Center(
@@ -359,7 +435,7 @@ class _DashboardPageState extends State<DashboardPage>
                       Container(
                         width: 1,
                         height: 40,
-                        color: Colors.grey.withOpacity(0.3),
+                        color: Colors.grey.withValues(alpha: 0.3),
                       ),
                       _buildStatItem(
                         icon: Icons.description_outlined,
@@ -389,7 +465,7 @@ class _DashboardPageState extends State<DashboardPage>
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: color, size: 18),
@@ -424,7 +500,7 @@ class _DashboardPageState extends State<DashboardPage>
         label: 'Kirim Laporan',
         route: '/quick-report',
       ),
-      _MenuItemData(icon: Icons.cell_tower, label: 'Perangkat Saya'),
+      _MenuItemData(icon: Icons.cell_tower, label: 'Perangkat Saya', route: '/tuya-devices'),
       _MenuItemData(icon: Icons.badge, label: 'Kontak Darurat', route: '/emergency-contacts'),
       _MenuItemData(icon: Icons.history, label: 'Riwayat Bantuan'),
     ];
@@ -452,7 +528,7 @@ class _DashboardPageState extends State<DashboardPage>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -463,10 +539,10 @@ class _DashboardPageState extends State<DashboardPage>
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Material(
-            color: Colors.white.withOpacity(0.4),
+            color: Colors.white.withValues(alpha: 0.4),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: Colors.white.withOpacity(0.6), width: 1.5),
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(16),

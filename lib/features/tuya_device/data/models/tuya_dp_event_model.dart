@@ -4,6 +4,9 @@ enum TuyaEventType {
   dpUpdate,
   statusChanged,
   deviceRemoved,
+  bleDeviceFound,
+  wifiPairingSuccess,
+  wifiPairingError,
   unknown,
 }
 
@@ -52,10 +55,27 @@ class TuyaDpEvent {
       case 'device_removed':
         type = TuyaEventType.deviceRemoved;
         break;
+      case 'ble_device_found':
+        type = TuyaEventType.bleDeviceFound;
+        break;
+      case 'wifi_pairing_success':
+        type = TuyaEventType.wifiPairingSuccess;
+        break;
+      case 'wifi_pairing_error':
+        type = TuyaEventType.wifiPairingError;
+        break;
+    }
+
+    // For BLE device found events, map the device info fields into dps
+    if (type == TuyaEventType.bleDeviceFound || type == TuyaEventType.wifiPairingSuccess) {
+      parsedDps = {
+        'name': json['name'] as String? ?? 'Tuya Device',
+        'error_msg': json['error_msg'] as String? ?? '',
+      };
     }
 
     return TuyaDpEvent(
-      deviceId: json['device_id'] as String? ?? '',
+      deviceId: json['device_id'] as String? ?? json['id'] as String? ?? '',
       dps: parsedDps,
       timestamp: json['timestamp'] != null
           ? DateTime.fromMillisecondsSinceEpoch(json['timestamp'] as int)

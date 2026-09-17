@@ -200,7 +200,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         desiredAccuracy: LocationAccuracy.high,
       );
 
-      final placemarks = await geo.placemarkFromCoordinates(
+      final placemarks = await geo.Geocoding().placemarkFromCoordinates(
         _cachedPosition!.latitude,
         _cachedPosition!.longitude,
       );
@@ -347,7 +347,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         }
 
         try {
-          final placemarks = await geo.placemarkFromCoordinates(
+          final placemarks = await geo.Geocoding().placemarkFromCoordinates(
             position.latitude,
             position.longitude,
           ).timeout(const Duration(seconds: 5));
@@ -432,11 +432,11 @@ class _QuickReportScreenState extends State<QuickReportScreen>
             builder: (ctx) => BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
               child: AlertDialog(
-                backgroundColor: Colors.white.withOpacity(0.3),
+                backgroundColor: Colors.white.withValues(alpha: 0.3),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(color: Colors.white.withOpacity(0.5), width: 1.5),
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.5), width: 1.5),
                 ),
                 title: const Icon(
                   Icons.check_circle_rounded,
@@ -658,11 +658,11 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         child: Container(
           padding: padding ?? const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
+            color: Colors.white.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+              BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10),
             ],
           ),
           child: child,
@@ -718,13 +718,13 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? primaryTeal.withOpacity(0.15)
-                      : Colors.white.withOpacity(0.1),
+                      ? primaryTeal.withValues(alpha: 0.15)
+                      : Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: isSelected
-                        ? primaryTeal.withOpacity(0.4)
-                        : Colors.white.withOpacity(0.2),
+                        ? primaryTeal.withValues(alpha: 0.4)
+                        : Colors.white.withValues(alpha: 0.2),
                     width: isSelected ? 1.5 : 1,
                   ),
                 ),
@@ -734,7 +734,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: category.iconColor.withOpacity(0.8),
+                        color: category.iconColor.withValues(alpha: 0.8),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(
@@ -802,13 +802,13 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                   ),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? primaryTeal.withOpacity(0.15)
-                        : Colors.white.withOpacity(0.1),
+                        ? primaryTeal.withValues(alpha: 0.15)
+                        : Colors.white.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: isSelected
-                          ? primaryTeal.withOpacity(0.4)
-                          : Colors.white.withOpacity(0.2),
+                          ? primaryTeal.withValues(alpha: 0.4)
+                          : Colors.white.withValues(alpha: 0.2),
                       width: isSelected ? 1.5 : 1,
                     ),
                   ),
@@ -850,9 +850,9 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
           ),
           child: TextField(
             controller: _notesController,
@@ -884,19 +884,19 @@ class _QuickReportScreenState extends State<QuickReportScreen>
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: _isRecording
-                  ? Colors.red.withOpacity(0.5)
-                  : Colors.white.withOpacity(0.1),
+                  ? Colors.red.withValues(alpha: 0.5)
+                  : Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: _selectedAudio != null
                     ? Colors.greenAccent
-                    : Colors.white.withOpacity(0.2),
+                    : Colors.white.withValues(alpha: 0.2),
               ),
               boxShadow: [
                 BoxShadow(
                   color: _isRecording
-                      ? Colors.red.withOpacity(0.3)
-                      : Colors.black.withOpacity(0.06),
+                      ? Colors.red.withValues(alpha: 0.3)
+                      : Colors.black.withValues(alpha: 0.06),
                   blurRadius: _isRecording ? 12 : 6,
                   offset: const Offset(0, 3),
                 ),
@@ -913,8 +913,8 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                       height: 48,
                       decoration: BoxDecoration(
                         color: _isRecording
-                            ? Colors.white.withOpacity(
-                                0.2 + _pulseController.value * 0.15,
+                            ? Colors.white.withValues(
+                                alpha: 0.2 + _pulseController.value * 0.15,
                               )
                             : (_selectedAudio != null
                                   ? Colors.green.shade50
@@ -923,8 +923,8 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                         boxShadow: _isRecording
                             ? [
                                 BoxShadow(
-                                  color: Colors.white.withOpacity(
-                                    0.2 + _pulseController.value * 0.2,
+                                  color: Colors.white.withValues(
+                                    alpha: 0.2 + _pulseController.value * 0.2,
                                   ),
                                   blurRadius: 8 + _pulseController.value * 6,
                                   spreadRadius: _pulseController.value * 2,
@@ -985,7 +985,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                                   height: barHeight,
                                   margin: const EdgeInsets.only(right: 3),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.8),
+                                    color: Colors.white.withValues(alpha: 0.8),
                                     borderRadius: BorderRadius.circular(2),
                                   ),
                                 );
@@ -1047,7 +1047,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                     'Ketuk untuk stop',
                     style: TextStyle(
                       fontSize: 11,
-                      color: Colors.white.withOpacity(0.8),
+                      color: Colors.white.withValues(alpha: 0.8),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -1071,16 +1071,16 @@ class _QuickReportScreenState extends State<QuickReportScreen>
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: hasPhoto
                     ? Colors.blueAccent
-                    : Colors.white.withOpacity(0.2),
+                    : Colors.white.withValues(alpha: 0.2),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
+                  color: Colors.black.withValues(alpha: 0.06),
                   blurRadius: 6,
                   offset: const Offset(0, 3),
                 ),
@@ -1189,9 +1189,9 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
           ),
           child: Row(
             children: [

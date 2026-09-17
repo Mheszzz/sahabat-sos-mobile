@@ -10,8 +10,17 @@
 -dontwarn okhttp3.**
 -dontwarn okio.**
 
-# Tuya Smart SDK
--keep class com.tuya.** { *; }
--dontwarn com.tuya.**
--keep class com.tuyasmart.** { *; }
--dontwarn com.tuyasmart.**
+# ThingClips Smart SDK (Tuya)
+-keep class com.alibaba.fastjson.**{*;}
+-dontwarn com.alibaba.fastjson.**
+-keep class com.thingclips.smart.mqttclient.mqttv3.** { *; }
+-dontwarn com.thingclips.smart.mqttclient.mqttv3.**
+-keep class com.thingclips.**{*;}
+-dontwarn com.thingclips.**
+-dontwarn com.facebook.soloader.**
+-dontwarn com.google.android.play.**
+-dontwarn com.google.gson.**
+-keep class chip.** { *; }
+-dontwarn chip.**
+-keep class com.gzl.smart.** { *; }
+-dontwarn com.gzl.smart.**

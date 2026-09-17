@@ -26,12 +26,10 @@ class TuyaBackgroundListener {
   void Function(bool success, TuyaDpEvent event)? onEmergencySent;
 
   TuyaBackgroundListener({
-    required TuyaChannelService tuyaService,
-    required EmergencyTriggerService emergencyService,
-    required SharedPreferences prefs,
-  })  : _tuyaService = tuyaService,
-        _emergencyService = emergencyService,
-        _prefs = prefs;
+    required this._tuyaService,
+    required this._emergencyService,
+    required this._prefs,
+  });
 
   bool get isRunning => _isRunning;
 

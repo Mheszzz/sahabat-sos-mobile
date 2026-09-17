@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/models/tuya_device_model.dart';
 import '../../data/models/tuya_dp_event_model.dart';
@@ -37,6 +38,13 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
     try {
       // Initialize Tuya SDK
       await _tuyaService.initTuya();
+
+      // Login to Tuya cloud with user's auth token as UID
+      final prefs = GetIt.instance<SharedPreferences>();
+      final token = prefs.getString('auth_token') ?? '';
+      if (token.isNotEmpty) {
+        await _tuyaService.loginAnonymous(token);
+      }
 
       // Start listening to EventChannel
       _tuyaService.startEventListening();
@@ -205,11 +213,26 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                 ],
               ),
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/tuya-devices/scan'),
-        backgroundColor: const Color(0xFF005C61),
-        icon: const Icon(Icons.bluetooth_searching, color: Colors.white),
-        label: const Text('Scan Perangkat', style: TextStyle(color: Colors.white)),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'scan_wifi',
+            onPressed: () => context.push('/tuya-devices/scan-wifi'),
+            backgroundColor: Colors.blue.shade700,
+            icon: const Icon(Icons.wifi, color: Colors.white),
+            label: const Text('Pairing Wi-Fi', style: TextStyle(color: Colors.white)),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'scan_ble',
+            onPressed: () => context.push('/tuya-devices/scan'),
+            backgroundColor: const Color(0xFF005C61),
+            icon: const Icon(Icons.bluetooth_searching, color: Colors.white),
+            label: const Text('Scan BLE', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }

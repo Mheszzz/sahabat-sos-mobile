@@ -4,12 +4,14 @@ import 'package:sahabat_sos_mobile/features/auth/presentation/login_page.dart';
 import 'package:sahabat_sos_mobile/features/auth/presentation/register_step1_page.dart';
 import 'package:sahabat_sos_mobile/features/auth/presentation/register_step2_page.dart';
 import 'package:sahabat_sos_mobile/features/main/presentation/main_screen.dart';
+import 'package:sahabat_sos_mobile/features/main/presentation/main_volunteer_screen.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/map_page.dart';
 import 'package:sahabat_sos_mobile/features/reports/presentation/quick_report_screen.dart';
 import 'package:sahabat_sos_mobile/features/sos/presentation/emergency_contacts_page.dart';
 import 'package:sahabat_sos_mobile/features/sos/presentation/sos_status_page.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_list_screen.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_scan_screen.dart';
+import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_wifi_scan_screen.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_detail_screen.dart';
 import 'package:sahabat_sos_mobile/features/profile/presentation/screens/edit_profile_screen.dart';
 
@@ -31,10 +33,14 @@ class AppRouter {
       final isRegisteringStep2 = state.matchedLocation == AppRoutes.registerStep2;
       final isAuthPage = isLoggingIn || isRegisteringStep1 || isRegisteringStep2;
 
-      if (token != null) {
+      if (token != null && token.isNotEmpty) {
         if (isProfileComplete) {
           // If profile is complete and trying to access auth pages, redirect to dashboard
           if (isAuthPage) {
+            final userRole = prefs.getString('user_role');
+            if (userRole == 'relawan') {
+              return AppRoutes.homeVolunteer;
+            }
             return AppRoutes.dashboard;
           }
         } else {
@@ -82,6 +88,14 @@ class AppRouter {
         },
       ),
       GoRoute(
+        path: AppRoutes.homeVolunteer,
+        builder: (context, state) {
+          final tabIndexStr = state.uri.queryParameters['tab'];
+          final int tabIndex = int.tryParse(tabIndexStr ?? '0') ?? 0;
+          return MainVolunteerScreen(initialIndex: tabIndex);
+        },
+      ),
+      GoRoute(
         path: '/map',
         builder: (context, state) => const MapPage(),
       ),
@@ -112,6 +126,10 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.tuyaDeviceScan,
         builder: (context, state) => const TuyaDeviceScanScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.tuyaDeviceWifiScan,
+        builder: (context, state) => const TuyaDeviceWifiScanScreen(),
       ),
       GoRoute(
         path: AppRoutes.tuyaDeviceDetail,

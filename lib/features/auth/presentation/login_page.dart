@@ -1,8 +1,12 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sahabat_sos_mobile/routing/routes.dart';
 import 'package:get_it/get_it.dart' as get_it;
 import 'package:sahabat_sos_mobile/features/auth/data/datasources/auth_remote_data_source.dart';
+import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -18,9 +22,22 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: bgColor,
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
       resizeToAvoidBottomInset: false,
-      body: SafeArea(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFE0F7FA), // Light blue/teal
+              Color(0xFFF5F6F8), // Greyish white
+              Color(0xFFE0F2F1), // Light teal
+            ],
+          ),
+        ),
+        child: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
@@ -56,6 +73,7 @@ class _LoginPageState extends State<LoginPage> {
             );
           },
         ),
+      ),
       ),
     );
   }
@@ -107,88 +125,117 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
 
   Widget _buildGoogleButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 60,
-      child: OutlinedButton(
-        onPressed: _isLoading ? null : () async {
-          setState(() {
-            _isLoading = true;
-          });
-          try {
-            // Panggil remote data source dari GetIt
-            final authDataSource = get_it.GetIt.instance<AuthRemoteDataSource>();
-            final result = await authDataSource.signInWithGoogle();
-
-            if (!context.mounted) return;
-
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: _isLoading ? null : () async {
             setState(() {
-              _isLoading = false;
+              _isLoading = true;
             });
+            try {
+              // Panggil remote data source dari GetIt
+              final authDataSource = get_it.GetIt.instance<AuthRemoteDataSource>();
+              final result = await authDataSource.signInWithGoogle();
 
-            if (result != null) {
-              final bool isProfileComplete = result['is_profile_complete'] ?? false;
-              
-              if (isProfileComplete) {
-                context.go(AppRoutes.dashboard);
+              if (!context.mounted) return;
+
+              setState(() {
+                _isLoading = false;
+              });
+
+              if (result != null) {
+                final bool isProfileComplete = result['is_profile_complete'] ?? false;
+                
+                if (isProfileComplete) {
+                  try {
+                    final prefs = get_it.GetIt.instance<SharedPreferences>();
+                    final token = result['token'];
+                    final dio = get_it.GetIt.instance<Dio>();
+                    final profileRes = await dio.get(
+                      ApiConstants.me,
+                      options: Options(headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'}),
+                    );
+                    if (profileRes.statusCode == 200) {
+                      final userData = profileRes.data['user'];
+                      if (userData != null && userData['role'] != null) {
+                        await prefs.setString('user_role', userData['role']);
+                      }
+                    }
+                  } catch (_) {}
+                  if (!context.mounted) return;
+                  
+                  final userRole = get_it.GetIt.instance<SharedPreferences>().getString('user_role');
+                  if (userRole == 'relawan') {
+                    context.go(AppRoutes.homeVolunteer);
+                  } else {
+                    context.go(AppRoutes.dashboard);
+                  }
+                } else {
+                  context.push(AppRoutes.registerStep2);
+                }
               } else {
-                context.push(AppRoutes.registerStep2);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Login dibatalkan oleh user.')),
+                );
               }
-            } else {
+            } catch (e) {
+              if (!context.mounted) return;
+              setState(() {
+                _isLoading = false;
+              });
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Login dibatalkan oleh user.')),
+                SnackBar(content: Text('Gagal Login: $e')),
               );
             }
-          } catch (e) {
-            if (!context.mounted) return;
-            setState(() {
-              _isLoading = false;
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Gagal Login: $e')),
-            );
-          }
-        },
-        style: OutlinedButton.styleFrom(
-          backgroundColor: Colors.white,
-          side: const BorderSide(color: Color(0xFFE1E4EE)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+          },
+          child: Container(
+            width: double.infinity,
+            height: 60,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+            ),
+            child: _isLoading
+                ? const Center(
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(primaryDark),
+                      ),
+                    ),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Image.network(
+                        'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png',
+                        width: 24,
+                        height: 24,
+                        errorBuilder: (_, _, _) => const Icon(
+                          Icons.error_outline,
+                          size: 24,
+                          color: Colors.red,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Masuk dengan Akun Google',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1B1B2F),
+                        ),
+                      ),
+                    ],
+                  ),
           ),
         ),
-        child: _isLoading
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(primaryDark),
-                ),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Image.network(
-                    'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png',
-                    width: 24,
-                    height: 24,
-                    errorBuilder: (_, __, ___) => const Icon(
-                      Icons.error_outline,
-                      size: 24,
-                      color: Colors.red,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'Masuk dengan Akun Google',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF1B1B2F),
-                    ),
-                  ),
-                ],
-              ),
       ),
     );
   }

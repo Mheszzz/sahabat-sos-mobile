@@ -49,11 +49,11 @@
             android:value="2" />
 
         <meta-data
-            android:name="TUYA_SMART_APPKEY"
-            android:value="95k43ts8vrgputwxr53f" />
+            android:name="THING_SMART_APPKEY"
+            android:value="v7jujdvxvrn55hvvqwyu" />
         <meta-data
-            android:name="TUYA_SMART_SECRET"
-            android:value="m8rwvtwpmfcfmvxndwlxxa9mhh8k8pxj" />
+            android:name="THING_SMART_SECRET"
+            android:value="84keu3y8erwku9rs9adnae595cvtsruv" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

@@ -115,7 +115,7 @@ class LocationService {
             ) > 50;
 
         if (shouldGeocode) {
-          List<geo.Placemark> placemarks = await geo.placemarkFromCoordinates(
+          List<geo.Placemark> placemarks = await geo.Geocoding().placemarkFromCoordinates(
             position.latitude,
             position.longitude,
           );

@@ -71,15 +71,15 @@ class _MainScreenState extends State<MainScreen> {
                 bottom: MediaQuery.of(context).padding.bottom + 16,
               ),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
                 borderRadius: BorderRadius.circular(30),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.5),
+                  color: Colors.white.withValues(alpha: 0.5),
                   width: 1.5,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -124,7 +124,7 @@ class _MainScreenState extends State<MainScreen> {
                                   shadows: isSelected
                                       ? [
                                           Shadow(
-                                            color: primaryTeal.withOpacity(0.4),
+                                            color: primaryTeal.withValues(alpha: 0.4),
                                             offset: const Offset(1, 2),
                                             blurRadius: 4,
                                           ),

@@ -142,7 +142,7 @@ class EmergencyContactsPage extends StatelessWidget {
                   Switch(
                     value: true,
                     onChanged: (val) {},
-                    activeColor: primaryColor,
+                    activeThumbColor: primaryColor,
                   ),
                 ],
               ),
@@ -328,7 +328,7 @@ class EmergencyContactsPage extends StatelessWidget {
         border: Border.all(color: Colors.grey[200]!),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
