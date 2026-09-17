@@ -32,7 +32,7 @@ class AppRouter {
       final isRegisteringStep2 = state.matchedLocation == AppRoutes.registerStep2;
       final isAuthPage = isLoggingIn || isRegisteringStep1 || isRegisteringStep2;
 
-      if (token != null) {
+      if (token != null && token.isNotEmpty) {
         if (isProfileComplete) {
           // If profile is complete and trying to access auth pages, redirect to dashboard
           if (isAuthPage) {

@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 
 abstract class ProfileRemoteDataSource {
   Future<Map<String, dynamic>> getProfile();
+  Future<Map<String, dynamic>> getMe();
   Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data);
   Future<Map<String, dynamic>> updateProfileWithFoto(Map<String, dynamic> data, XFile imageFile);
   Future<Map<String, dynamic>> uploadFoto(XFile imageFile);
@@ -53,6 +54,20 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
       return json.decode(response.body);
     } else {
       throw Exception('Gagal mengambil profil. Status: ${response.statusCode}');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> getMe() async {
+    final response = await http.get(
+      Uri.parse(ApiConstants.me),
+      headers: _getHeaders(),
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Gagal mengambil profil user. Status: ${response.statusCode}');
     }
   }
 
