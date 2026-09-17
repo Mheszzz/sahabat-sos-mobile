@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -199,11 +201,85 @@ class _DashboardPageState extends State<DashboardPage>
         onPointerUp: (_) => _animationController.reverse(),
         onPointerCancel: (_) => _animationController.reverse(),
         child: GestureDetector(
-          onTap: () {
+          onTap: () async {
             _tapCount++;
             if (_tapCount >= 5) {
               _tapCount = 0;
-              context.push('/sos-status');
+              
+              try {
+                // Show a loading indicator
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => const Center(child: CircularProgressIndicator()),
+                );
+                
+                // Get location
+                final locationService = sl<LocationService>();
+                bool hasPermission = await locationService.requestPermission();
+                if (!hasPermission) {
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Izin lokasi dibutuhkan untuk mengirim SOS')),
+                    );
+                  }
+                  return;
+                }
+                
+                Position position = await Geolocator.getCurrentPosition(
+                  desiredAccuracy: LocationAccuracy.high,
+                );
+                
+                final prefs = sl<SharedPreferences>();
+                final token = prefs.getString('auth_token');
+                
+                // Call API
+                final response = await sl<Dio>().post(
+                  ApiConstants.emergencyTrigger,
+                  data: {
+                    'latitude': position.latitude,
+                    'longitude': position.longitude,
+                  },
+                  options: Options(headers: {
+                    'Authorization': 'Bearer $token',
+                    'Accept': 'application/json',
+                  }),
+                );
+                
+                // Hide loading
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+                
+                if (response.statusCode == 201 && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Sinyal SOS berhasil dikirim.')),
+                  );
+                  context.push('/sos-status');
+                }
+              } catch (e) {
+                // Hide loading
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+                
+                if (e is DioException && e.response?.statusCode == 422) {
+                  // SOS still active
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(e.response?.data['message'] ?? 'SOS masih aktif')),
+                    );
+                    context.push('/sos-status');
+                  }
+                } else {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Gagal mengirim SOS: $e')),
+                    );
+                  }
+                }
+              }
             }
 
             _tapTimer?.cancel();
@@ -424,7 +500,7 @@ class _DashboardPageState extends State<DashboardPage>
         label: 'Kirim Laporan',
         route: '/quick-report',
       ),
-      _MenuItemData(icon: Icons.cell_tower, label: 'Perangkat Saya'),
+      _MenuItemData(icon: Icons.cell_tower, label: 'Perangkat Saya', route: '/tuya-devices'),
       _MenuItemData(icon: Icons.badge, label: 'Kontak Darurat', route: '/emergency-contacts'),
       _MenuItemData(icon: Icons.history, label: 'Riwayat Bantuan'),
     ];

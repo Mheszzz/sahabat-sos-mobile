@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../data/services/tuya_channel_service.dart';
 
@@ -19,6 +22,7 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
   String? _pairingDeviceId;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  StreamSubscription<dynamic>? _scanSubscription;
 
   @override
   void initState() {
@@ -33,29 +37,55 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
   }
 
   Future<void> _startScan() async {
+    // Request permissions first
+    final permissionsToRequest = [
+      Permission.location,
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+    ];
+    
+    for (final p in permissionsToRequest) {
+      final status = await p.status;
+      if (!status.isGranted) {
+        await p.request();
+      }
+    }
+
+    final locationStatus = await Permission.location.status;
+    final bleScanStatus = await Permission.bluetoothScan.status;
+    
+    // If running on Android 12+, bluetoothScan is required. On older devices, location is required.
+    // It's safe to proceed if they aren't explicitly permanently denied.
+    
     setState(() {
       _isScanning = true;
       _foundDevices.clear();
     });
 
     try {
+      // Start listening for BLE device discoveries via EventChannel
+      _tuyaService.startEventListening();
+
+      // Listen for BLE device found events on bleDeviceStream
+      _listenForBleDevices();
+
+      // Start actual BLE scan on native side
       await _tuyaService.startBLEScan();
 
-      // In real implementation, found devices would come through EventChannel
-      // For now, show scanning state for a few seconds
-      await Future.delayed(const Duration(seconds: 5));
-
-      if (mounted) {
-        setState(() => _isScanning = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Scanning selesai. Pastikan perangkat Tuya dalam mode pairing.',
+      // Auto-stop after 60 seconds
+      Future.delayed(const Duration(seconds: 60), () {
+        if (mounted && _isScanning) {
+          _stopScan();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Scanning selesai. Pastikan perangkat Tuya dalam mode pairing.',
+              ),
+              backgroundColor: Color(0xFF005C61),
             ),
-            backgroundColor: Color(0xFF005C61),
-          ),
-        );
-      }
+          );
+        }
+      });
     } catch (e) {
       if (mounted) {
         setState(() => _isScanning = false);
@@ -66,10 +96,39 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
     }
   }
 
+  /// Listen for BLE device discovery events from native via EventChannel
+  void _listenForBleDevices() {
+    _scanSubscription?.cancel();
+    _scanSubscription = _tuyaService.bleDeviceStream.listen(
+      (event) {
+        if (!mounted) return;
+        // Add discovered BLE device to the list
+        final deviceInfo = {
+          'id': event.deviceId,
+          'name': event.dps['name'] ?? event.deviceId,
+          'product_id': event.dps['product_id'] ?? '',
+          'rssi': event.dps['rssi'],
+        };
+        // Avoid duplicates
+        final exists = _foundDevices.any((d) => d['id'] == deviceInfo['id']);
+        if (!exists) {
+          setState(() {
+            _foundDevices.add(deviceInfo);
+          });
+        }
+      },
+      onError: (error) {
+        // Errors during scan are non-critical
+      },
+    );
+  }
+
   Future<void> _stopScan() async {
     try {
       await _tuyaService.stopBLEScan();
     } catch (_) {}
+    _scanSubscription?.cancel();
+    _scanSubscription = null;
     if (mounted) setState(() => _isScanning = false);
   }
 
@@ -105,6 +164,7 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
   @override
   void dispose() {
     _pulseController.dispose();
+    _scanSubscription?.cancel();
     if (_isScanning) _stopScan();
     super.dispose();
   }
@@ -187,7 +247,9 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
           ),
           const SizedBox(height: 16),
           Text(
-            _isScanning ? 'Mencari perangkat...' : 'Siap untuk scan',
+            _isScanning
+                ? 'Mencari perangkat... (${_foundDevices.length} ditemukan)'
+                : 'Siap untuk scan',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 16,
@@ -312,6 +374,11 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
                           'ID: ${device['id'] ?? '-'}',
                           style: const TextStyle(fontSize: 11, color: Colors.grey),
                         ),
+                        if (device['rssi'] != null)
+                          Text(
+                            'Signal: ${device['rssi']} dBm',
+                            style: const TextStyle(fontSize: 10, color: Colors.grey),
+                          ),
                       ],
                     ),
                   ),

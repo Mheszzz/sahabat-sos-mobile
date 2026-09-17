@@ -27,9 +27,9 @@ class TuyaBackgroundListener {
 
   TuyaBackgroundListener({
     required this._tuyaService,
-    required EmergencyTriggerService emergencyService,
+    required this._emergencyService,
     required this._prefs,
-  })  : _emergencyService = emergencyService;
+  });
 
   bool get isRunning => _isRunning;
 

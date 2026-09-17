@@ -11,6 +11,7 @@ import 'package:sahabat_sos_mobile/features/sos/presentation/emergency_contacts_
 import 'package:sahabat_sos_mobile/features/sos/presentation/sos_status_page.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_list_screen.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_scan_screen.dart';
+import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_wifi_scan_screen.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_detail_screen.dart';
 import 'package:sahabat_sos_mobile/features/profile/presentation/screens/edit_profile_screen.dart';
 
@@ -125,6 +126,10 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.tuyaDeviceScan,
         builder: (context, state) => const TuyaDeviceScanScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.tuyaDeviceWifiScan,
+        builder: (context, state) => const TuyaDeviceWifiScanScreen(),
       ),
       GoRoute(
         path: AppRoutes.tuyaDeviceDetail,

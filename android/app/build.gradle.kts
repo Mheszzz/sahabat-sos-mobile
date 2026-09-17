@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.sahabat_sos_mobile"
+    namespace = "com.sossahabat.app"
     compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
@@ -14,8 +14,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
     defaultConfig {
-        applicationId = "com.example.sahabat_sos_mobile"
+        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        applicationId = "com.sossahabat.app"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -57,7 +62,16 @@ flutter {
     source = "../.."
 }
 
+configurations.all {
+    exclude(group = "com.thingclips.smart", module = "thingsmart-modularCampAnno")
+}
+
 dependencies {
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar"))))
     implementation("com.alibaba:fastjson:1.1.67.android")
     implementation("com.squareup.okhttp3:okhttp-urlconnection:3.14.9")
+
+    // ThingClips Smart SDK (Tuya) - Core SDK for device management, BLE, etc.
+    implementation("com.thingclips.smart:thingsmart:7.8.0")
+    implementation("com.facebook.soloader:soloader:0.10.5")
 }

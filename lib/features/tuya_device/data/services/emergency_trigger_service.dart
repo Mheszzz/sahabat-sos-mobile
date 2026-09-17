@@ -24,9 +24,9 @@ class EmergencyTriggerService {
 
   EmergencyTriggerService({
     required this._dio,
-    required SharedPreferences prefs,
+    required this._prefs,
     required this._locationService,
-  })  : _prefs = prefs;
+  });
 
   /// Trigger emergency alert to Laravel backend
   /// 

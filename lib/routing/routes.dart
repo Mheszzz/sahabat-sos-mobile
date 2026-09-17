@@ -15,5 +15,6 @@ class AppRoutes {
   // Tuya Device
   static const String tuyaDevices = '/tuya-devices';
   static const String tuyaDeviceScan = '/tuya-devices/scan';
+  static const String tuyaDeviceWifiScan = '/tuya-devices/scan-wifi';
   static const String tuyaDeviceDetail = '/tuya-devices/:id';
 }

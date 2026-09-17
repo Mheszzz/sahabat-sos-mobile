@@ -2,6 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
+import 'package:sahabat_sos_mobile/core/di/injection.dart';
 
 class SosStatusPage extends StatefulWidget {
   const SosStatusPage({super.key});
@@ -15,9 +19,51 @@ class _SosStatusPageState extends State<SosStatusPage> {
   static const Color sosRed = Color(0xFFE50000);
   
   Timer? _cancelTimer;
+  Timer? _statusTimer;
   bool _isCancelling = false;
   double _cancelProgress = 0.0;
+  String _sosStatus = 'aktif';
   
+  @override
+  void initState() {
+    super.initState();
+    _fetchSosStatus();
+    // Poll for status every 5 seconds since we don't have websockets in this snippet
+    _statusTimer = Timer.periodic(const Duration(seconds: 5), (_) => _fetchSosStatus());
+  }
+
+  Future<void> _fetchSosStatus() async {
+    try {
+      final prefs = sl<SharedPreferences>();
+      final token = prefs.getString('auth_token');
+      if (token == null) return;
+
+      final response = await sl<Dio>().get(
+        ApiConstants.baseUrl + '/sos/active', // Add to ApiConstants later if needed
+        options: Options(headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        }),
+      );
+
+      if (response.statusCode == 200 && mounted) {
+        final data = response.data['data'];
+        if (data != null) {
+          setState(() {
+            _sosStatus = data['status_sos'] ?? 'aktif';
+          });
+        } else {
+          // If no active SOS, maybe it was finished
+          setState(() {
+             _sosStatus = 'selesai';
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Gagal fetch status SOS: $e');
+    }
+  }
+
   void _startCancelTimer() {
     setState(() {
       _isCancelling = true;
@@ -50,6 +96,8 @@ class _SosStatusPageState extends State<SosStatusPage> {
   }
   
   void _cancelSos() {
+    // In a real app, call API to cancel SOS here if backend supports it.
+    // For now, just pop.
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('SOS Dibatalkan')),
     );
@@ -59,6 +107,7 @@ class _SosStatusPageState extends State<SosStatusPage> {
   @override
   void dispose() {
     _cancelTimer?.cancel();
+    _statusTimer?.cancel();
     super.dispose();
   }
 
@@ -99,21 +148,20 @@ class _SosStatusPageState extends State<SosStatusPage> {
               ),
               const SizedBox(height: 24),
               
-              // Text
-              const Text(
-                'SOS SEDANG DIKIRIM',
+              Text(
+                _sosStatus == 'selesai' ? 'BANTUAN SELESAI' : 'SOS SEDANG DIKIRIM',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: sosRed,
+                  color: _sosStatus == 'selesai' ? const Color(0xFF00695C) : sosRed,
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Bantuan sedang diproses',
+              Text(
+                _sosStatus == 'selesai' ? 'Panggilan darurat telah ditangani.' : (_sosStatus == 'proses' ? 'Relawan sedang menuju ke lokasi Anda.' : 'Bantuan sedang dicari...'),
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.black54,
                   fontSize: 18,
                 ),
@@ -155,20 +203,20 @@ class _SosStatusPageState extends State<SosStatusPage> {
                     ),
                     const SizedBox(height: 20),
                     _buildStatusItem(
-                      icon: Icons.autorenew,
-                      iconColor: const Color(0xFFF57F17),
-                      iconBgColor: const Color(0xFFFFF9C4),
-                      title: 'Operator diberitahu',
-                      description: 'Menunggu konfirmasi dari tim respons darurat.',
+                      icon: _sosStatus == 'proses' || _sosStatus == 'selesai' ? Icons.check_circle_outline : Icons.autorenew,
+                      iconColor: _sosStatus == 'proses' || _sosStatus == 'selesai' ? const Color(0xFF00695C) : const Color(0xFFF57F17),
+                      iconBgColor: _sosStatus == 'proses' || _sosStatus == 'selesai' ? const Color(0xFFE0F2F1) : const Color(0xFFFFF9C4),
+                      title: _sosStatus == 'proses' || _sosStatus == 'selesai' ? 'Relawan Menuju Lokasi' : 'Mencari Relawan',
+                      description: _sosStatus == 'proses' || _sosStatus == 'selesai' ? 'Relawan telah menerima panggilan dan sedang dalam perjalanan.' : 'Sistem sedang mencari relawan terdekat.',
                     ),
                     const SizedBox(height: 20),
                     _buildStatusItem(
-                      icon: Icons.more_horiz,
-                      iconColor: Colors.grey.shade700,
-                      iconBgColor: Colors.grey.shade200,
-                      title: 'Keluarga diberitahu',
-                      description: 'Kontak darurat akan segera dihubungi.',
-                      isFaded: true,
+                      icon: _sosStatus == 'selesai' ? Icons.check_circle_outline : Icons.more_horiz,
+                      iconColor: _sosStatus == 'selesai' ? const Color(0xFF00695C) : Colors.grey.shade700,
+                      iconBgColor: _sosStatus == 'selesai' ? const Color(0xFFE0F2F1) : Colors.grey.shade200,
+                      title: 'Bantuan Selesai',
+                      description: _sosStatus == 'selesai' ? 'Bantuan telah tiba dan selesai.' : 'Menunggu relawan tiba.',
+                      isFaded: _sosStatus != 'selesai',
                     ),
                   ],
                 ),

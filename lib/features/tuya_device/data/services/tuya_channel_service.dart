@@ -18,9 +18,14 @@ class TuyaChannelService {
   StreamSubscription<dynamic>? _eventSubscription;
   final StreamController<TuyaDpEvent> _dpEventController =
       StreamController<TuyaDpEvent>.broadcast();
+  final StreamController<TuyaDpEvent> _bleDeviceController =
+      StreamController<TuyaDpEvent>.broadcast();
 
   /// Stream of DP events from Tuya devices
   Stream<TuyaDpEvent> get dpEventStream => _dpEventController.stream;
+
+  /// Stream of BLE device discovery events (during scanning)
+  Stream<TuyaDpEvent> get bleDeviceStream => _bleDeviceController.stream;
 
   bool _isListening = false;
   bool get isListening => _isListening;
@@ -54,6 +59,19 @@ class TuyaChannelService {
       return Map<String, dynamic>.from(result as Map);
     } on PlatformException catch (e) {
       throw TuyaServiceException('Failed to start BLE scan: ${e.message}');
+    }
+  }
+
+  /// Start Wi-Fi EZ Mode pairing
+  Future<Map<String, dynamic>> startWifiPairing(String ssid, String password) async {
+    try {
+      final result = await _methodChannel.invokeMethod('startWifiPairing', {
+        'ssid': ssid,
+        'password': password,
+      });
+      return Map<String, dynamic>.from(result as Map);
+    } on PlatformException catch (e) {
+      throw TuyaServiceException('Failed to start Wi-Fi pairing: ${e.message}');
     }
   }
 
@@ -146,7 +164,12 @@ class TuyaChannelService {
       (dynamic event) {
         try {
           final dpEvent = TuyaDpEvent.fromRawEvent(event.toString());
-          _dpEventController.add(dpEvent);
+          // Route BLE device discovery events to separate stream
+          if (dpEvent.eventType == TuyaEventType.bleDeviceFound) {
+            _bleDeviceController.add(dpEvent);
+          } else {
+            _dpEventController.add(dpEvent);
+          }
         } catch (e) {
           _dpEventController.addError(
             TuyaServiceException('Failed to parse DP event: $e'),
@@ -173,6 +196,7 @@ class TuyaChannelService {
   void dispose() {
     stopEventListening();
     _dpEventController.close();
+    _bleDeviceController.close();
   }
 }
 
