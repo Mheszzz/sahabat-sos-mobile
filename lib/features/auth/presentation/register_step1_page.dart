@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sahabat_sos_mobile/routing/routes.dart';
@@ -22,9 +23,22 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: bgColor,
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
       resizeToAvoidBottomInset: false,
-      body: SafeArea(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFE0F7FA), // Light blue/teal
+              Color(0xFFF5F6F8), // Greyish white
+              Color(0xFFE0F2F1), // Light teal
+            ],
+          ),
+        ),
+        child: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
@@ -68,6 +82,7 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
             );
           },
         ),
+      ),
       ),
     );
   }
@@ -170,57 +185,63 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
         }
       },
       borderRadius: BorderRadius.circular(16),
-      child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFBFE6D8)),
-      ),
-      child: Row(
-        children: [
-          _isLoading
-              ? const SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(primaryDark),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+            ),
+            child: Row(
+              children: [
+                _isLoading
+                    ? const SizedBox(
+                        width: 26,
+                        height: 26,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(primaryDark),
+                        ),
+                      )
+                    : Image.network(
+                        'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png',
+                        width: 26,
+                        height: 26,
+                        errorBuilder: (_, _, _) => const Icon(
+                          Icons.error_outline,
+                          size: 26,
+                          color: Colors.red,
+                        ),
+                      ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Lanjutkan dengan Akun Google',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                      SizedBox(height: 3),
+                      Text(
+                        'Otomatis terhubung dengan email & nama\nterverifikasi',
+                        style: TextStyle(fontSize: 12.5, color: mutedText, height: 1.3),
+                      ),
+                    ],
                   ),
-                )
-              : Image.network(
-                  'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png',
-                  width: 26,
-                  height: 26,
-                  errorBuilder: (_, _, _) => const Icon(
-                    Icons.error_outline,
-                    size: 26,
-                    color: Colors.red,
-                  ),
-                ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'Lanjutkan dengan Akun Google',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1A1A2E),
-                  ),
-                ),
-                SizedBox(height: 3),
-                Text(
-                  'Otomatis terhubung dengan email & nama\nterverifikasi',
-                  style: TextStyle(fontSize: 12.5, color: mutedText, height: 1.3),
                 ),
               ],
             ),
           ),
-        ],
-      ),
+        ),
       ),
     );
   }

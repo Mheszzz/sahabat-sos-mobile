@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -114,8 +115,21 @@ class _SosStatusPageState extends State<SosStatusPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F8),
-      body: SafeArea(
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFE0F7FA), // Light blue/teal
+              Color(0xFFF5F6F8), // Greyish white
+              Color(0xFFE0F2F1), // Light teal
+            ],
+          ),
+        ),
+        child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
@@ -171,7 +185,6 @@ class _SosStatusPageState extends State<SosStatusPage> {
               // Card
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
@@ -181,44 +194,57 @@ class _SosStatusPageState extends State<SosStatusPage> {
                     ),
                   ],
                 ),
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Status Laporan',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Status Laporan',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          _buildStatusItem(
+                            icon: Icons.check_circle_outline,
+                            iconColor: const Color(0xFF00695C),
+                            iconBgColor: const Color(0xFFE0F2F1),
+                            title: 'Lokasi terkirim',
+                            description: 'Koordinat GPS Anda telah diterima oleh sistem.',
+                          ),
+                          const SizedBox(height: 20),
+                          _buildStatusItem(
+                            icon: _sosStatus == 'proses' || _sosStatus == 'selesai' ? Icons.check_circle_outline : Icons.autorenew,
+                            iconColor: _sosStatus == 'proses' || _sosStatus == 'selesai' ? const Color(0xFF00695C) : const Color(0xFFF57F17),
+                            iconBgColor: _sosStatus == 'proses' || _sosStatus == 'selesai' ? const Color(0xFFE0F2F1) : const Color(0xFFFFF9C4),
+                            title: _sosStatus == 'proses' || _sosStatus == 'selesai' ? 'Relawan Menuju Lokasi' : 'Mencari Relawan',
+                            description: _sosStatus == 'proses' || _sosStatus == 'selesai' ? 'Relawan telah menerima panggilan dan sedang dalam perjalanan.' : 'Sistem sedang mencari relawan terdekat.',
+                          ),
+                          const SizedBox(height: 20),
+                          _buildStatusItem(
+                            icon: _sosStatus == 'selesai' ? Icons.check_circle_outline : Icons.more_horiz,
+                            iconColor: _sosStatus == 'selesai' ? const Color(0xFF00695C) : Colors.grey.shade700,
+                            iconBgColor: _sosStatus == 'selesai' ? const Color(0xFFE0F2F1) : Colors.grey.shade200,
+                            title: 'Bantuan Selesai',
+                            description: _sosStatus == 'selesai' ? 'Bantuan telah tiba dan selesai.' : 'Menunggu relawan tiba.',
+                            isFaded: _sosStatus != 'selesai',
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 20),
-                    _buildStatusItem(
-                      icon: Icons.check_circle_outline,
-                      iconColor: const Color(0xFF00695C),
-                      iconBgColor: const Color(0xFFE0F2F1),
-                      title: 'Lokasi terkirim',
-                      description: 'Koordinat GPS Anda telah diterima oleh sistem.',
-                    ),
-                    const SizedBox(height: 20),
-                    _buildStatusItem(
-                      icon: _sosStatus == 'proses' || _sosStatus == 'selesai' ? Icons.check_circle_outline : Icons.autorenew,
-                      iconColor: _sosStatus == 'proses' || _sosStatus == 'selesai' ? const Color(0xFF00695C) : const Color(0xFFF57F17),
-                      iconBgColor: _sosStatus == 'proses' || _sosStatus == 'selesai' ? const Color(0xFFE0F2F1) : const Color(0xFFFFF9C4),
-                      title: _sosStatus == 'proses' || _sosStatus == 'selesai' ? 'Relawan Menuju Lokasi' : 'Mencari Relawan',
-                      description: _sosStatus == 'proses' || _sosStatus == 'selesai' ? 'Relawan telah menerima panggilan dan sedang dalam perjalanan.' : 'Sistem sedang mencari relawan terdekat.',
-                    ),
-                    const SizedBox(height: 20),
-                    _buildStatusItem(
-                      icon: _sosStatus == 'selesai' ? Icons.check_circle_outline : Icons.more_horiz,
-                      iconColor: _sosStatus == 'selesai' ? const Color(0xFF00695C) : Colors.grey.shade700,
-                      iconBgColor: _sosStatus == 'selesai' ? const Color(0xFFE0F2F1) : Colors.grey.shade200,
-                      title: 'Bantuan Selesai',
-                      description: _sosStatus == 'selesai' ? 'Bantuan telah tiba dan selesai.' : 'Menunggu relawan tiba.',
-                      isFaded: _sosStatus != 'selesai',
-                    ),
-                  ],
+                  ),
                 ),
               ),
               
@@ -303,6 +329,7 @@ class _SosStatusPageState extends State<SosStatusPage> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

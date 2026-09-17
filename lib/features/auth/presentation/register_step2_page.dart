@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
@@ -82,8 +83,21 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: bgColor,
-      body: SafeArea(
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFE0F7FA), // Light blue/teal
+              Color(0xFFF5F6F8), // Greyish white
+              Color(0xFFE0F2F1), // Light teal
+            ],
+          ),
+        ),
+        child: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
@@ -141,6 +155,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
             );
           },
         ),
+      ),
       ),
     );
   }
@@ -219,16 +234,20 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
   }
 
   Widget _buildPersonalInfoCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFDCE6DF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
           const Text(
             'Nama Lengkap',
             style: TextStyle(
@@ -370,6 +389,8 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
           ],
         ],
       ),
+        ),
+      ),
     );
   }
 
@@ -401,35 +422,42 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
     required String label,
   }) {
     final bool selected = _selectedRole == type;
-    return InkWell(
+    return ClipRRect(
       borderRadius: BorderRadius.circular(16),
-      onTap: () => setState(() => _selectedRole = type),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-        decoration: BoxDecoration(
-          color: selected ? primaryDark : Colors.white,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: selected ? primaryDark : const Color(0xFFE1E4EE),
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              size: 28,
-              color: selected ? Colors.white : const Color(0xFF1A1A2E),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: selected ? Colors.white : const Color(0xFF1A1A2E),
+          onTap: () => setState(() => _selectedRole = type),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            decoration: BoxDecoration(
+              color: selected ? primaryDark : Colors.white.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected ? primaryDark : Colors.white.withValues(alpha: 0.6),
+                width: 1.5,
               ),
             ),
-          ],
+            child: Column(
+              children: [
+                Icon(
+                  icon,
+                  size: 28,
+                  color: selected ? Colors.white : const Color(0xFF1A1A2E),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? Colors.white : const Color(0xFF1A1A2E),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -493,62 +521,69 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
     required String label,
   }) {
     final bool selected = _selectedNeed == type;
-    return InkWell(
+    return ClipRRect(
       borderRadius: BorderRadius.circular(16),
-      onTap: () => setState(() => _selectedNeed = type),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
-        decoration: BoxDecoration(
-          color: selected ? primaryDark : Colors.white,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: selected ? primaryDark : const Color(0xFFE1E4EE),
-          ),
-        ),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  size: 26,
-                  color: selected ? Colors.white : const Color(0xFF1A1A2E),
-                ),
-                if (selected) ...[
-                  const Spacer(),
-                  const CircleAvatar(
-                    radius: 9,
-                    backgroundColor: Colors.white,
-                    child: Icon(Icons.check, size: 12, color: primaryDark),
-                  ),
-                ] else ...[
-                  const Spacer(),
-                  Container(
-                    width: 18,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFFCBD0DE)),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w700,
-                  color: selected ? Colors.white : const Color(0xFF1A1A2E),
-                  height: 1.2,
-                ),
+          onTap: () => setState(() => _selectedNeed = type),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+            decoration: BoxDecoration(
+              color: selected ? primaryDark : Colors.white.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected ? primaryDark : Colors.white.withValues(alpha: 0.6),
+                width: 1.5,
               ),
             ),
-          ],
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 26,
+                      color: selected ? Colors.white : const Color(0xFF1A1A2E),
+                    ),
+                    if (selected) ...[
+                      const Spacer(),
+                      const CircleAvatar(
+                        radius: 9,
+                        backgroundColor: Colors.white,
+                        child: Icon(Icons.check, size: 12, color: primaryDark),
+                      ),
+                    ] else ...[
+                      const Spacer(),
+                      Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFFCBD0DE)),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: selected ? Colors.white : const Color(0xFF1A1A2E),
+                      height: 1.2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
