@@ -364,12 +364,15 @@ class _HistoryPageState extends State<HistoryPage> {
 
     int getCount(int index) {
       if (index == 0) return _allItems.length;
-      if (index == 1)
+      if (index == 1) {
         return _allItems.where((i) => i.type == HistoryType.sos).length;
-      if (index == 2)
+      }
+      if (index == 2) {
         return _allItems.where((i) => i.type == HistoryType.laporan).length;
-      if (index == 3)
+      }
+      if (index == 3) {
         return _allItems.where((i) => i.status == HistoryStatus.selesai).length;
+      }
       return 0;
     }
 
@@ -411,7 +414,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   boxShadow: isSelected
                       ? [
                           BoxShadow(
-                            color: primaryTeal.withOpacity(0.3),
+                            color: primaryTeal.withValues(alpha: 0.3),
                             blurRadius: 8,
                             offset: const Offset(0, 4),
                           ),
@@ -490,7 +493,6 @@ class _HistoryPageState extends State<HistoryPage> {
                       return Theme(
                         data: Theme.of(context).copyWith(
                           scaffoldBackgroundColor: Colors.transparent,
-                          dialogBackgroundColor: Colors.transparent,
                           appBarTheme: const AppBarTheme(
                             backgroundColor: Colors.transparent,
                             elevation: 0,
@@ -508,7 +510,7 @@ class _HistoryPageState extends State<HistoryPage> {
                             backgroundColor: Colors.transparent,
                             surfaceTintColor: Colors.transparent,
                             headerBackgroundColor: Colors.transparent,
-                          ),
+                          ), dialogTheme: DialogThemeData(backgroundColor: Colors.transparent),
                         ),
                         child: BackdropFilter(
                           filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
@@ -518,8 +520,8 @@ class _HistoryPageState extends State<HistoryPage> {
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                                 colors: [
-                                  Colors.white.withOpacity(0.7),
-                                  Colors.white.withOpacity(0.4),
+                                  Colors.white.withValues(alpha: 0.7),
+                                  Colors.white.withValues(alpha: 0.4),
                                 ],
                               ),
                             ),
@@ -547,7 +549,7 @@ class _HistoryPageState extends State<HistoryPage> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isSelected ? primaryTeal.withOpacity(0.1) : Colors.white,
+                  color: isSelected ? primaryTeal.withValues(alpha: 0.1) : Colors.white,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isSelected ? primaryTeal : Colors.grey.shade300,
@@ -783,7 +785,7 @@ class _HistoryPageState extends State<HistoryPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -794,11 +796,11 @@ class _HistoryPageState extends State<HistoryPage> {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Material(
-            color: Colors.white.withOpacity(0.4),
+            color: Colors.white.withValues(alpha: 0.4),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
               side: BorderSide(
-                color: Colors.white.withOpacity(0.6),
+                color: Colors.white.withValues(alpha: 0.6),
                 width: 1.5,
               ),
             ),
@@ -816,7 +818,7 @@ class _HistoryPageState extends State<HistoryPage> {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: categoryMeta.color.withOpacity(0.1),
+                            color: categoryMeta.color.withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
@@ -917,7 +919,7 @@ class _HistoryPageState extends State<HistoryPage> {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: categoryMeta.color,
                           side: BorderSide(
-                            color: categoryMeta.color.withOpacity(0.5),
+                            color: categoryMeta.color.withValues(alpha: 0.5),
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
@@ -951,9 +953,9 @@ class _HistoryPageState extends State<HistoryPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -983,7 +985,7 @@ class _HistoryPageState extends State<HistoryPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -996,10 +998,10 @@ class _HistoryPageState extends State<HistoryPage> {
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.4),
+              color: Colors.white.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: Colors.white.withOpacity(0.6),
+                color: Colors.white.withValues(alpha: 0.6),
                 width: 1.5,
               ),
             ),
@@ -1009,7 +1011,7 @@ class _HistoryPageState extends State<HistoryPage> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: primaryTeal.withOpacity(0.1),
+                    color: primaryTeal.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(

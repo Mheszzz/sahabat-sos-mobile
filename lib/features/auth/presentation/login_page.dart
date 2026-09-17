@@ -3,6 +3,9 @@ import 'package:go_router/go_router.dart';
 import 'package:sahabat_sos_mobile/routing/routes.dart';
 import 'package:get_it/get_it.dart' as get_it;
 import 'package:sahabat_sos_mobile/features/auth/data/datasources/auth_remote_data_source.dart';
+import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -130,7 +133,29 @@ class _LoginPageState extends State<LoginPage> {
               final bool isProfileComplete = result['is_profile_complete'] ?? false;
               
               if (isProfileComplete) {
-                context.go(AppRoutes.dashboard);
+                try {
+                  final prefs = get_it.GetIt.instance<SharedPreferences>();
+                  final token = result['token'];
+                  final dio = get_it.GetIt.instance<Dio>();
+                  final profileRes = await dio.get(
+                    ApiConstants.me,
+                    options: Options(headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'}),
+                  );
+                  if (profileRes.statusCode == 200) {
+                    final userData = profileRes.data['user'];
+                    if (userData != null && userData['role'] != null) {
+                      await prefs.setString('user_role', userData['role']);
+                    }
+                  }
+                } catch (_) {}
+                if (!context.mounted) return;
+                
+                final userRole = get_it.GetIt.instance<SharedPreferences>().getString('user_role');
+                if (userRole == 'relawan') {
+                  context.go(AppRoutes.homeVolunteer);
+                } else {
+                  context.go(AppRoutes.dashboard);
+                }
               } else {
                 context.push(AppRoutes.registerStep2);
               }
@@ -172,7 +197,7 @@ class _LoginPageState extends State<LoginPage> {
                     'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png',
                     width: 24,
                     height: 24,
-                    errorBuilder: (_, __, ___) => const Icon(
+                    errorBuilder: (_, _, _) => const Icon(
                       Icons.error_outline,
                       size: 24,
                       color: Colors.red,

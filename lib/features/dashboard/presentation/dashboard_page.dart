@@ -166,7 +166,7 @@ class _DashboardPageState extends State<DashboardPage>
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: primaryTeal.withOpacity(0.1),
+                  color: primaryTeal.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -239,7 +239,7 @@ class _DashboardPageState extends State<DashboardPage>
                     boxShadow: [
                       // Bottom right dark shadow
                       BoxShadow(
-                        color: const Color(0xFF8B0000).withOpacity(0.5),
+                        color: const Color(0xFF8B0000).withValues(alpha: 0.5),
                         blurRadius: 20,
                         spreadRadius: 4,
                         offset: const Offset(8, 12),
@@ -253,7 +253,7 @@ class _DashboardPageState extends State<DashboardPage>
                       ),
                       // Additional soft glow around
                       BoxShadow(
-                        color: sosRed.withOpacity(0.3),
+                        color: sosRed.withValues(alpha: 0.3),
                         blurRadius: 30,
                         spreadRadius: 10,
                       ),
@@ -324,7 +324,7 @@ class _DashboardPageState extends State<DashboardPage>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -337,9 +337,9 @@ class _DashboardPageState extends State<DashboardPage>
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.4),
+              color: Colors.white.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.5),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
             ),
             child: _isBerandaLoading
                 ? const Center(
@@ -359,7 +359,7 @@ class _DashboardPageState extends State<DashboardPage>
                       Container(
                         width: 1,
                         height: 40,
-                        color: Colors.grey.withOpacity(0.3),
+                        color: Colors.grey.withValues(alpha: 0.3),
                       ),
                       _buildStatItem(
                         icon: Icons.description_outlined,
@@ -389,7 +389,7 @@ class _DashboardPageState extends State<DashboardPage>
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: color, size: 18),
@@ -452,7 +452,7 @@ class _DashboardPageState extends State<DashboardPage>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -463,10 +463,10 @@ class _DashboardPageState extends State<DashboardPage>
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Material(
-            color: Colors.white.withOpacity(0.4),
+            color: Colors.white.withValues(alpha: 0.4),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: Colors.white.withOpacity(0.6), width: 1.5),
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(16),

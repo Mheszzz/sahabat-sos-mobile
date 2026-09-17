@@ -23,12 +23,10 @@ class EmergencyTriggerService {
   static const Duration _retryDelay = Duration(seconds: 2);
 
   EmergencyTriggerService({
-    required Dio dio,
+    required this._dio,
     required SharedPreferences prefs,
-    required LocationService locationService,
-  })  : _dio = dio,
-        _prefs = prefs,
-        _locationService = locationService;
+    required this._locationService,
+  })  : _prefs = prefs;
 
   /// Trigger emergency alert to Laravel backend
   /// 
@@ -67,8 +65,8 @@ class EmergencyTriggerService {
       'trigger_source': 'ble_button',
       'dps': event.dps,
       'is_simulation': event.isSimulation,
-      ?'latitude': latitude,
-      ?'longitude': longitude,
+      'latitude': latitude,
+      'longitude': longitude,
     };
 
     // Attempt to send with retries

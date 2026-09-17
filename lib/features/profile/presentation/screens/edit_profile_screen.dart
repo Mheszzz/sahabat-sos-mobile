@@ -150,7 +150,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         borderRadius: radius,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -162,9 +162,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.4),
+              color: Colors.white.withValues(alpha: 0.4),
               borderRadius: radius,
-              border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.5),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
             ),
             child: child,
           ),
@@ -186,9 +186,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         decoration: InputDecoration(
           border: InputBorder.none,
           hintText: hint,
-          hintStyle: TextStyle(fontSize: 13, color: Colors.black.withOpacity(0.4)),
+          hintStyle: TextStyle(fontSize: 13, color: Colors.black.withValues(alpha: 0.4)),
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-          prefixIcon: Icon(icon, color: primaryTeal.withOpacity(0.7)),
+          prefixIcon: Icon(icon, color: primaryTeal.withValues(alpha: 0.7)),
         ),
       ),
     );
@@ -244,7 +244,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 padding: const EdgeInsets.all(4),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: primaryTeal.withOpacity(0.3), width: 3),
+                                  border: Border.all(color: primaryTeal.withValues(alpha: 0.3), width: 3),
                                 ),
                                 child: CircleAvatar(
                                   radius: 46,
@@ -252,7 +252,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   backgroundImage: _pickedImage != null
                                       ? FileImage(File(_pickedImage!.path)) as ImageProvider
                                       : NetworkImage(_currentAvatarUrl),
-                                  onBackgroundImageError: (_, __) {},
+                                  onBackgroundImageError: (_, _) {},
                                 ),
                               ),
                               Positioned(
@@ -284,7 +284,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             value: selectedCategory,
                             isExpanded: true,
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                            icon: Icon(Icons.arrow_drop_down, color: primaryTeal.withOpacity(0.7)),
+                            icon: Icon(Icons.arrow_drop_down, color: primaryTeal.withValues(alpha: 0.7)),
                             dropdownColor: const Color(0xFFF5F6F8),
                             items: [
                               {'value': 'umum', 'label': 'Umum', 'icon': Icons.person_outline_rounded},
@@ -296,7 +296,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 value: item['value'] as String,
                                 child: Row(
                                   children: [
-                                    Icon(item['icon'] as IconData, color: primaryTeal.withOpacity(0.7), size: 20),
+                                    Icon(item['icon'] as IconData, color: primaryTeal.withValues(alpha: 0.7), size: 20),
                                     const SizedBox(width: 12),
                                     Text(item['label'] as String, style: const TextStyle(fontSize: 14, color: Colors.black87)),
                                   ],
@@ -329,7 +329,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                           elevation: 4,
-                          shadowColor: primaryTeal.withOpacity(0.5),
+                          shadowColor: primaryTeal.withValues(alpha: 0.5),
                         ),
                         child: const Text(
                           'Simpan Perubahan',

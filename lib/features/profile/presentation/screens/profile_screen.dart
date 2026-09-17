@@ -152,7 +152,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: primaryTeal,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.only(bottom: 32),
+                  padding: const EdgeInsets.only(bottom: 120),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -189,7 +189,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: _buildHelpTile(
                               icon: Icons.sensors_rounded,
                               iconColor: primaryTeal,
-                              iconBg: primaryTeal.withOpacity(0.1),
+                              iconBg: primaryTeal.withValues(alpha: 0.1),
                               title: 'Kelola Tombol SOS (Tuya)',
                               subtitle: 'Hubungkan dan atur tombol fisik bluetooth',
                               onTap: () => context.push(AppRoutes.tuyaDevices),
@@ -257,7 +257,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         borderRadius: radius,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -269,9 +269,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.4),
+              color: Colors.white.withValues(alpha: 0.4),
               borderRadius: radius,
-              border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.5),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
             ),
             child: child,
           ),
@@ -292,13 +292,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: primaryTeal.withOpacity(0.3), width: 3),
+              border: Border.all(color: primaryTeal.withValues(alpha: 0.3), width: 3),
             ),
             child: CircleAvatar(
               radius: 46,
               backgroundColor: Colors.grey.shade200,
               backgroundImage: NetworkImage(_avatarUrl),
-              onBackgroundImageError: (_, __) {
+              onBackgroundImageError: (_, _) {
                 // Fallback when image fails to load (e.g. 429 Too Many Requests)
                 // No-op here, flutter handles it by showing background color
               },
@@ -478,7 +478,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: primaryTeal.withOpacity(0.1), shape: BoxShape.circle),
+            decoration: BoxDecoration(color: primaryTeal.withValues(alpha: 0.1), shape: BoxShape.circle),
             child: Icon(icon, color: primaryTeal, size: 20),
           ),
           const SizedBox(width: 16),
@@ -495,7 +495,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: Colors.white,
+            activeThumbColor: Colors.white,
             activeTrackColor: primaryTeal,
             inactiveThumbColor: Colors.white,
             inactiveTrackColor: Colors.grey.shade300,

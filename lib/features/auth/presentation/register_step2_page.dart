@@ -7,6 +7,7 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../routing/routes.dart';
 
 enum _NeedType { tunanetra, tunarungu, tunawicara, umum }
+enum _RoleType { pengguna, relawan }
 
 class RegisterStep2Page extends StatefulWidget {
   const RegisterStep2Page({super.key});
@@ -22,11 +23,14 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
   static const Color fieldFill = Color(0xFFEFF1F8);
   static const Color mutedText = Color(0xFF6B7080);
 
+  _RoleType _selectedRole = _RoleType.pengguna;
   _NeedType _selectedNeed = _NeedType.umum;
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _userPhoneController = TextEditingController();
+  final TextEditingController _jobController = TextEditingController();
+  final TextEditingController _reasonController = TextEditingController();
 
   bool _voiceGuidanceEnabled = true;
   bool _hapticVibrationEnabled = true;
@@ -70,6 +74,8 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
     _nameController.dispose();
     _addressController.dispose();
     _userPhoneController.dispose();
+    _jobController.dispose();
+    _reasonController.dispose();
     super.dispose();
   }
 
@@ -107,15 +113,21 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                           style: TextStyle(fontSize: 13.5, color: mutedText, height: 1.4),
                         ),
                         const SizedBox(height: 22),
+                        _buildSectionHeader(Icons.badge_outlined, 'Pilih Peran'),
+                        const SizedBox(height: 12),
+                        _buildRoleSelection(),
+                        const SizedBox(height: 22),
                         _buildSectionHeader(Icons.person_outline, 'Informasi Pribadi'),
                         const SizedBox(height: 12),
                         _buildPersonalInfoCard(),
-                        const SizedBox(height: 22),
-                        _buildSectionHeader(Icons.accessibility_new_rounded, 'Kebutuhan Utama'),
-                        const SizedBox(height: 12),
-                        _buildNeedGrid(),
-                        const SizedBox(height: 22),
-                        _buildSensorCard(),
+                        if (_selectedRole == _RoleType.pengguna) ...[
+                          const SizedBox(height: 22),
+                          _buildSectionHeader(Icons.accessibility_new_rounded, 'Kebutuhan Utama'),
+                          const SizedBox(height: 12),
+                          _buildNeedGrid(),
+                          const SizedBox(height: 22),
+                          _buildSensorCard(),
+                        ],
                         const Spacer(),
                         const SizedBox(height: 22),
                         _buildSubmitButton(),
@@ -299,7 +311,126 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
               ),
             ),
           ),
+          if (_selectedRole == _RoleType.relawan) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'Pekerjaan',
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1A1A2E),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: fieldFill,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TextField(
+                controller: _jobController,
+                keyboardType: TextInputType.text,
+                style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  hintText: 'Contoh: Mahasiswa, Pegawai Swasta',
+                  hintStyle: TextStyle(fontSize: 13, color: Color(0xFFB0B4C4)),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  prefixIcon: Icon(Icons.work_outline, color: Color(0xFF8A8FA3)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Alasan Menjadi Relawan',
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1A1A2E),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: fieldFill,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TextField(
+                controller: _reasonController,
+                maxLines: 3,
+                style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  hintText: 'Berikan alasan singkat Anda...',
+                  hintStyle: TextStyle(fontSize: 13, color: Color(0xFFB0B4C4)),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildRoleSelection() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildRoleCard(
+            type: _RoleType.pengguna,
+            icon: Icons.person_outline,
+            label: 'Pengguna',
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildRoleCard(
+            type: _RoleType.relawan,
+            icon: Icons.volunteer_activism_outlined,
+            label: 'Relawan',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRoleCard({
+    required _RoleType type,
+    required IconData icon,
+    required String label,
+  }) {
+    final bool selected = _selectedRole == type;
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => setState(() => _selectedRole = type),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        decoration: BoxDecoration(
+          color: selected ? primaryDark : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? primaryDark : const Color(0xFFE1E4EE),
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 28,
+              color: selected ? Colors.white : const Color(0xFF1A1A2E),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: selected ? Colors.white : const Color(0xFF1A1A2E),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -491,7 +622,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
         Switch(
           value: value,
           onChanged: onChanged,
-          activeColor: Colors.white,
+          activeThumbColor: Colors.white,
           activeTrackColor: primaryDark,
         ),
       ],
@@ -513,6 +644,13 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
       return;
     }
 
+    if (_selectedRole == _RoleType.relawan) {
+      if (_jobController.text.isEmpty || _reasonController.text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pekerjaan dan Alasan wajib diisi untuk Relawan!')));
+        return;
+      }
+    }
+
     String kategori = 'umum';
     if (_selectedNeed == _NeedType.tunanetra) kategori = 'tunanetra';
     if (_selectedNeed == _NeedType.tunarungu) kategori = 'tunarungu';
@@ -526,19 +664,28 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
+      final Map<String, dynamic> payload = {
+        'name': _nameController.text,
+        'alamat': _addressController.text,
+        'no_telp': _userPhoneController.text,
+        'role': _selectedRole == _RoleType.relawan ? 'relawan' : 'pengguna',
+        'status_ketersediaan': 'aktif',
+      };
+
+      if (_selectedRole == _RoleType.relawan) {
+        payload['pekerjaan'] = _jobController.text;
+        payload['alasan_relawan'] = _reasonController.text;
+      } else {
+        payload['kategori_user'] = kategori;
+        payload['getaran'] = _hapticVibrationEnabled;
+        payload['talkback'] = _talkbackEnabled;
+        payload['panduan_suara'] = _voiceGuidanceEnabled;
+        payload['text_besar'] = _largeTextEnabled;
+      }
+
       final response = await dio.post(
         ApiConstants.completeProfile,
-        data: {
-          'name': _nameController.text,
-          'alamat': _addressController.text,
-          'no_telp': _userPhoneController.text,
-          'kategori_user': kategori,
-          'getaran': _hapticVibrationEnabled,
-          'talkback': _talkbackEnabled,
-          'panduan_suara': _voiceGuidanceEnabled,
-          'text_besar': _largeTextEnabled,
-          'status_ketersediaan': 'aktif',
-        },
+        data: payload,
         options: Options(
           headers: {
             'Authorization': 'Bearer $token',
@@ -551,9 +698,14 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         await prefs.setBool('is_profile_complete', true);
+        await prefs.setString('user_role', _selectedRole == _RoleType.relawan ? 'relawan' : 'pengguna');
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profil berhasil disimpan!')));
-        context.go(AppRoutes.dashboard);
+        if (_selectedRole == _RoleType.relawan) {
+          context.go(AppRoutes.homeVolunteer);
+        } else {
+          context.go(AppRoutes.dashboard);
+        }
       } else {
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menyimpan profil: ${response.data}')));

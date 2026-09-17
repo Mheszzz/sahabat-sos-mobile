@@ -192,7 +192,7 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
                   'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png',
                   width: 26,
                   height: 26,
-                  errorBuilder: (_, __, ___) => const Icon(
+                  errorBuilder: (_, _, _) => const Icon(
                     Icons.error_outline,
                     size: 26,
                     color: Colors.red,

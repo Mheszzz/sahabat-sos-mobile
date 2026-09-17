@@ -1,21 +1,18 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:sahabat_sos_mobile/features/dashboard/presentation/dashboard_page.dart';
-import 'package:sahabat_sos_mobile/features/profile/presentation/screens/profile_screen.dart';
-import 'package:sahabat_sos_mobile/features/reports/presentation/quick_report_screen.dart';
-import 'package:sahabat_sos_mobile/features/history/presentation/history_screen.dart';
-import 'package:sahabat_sos_mobile/features/device/presentation/pages/device_page.dart';
+import 'package:sahabat_sos_mobile/features/dashboard/presentation/volunteer_dashboard_page.dart';
+import 'package:sahabat_sos_mobile/features/dashboard/presentation/map_page.dart';
+import 'package:sahabat_sos_mobile/features/profile/presentation/screens/volunteer_profile_screen.dart';
 
-
-class MainScreen extends StatefulWidget {
+class MainVolunteerScreen extends StatefulWidget {
   final int initialIndex;
-  const MainScreen({super.key, this.initialIndex = 0});
+  const MainVolunteerScreen({super.key, this.initialIndex = 0});
 
   @override
-  State<MainScreen> createState() => _MainScreenState();
+  State<MainVolunteerScreen> createState() => _MainVolunteerScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
   late int _selectedIndex;
 
   @override
@@ -25,31 +22,29 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   @override
-  void didUpdateWidget(MainScreen oldWidget) {
+  void didUpdateWidget(MainVolunteerScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.initialIndex != oldWidget.initialIndex) {
       _selectedIndex = widget.initialIndex;
     }
   }
 
-  static const Color primaryTeal = Color(0xFF00695C);
+  static const Color primaryTeal = Color(0xFF006D77);
 
   final List<Widget> _pages = [
-    const DashboardPage(),
-    const QuickReportScreen(),
-    const DevicePage(),
-    const HistoryPage(),
-    const ProfileScreen(),
+    const VolunteerDashboardPage(),
+    const Scaffold(body: Center(child: Text('Tugas Aktif (Segera Hadir)'))),
+    const MapPage(),
+    const VolunteerProfileScreen(),
   ];
 
   static const Color _unselectedColor = Colors.grey;
 
   final List<_NavItem> _navItems = const [
-    _NavItem(icon: Icons.home_outlined, selectedIcon: Icons.home, label: 'Home'),
-    _NavItem(icon: Icons.campaign_outlined, selectedIcon: Icons.campaign, label: 'Report'),
-    _NavItem(icon: Icons.cell_tower, selectedIcon: Icons.cell_tower, label: 'Devices'),
-    _NavItem(icon: Icons.history_outlined, selectedIcon: Icons.history, label: 'History'),
-    _NavItem(icon: Icons.person_outline, selectedIcon: Icons.person, label: 'Profile'),
+    _NavItem(icon: Icons.home_outlined, selectedIcon: Icons.home, label: 'Beranda'),
+    _NavItem(icon: Icons.assignment_outlined, selectedIcon: Icons.assignment, label: 'Tugas'),
+    _NavItem(icon: Icons.map_outlined, selectedIcon: Icons.map, label: 'Peta'),
+    _NavItem(icon: Icons.person_outline, selectedIcon: Icons.person, label: 'Profil'),
   ];
 
   @override
@@ -71,7 +66,7 @@ class _MainScreenState extends State<MainScreen> {
                 bottom: MediaQuery.of(context).padding.bottom + 16,
               ),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.7),
+                color: Colors.white.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(30),
                 border: Border.all(
                   color: Colors.white.withValues(alpha: 0.5),
@@ -121,26 +116,6 @@ class _MainScreenState extends State<MainScreen> {
                                   isSelected ? item.selectedIcon : item.icon,
                                   color: isSelected ? primaryTeal : _unselectedColor,
                                   size: 24,
-                                  shadows: isSelected
-                                      ? [
-                                          Shadow(
-                                            color: primaryTeal.withValues(alpha: 0.4),
-                                            offset: const Offset(1, 2),
-                                            blurRadius: 4,
-                                          ),
-                                          const Shadow(
-                                            color: Colors.black12,
-                                            offset: Offset(2, 3),
-                                            blurRadius: 6,
-                                          ),
-                                        ]
-                                      : [
-                                          const Shadow(
-                                            color: Colors.black12,
-                                            offset: Offset(1, 2),
-                                            blurRadius: 3,
-                                          ),
-                                        ],
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
