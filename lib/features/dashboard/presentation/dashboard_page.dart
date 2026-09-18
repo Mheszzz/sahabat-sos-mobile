@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
@@ -143,7 +144,7 @@ class _DashboardPageState extends State<DashboardPage>
       titleSpacing: 16,
       title: Row(
         children: [
-          const Icon(Icons.accessibility_new, color: primaryTeal, size: 24),
+          const Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal, size: 24),
           const SizedBox(width: 8),
           Text(
             _userName.isNotEmpty ? 'Halo, $_userName' : 'Sahabat SOS',
@@ -174,7 +175,7 @@ class _DashboardPageState extends State<DashboardPage>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: const [
-                    Icon(Icons.map_outlined, color: primaryTeal, size: 20),
+                    Icon(CupertinoIcons.map, color: primaryTeal, size: 20),
                     SizedBox(width: 4),
                     Text(
                       'Peta',
@@ -218,17 +219,16 @@ class _DashboardPageState extends State<DashboardPage>
                 final locationService = sl<LocationService>();
                 bool hasPermission = await locationService.requestPermission();
                 if (!hasPermission) {
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Izin lokasi dibutuhkan untuk mengirim SOS')),
-                    );
-                  }
+                  if (!mounted) return;
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Izin lokasi dibutuhkan untuk mengirim SOS')),
+                  );
                   return;
                 }
                 
                 Position position = await Geolocator.getCurrentPosition(
-                  desiredAccuracy: LocationAccuracy.high,
+                  locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
                 );
                 
                 final prefs = sl<SharedPreferences>();
@@ -248,11 +248,10 @@ class _DashboardPageState extends State<DashboardPage>
                 );
                 
                 // Hide loading
-                if (context.mounted) {
-                  Navigator.pop(context);
-                }
+                if (!mounted) return;
+                Navigator.pop(context);
                 
-                if (response.statusCode == 201 && context.mounted) {
+                if (response.statusCode == 201) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Sinyal SOS berhasil dikirim.')),
                   );
@@ -260,24 +259,19 @@ class _DashboardPageState extends State<DashboardPage>
                 }
               } catch (e) {
                 // Hide loading
-                if (context.mounted) {
-                  Navigator.pop(context);
-                }
+                if (!mounted) return;
+                Navigator.pop(context);
                 
                 if (e is DioException && e.response?.statusCode == 422) {
                   // SOS still active
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(e.response?.data['message'] ?? 'SOS masih aktif')),
-                    );
-                    context.push('/sos-status');
-                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(e.response?.data['message'] ?? 'SOS masih aktif')),
+                  );
+                  context.push('/sos-status');
                 } else {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Gagal mengirim SOS: $e')),
-                    );
-                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Gagal mengirim SOS: $e')),
+                  );
                 }
               }
             }
@@ -339,7 +333,7 @@ class _DashboardPageState extends State<DashboardPage>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        Icons.notifications_active,
+                        CupertinoIcons.bell_fill,
                         color: Colors.white,
                         size: 80,
                         shadows: [
@@ -427,7 +421,7 @@ class _DashboardPageState extends State<DashboardPage>
                 : Row(
                     children: [
                       _buildStatItem(
-                        icon: Icons.warning_amber_rounded,
+                        icon: CupertinoIcons.exclamationmark_triangle_fill,
                         label: 'SOS Aktif',
                         value: '$_activeSos',
                         color: Colors.red,
@@ -438,7 +432,7 @@ class _DashboardPageState extends State<DashboardPage>
                         color: Colors.grey.withValues(alpha: 0.3),
                       ),
                       _buildStatItem(
-                        icon: Icons.description_outlined,
+                        icon: CupertinoIcons.doc_text,
                         label: 'Total Laporan',
                         value: '$_totalLaporan',
                         color: primaryTeal,
@@ -496,13 +490,13 @@ class _DashboardPageState extends State<DashboardPage>
   Widget _buildMenuGrid() {
     final items = [
       _MenuItemData(
-        icon: Icons.campaign,
+        icon: CupertinoIcons.exclamationmark_bubble,
         label: 'Kirim Laporan',
         route: '/quick-report',
       ),
-      _MenuItemData(icon: Icons.cell_tower, label: 'Perangkat Saya', route: '/tuya-devices'),
-      _MenuItemData(icon: Icons.badge, label: 'Kontak Darurat', route: '/emergency-contacts'),
-      _MenuItemData(icon: Icons.history, label: 'Riwayat Bantuan'),
+      _MenuItemData(icon: CupertinoIcons.antenna_radiowaves_left_right, label: 'Perangkat Saya', route: '/tuya-devices'),
+      _MenuItemData(icon: CupertinoIcons.phone, label: 'Kontak Darurat', route: '/emergency-contacts'),
+      _MenuItemData(icon: CupertinoIcons.clock, label: 'Riwayat Bantuan'),
     ];
 
     return GridView.builder(
@@ -584,3 +578,4 @@ class _MenuItemData {
   final String? route;
   _MenuItemData({required this.icon, required this.label, this.route});
 }
+

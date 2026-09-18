@@ -40,7 +40,7 @@ class _SosStatusPageState extends State<SosStatusPage> {
       if (token == null) return;
 
       final response = await sl<Dio>().get(
-        ApiConstants.baseUrl + '/sos/active', // Add to ApiConstants later if needed
+        '${ApiConstants.baseUrl}/sos/active', // Add to ApiConstants later if needed
         options: Options(headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',

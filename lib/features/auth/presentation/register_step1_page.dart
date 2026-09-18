@@ -15,7 +15,6 @@ class RegisterStep1Page extends StatefulWidget {
 class _RegisterStep1PageState extends State<RegisterStep1Page> {
   static const Color primaryDark = Color(0xFF006D77);
   static const Color accentTeal = Color(0xFF0E9F6E);
-  static const Color bgColor = Color(0xFFEFEFEF);
   static const Color mutedText = Color(0xFF6B7080);
 
   bool _agreedToTerms = true;
@@ -68,7 +67,7 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
                           style: TextStyle(fontSize: 13.5, color: mutedText, height: 1.4),
                         ),
                         const SizedBox(height: 20),
-                        _buildGoogleCard(context),
+                        _buildGoogleCard(),
                         const SizedBox(height: 32),
                         _buildTermsCheckbox(),
                         const Spacer(),
@@ -145,7 +144,7 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
 
   bool _isLoading = false;
 
-  Widget _buildGoogleCard(BuildContext context) {
+  Widget _buildGoogleCard() {
     return InkWell(
       onTap: _isLoading ? null : () async {
         setState(() {
@@ -155,7 +154,7 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
           final authDataSource = get_it.GetIt.instance<AuthRemoteDataSource>();
           final result = await authDataSource.signInWithGoogle();
 
-          if (!context.mounted) return;
+          if (!mounted) return;
 
           setState(() {
             _isLoading = false;
@@ -165,17 +164,20 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
             final bool isProfileComplete = result['is_profile_complete'] ?? false;
 
             if (isProfileComplete) {
+              if (!mounted) return;
               context.go(AppRoutes.dashboard);
             } else {
+              if (!mounted) return;
               context.push(AppRoutes.registerStep2);
             }
           } else {
+            if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Registrasi dibatalkan oleh user.')),
             );
           }
         } catch (e) {
-          if (!context.mounted) return;
+          if (!mounted) return;
           setState(() {
             _isLoading = false;
           });

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:get_it/get_it.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -51,9 +52,6 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
       }
     }
 
-    final locationStatus = await Permission.location.status;
-    final bleScanStatus = await Permission.bluetoothScan.status;
-    
     // If running on Android 12+, bluetoothScan is required. On older devices, location is required.
     // It's safe to proceed if they aren't explicitly permanently denied.
     
@@ -177,7 +175,7 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
         backgroundColor: const Color(0xFFF7F8FA),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF005C61)),
+          icon: const Icon(CupertinoIcons.back, color: Color(0xFF005C61)),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text(
@@ -237,7 +235,7 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    _isScanning ? Icons.bluetooth_searching : Icons.bluetooth,
+                    _isScanning ? CupertinoIcons.bluetooth : CupertinoIcons.bluetooth,
                     size: 48,
                     color: _isScanning ? const Color(0xFF005C61) : Colors.grey,
                   ),
@@ -270,7 +268,7 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
             child: ElevatedButton.icon(
               onPressed: _isScanning ? _stopScan : _startScan,
               icon: Icon(
-                _isScanning ? Icons.stop : Icons.bluetooth_searching,
+                _isScanning ? CupertinoIcons.stop : CupertinoIcons.bluetooth,
                 color: Colors.white,
                 size: 18,
               ),
@@ -305,7 +303,7 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
         children: [
           Row(
             children: [
-              Icon(Icons.info_outline, color: Colors.green, size: 20),
+              Icon(CupertinoIcons.info_circle, color: Colors.green, size: 20),
               SizedBox(width: 8),
               Text(
                 'Cara Pairing Perangkat',
@@ -357,7 +355,7 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.sensors, color: Color(0xFF005C61)),
+                  const Icon(CupertinoIcons.antenna_radiowaves_left_right, color: Color(0xFF005C61)),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -442,3 +440,7 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
     );
   }
 }
+
+
+
+

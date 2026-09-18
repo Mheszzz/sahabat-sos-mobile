@@ -20,7 +20,6 @@ class RegisterStep2Page extends StatefulWidget {
 class _RegisterStep2PageState extends State<RegisterStep2Page> {
   static const Color primaryDark = Color(0xFF006D77);
   static const Color accentTeal = Color(0xFF0E9F6E);
-  static const Color bgColor = Color(0xFFEFEFEF);
   static const Color fieldFill = Color(0xFFEFF1F8);
   static const Color mutedText = Color(0xFF6B7080);
 
@@ -729,12 +728,13 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
         ),
       );
 
-      if (context.mounted) Navigator.pop(context); // Tutup Loading
+      if (!mounted) return;
+      Navigator.pop(context); // Tutup Loading
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         await prefs.setBool('is_profile_complete', true);
         await prefs.setString('user_role', _selectedRole == _RoleType.relawan ? 'relawan' : 'pengguna');
-        if (!context.mounted) return;
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profil berhasil disimpan!')));
         if (_selectedRole == _RoleType.relawan) {
           context.go(AppRoutes.homeVolunteer);
@@ -742,12 +742,12 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
           context.go(AppRoutes.dashboard);
         }
       } else {
-        if (!context.mounted) return;
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menyimpan profil: ${response.data}')));
       }
     } catch (e) {
-      if (context.mounted) Navigator.pop(context); // Tutup Loading
-      if (!context.mounted) return;
+      if (!mounted) return;
+      Navigator.pop(context); // Tutup Loading
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi kesalahan: $e')));
     }
   }
@@ -799,9 +799,8 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
           } catch (_) {}
           await prefs.remove('auth_token');
           await prefs.remove('is_profile_complete');
-          if (context.mounted) {
-            context.go(AppRoutes.login);
-          }
+          if (!mounted) return;
+          context.go(AppRoutes.login);
         },
         style: OutlinedButton.styleFrom(
           foregroundColor: const Color(0xFF1A1A2E),

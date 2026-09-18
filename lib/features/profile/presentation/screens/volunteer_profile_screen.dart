@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
@@ -18,7 +19,6 @@ class VolunteerProfileScreen extends StatefulWidget {
 
 class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
   static const Color primaryTeal = Color(0xFF00695C);
-  static const Color bgColor = Color(0xFFF5F6F8);
 
   bool _isLoading = true;
   Map<String, dynamic>? _fullUserData;
@@ -128,7 +128,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           _buildSectionHeader(
-                            icon: Icons.work_outline_rounded,
+                            icon: CupertinoIcons.briefcase,
                             title: 'Informasi Relawan',
                           ),
                           const SizedBox(height: 12),
@@ -136,7 +136,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                           const SizedBox(height: 24),
 
                           _buildSectionHeader(
-                            icon: Icons.shield_rounded,
+                            icon: CupertinoIcons.shield_fill,
                             title: 'Privasi & Lokasi',
                           ),
                           const SizedBox(height: 12),
@@ -144,7 +144,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                           const SizedBox(height: 24),
 
                           _buildSectionHeader(
-                            icon: Icons.headset_mic_rounded,
+                            icon: CupertinoIcons.headphones,
                             title: 'Bantuan',
                           ),
                           const SizedBox(height: 12),
@@ -152,6 +152,16 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                           const SizedBox(height: 32),
 
                           _buildLogoutButton(),
+                          const SizedBox(height: 24),
+                          const Center(
+                            child: Text(
+                              'versi 1 beta',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -189,7 +199,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
               }
             }
           },
-          icon: const Icon(Icons.edit_note_rounded, color: primaryTeal, size: 28),
+          icon: const Icon(CupertinoIcons.pencil, color: primaryTeal, size: 28),
           tooltip: 'Edit Profil',
         ),
         const SizedBox(width: 8),
@@ -264,7 +274,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
               ),
               const SizedBox(width: 6),
               if (isVerified)
-                const Icon(Icons.verified, color: primaryTeal, size: 20),
+                const Icon(CupertinoIcons.checkmark_seal_fill, color: primaryTeal, size: 20),
             ],
           ),
           const SizedBox(height: 4),
@@ -303,19 +313,19 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           ),
           const SizedBox(height: 24),
           _buildInfoBox(
-            icon: Icons.phone_android_rounded,
+            icon: CupertinoIcons.device_phone_portrait,
             label: 'Nomor Telepon',
             value: _phone,
           ),
           const SizedBox(height: 6),
           _buildInfoBox(
-            icon: Icons.location_on_rounded,
+            icon: CupertinoIcons.location_solid,
             label: 'Lokasi Saat Ini',
             value: _location,
           ),
           const SizedBox(height: 6),
           _buildInfoBox(
-            icon: Icons.home_rounded,
+            icon: CupertinoIcons.house_fill,
             label: 'Alamat Lengkap',
             value: _address,
           ),
@@ -429,7 +439,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.gps_fixed_rounded, color: Color(0xFFEF6C00), size: 24),
+            child: const Icon(CupertinoIcons.location_fill, color: Color(0xFFEF6C00), size: 24),
           ),
           const SizedBox(width: 16),
           const Expanded(
@@ -455,7 +465,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
       child: Column(
         children: [
           _buildHelpTile(
-            icon: Icons.help_outline_rounded,
+            icon: CupertinoIcons.info,
             iconColor: Colors.blue.shade700,
             iconBg: Colors.blue.shade50,
             title: 'Panduan Relawan',
@@ -463,7 +473,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           ),
           const Divider(height: 1, indent: 56),
           _buildHelpTile(
-            icon: Icons.headset_mic_rounded,
+            icon: CupertinoIcons.headphones,
             iconColor: Colors.orange.shade700,
             iconBg: Colors.orange.shade50,
             title: 'Hubungi Admin',
@@ -505,7 +515,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: Colors.black38),
+            const Icon(CupertinoIcons.chevron_right, color: Colors.black38),
           ],
         ),
       ),
@@ -532,11 +542,10 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           await prefs.remove('auth_token');
           await prefs.remove('is_profile_complete');
           await prefs.remove('user_role');
-          if (context.mounted) {
-            context.go(AppRoutes.login);
-          }
+          if (!mounted) return;
+          context.go(AppRoutes.login);
         },
-        icon: const Icon(Icons.logout_rounded),
+        icon: const Icon(CupertinoIcons.arrow_right_square),
         label: const Text('Keluar Akun', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFFFFEBEE),
@@ -548,3 +557,5 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     );
   }
 }
+
+

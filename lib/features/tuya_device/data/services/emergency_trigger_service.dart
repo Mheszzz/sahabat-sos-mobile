@@ -62,11 +62,11 @@ class EmergencyTriggerService {
     final payload = {
       'device_id': event.deviceId,
       'timestamp': event.timestamp.toIso8601String(),
-      'trigger_source': 'ble_button',
+      'trigger_source': 'tuya_wifi',
       'dps': event.dps,
       'is_simulation': event.isSimulation,
-      'latitude': latitude,
-      'longitude': longitude,
+      'latitude': latitude ?? 0.0,
+      'longitude': longitude ?? 0.0,
     };
 
     // Attempt to send with retries
@@ -81,16 +81,22 @@ class EmergencyTriggerService {
               'Authorization': 'Bearer $token',
               'Accept': 'application/json',
             },
+            // Don't throw exception for 422 so we can read the message
+            validateStatus: (status) => status != null && (status >= 200 && status < 300 || status == 422),
           ),
         );
 
         if (response.statusCode == 200 || response.statusCode == 201) {
           return true;
+        } else if (response.statusCode == 422) {
+          // Check if this is "Anda masih memiliki sinyal SOS aktif..."
+          final message = response.data['message'] ?? 'Data tidak lengkap / Error 422';
+          throw EmergencyTriggerException(message.toString());
         }
       } on DioException catch (e) {
         if (attempt == _maxRetries) {
           throw EmergencyTriggerException(
-            'Failed to send emergency after $_maxRetries attempts: ${e.message}',
+            'Gagal mengirim sinyal darurat: ${e.message}',
           );
         }
         // Wait before retrying

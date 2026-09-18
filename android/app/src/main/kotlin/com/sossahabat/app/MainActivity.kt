@@ -74,6 +74,19 @@ class MainActivity : FlutterActivity() {
                         val password = call.argument<String>("password") ?: ""
                         handleStartWifiPairing(ssid, password, result)
                     }
+                    "startWifiPairingAP" -> {
+                        val ssid = call.argument<String>("ssid") ?: ""
+                        val password = call.argument<String>("password") ?: ""
+                        handleStartWifiPairingWithMode(ssid, password, "ap", result)
+                    }
+                    "getWifiToken" -> handleGetWifiToken(result)
+                    "startApPairingWithToken" -> {
+                        val ssid = call.argument<String>("ssid") ?: ""
+                        val password = call.argument<String>("password") ?: ""
+                        val token = call.argument<String>("token") ?: ""
+                        handleStartApPairingWithToken(ssid, password, token, result)
+                    }
+                    "stopWifiPairing" -> handleStopWifiPairing(result)
                     "startBLEScan" -> handleStartBLEScan(result)
                     "stopBLEScan" -> handleStopBLEScan(result)
                     "pairDevice" -> {
@@ -88,6 +101,10 @@ class MainActivity : FlutterActivity() {
                     "stopListenDevice" -> {
                         val deviceId = call.argument<String>("deviceId") ?: ""
                         handleStopListenDevice(deviceId, result)
+                    }
+                    "removeDevice" -> {
+                        val deviceId = call.argument<String>("deviceId") ?: ""
+                        handleRemoveDevice(deviceId, result)
                     }
                     "getDeviceStatus" -> {
                         val deviceId = call.argument<String>("deviceId") ?: ""
@@ -222,10 +239,18 @@ class MainActivity : FlutterActivity() {
     }
 
     // ========================================================================
-    // startWifiPairing - Start Wi-Fi EZ Mode pairing
+    // startWifiPairing - Start Wi-Fi EZ or AP Mode pairing
     // ========================================================================
+    private var currentActivator: IThingActivator? = null
+    private var savedToken: String? = null
+
     private fun handleStartWifiPairing(ssid: String, password: String, result: MethodChannel.Result) {
-        Log.d(TAG, "startWifiPairing called for SSID: $ssid")
+        handleStartWifiPairingWithMode(ssid, password, "ez", result)
+    }
+
+    // Step 1 for AP Mode: Get token while still on home Wi-Fi (with internet)
+    private fun handleGetWifiToken(result: MethodChannel.Result) {
+        Log.d(TAG, "getWifiToken called, homeId=$currentHomeId")
 
         if (currentHomeId <= 0) {
             result.error("NO_HOME", "No Tuya home available. Please login first.", null)
@@ -235,12 +260,126 @@ class MainActivity : FlutterActivity() {
         try {
             ThingHomeSdk.getActivatorInstance().getActivatorToken(currentHomeId, object : IThingActivatorGetToken {
                 override fun onSuccess(token: String) {
+                    Log.d(TAG, "Got activator token: $token")
+                    savedToken = token
+                    runOnUiThread {
+                        result.success(mapOf("status" to "token_ready", "token" to token))
+                    }
+                }
+
+                override fun onFailure(errorCode: String?, errorMsg: String?) {
+                    Log.e(TAG, "Failed to get token: $errorCode - $errorMsg")
+                    runOnUiThread {
+                        result.error("TOKEN_ERROR", "Gagal ambil token: $errorMsg (code: $errorCode)", null)
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "getWifiToken exception: ${e.message}", e)
+            result.error("TOKEN_EXCEPTION", e.message, null)
+        }
+    }
+
+    // Step 2 for AP Mode: Start pairing after user connects to SmartLife hotspot
+    private fun handleStartApPairingWithToken(ssid: String, password: String, token: String, result: MethodChannel.Result) {
+        Log.d(TAG, "startApPairingWithToken called for SSID: $ssid, token: $token")
+
+        // Stop any existing activator
+        try {
+            currentActivator?.stop()
+            currentActivator?.onDestroy()
+            currentActivator = null
+        } catch (e: Exception) {
+            Log.w(TAG, "Error stopping previous activator: ${e.message}")
+        }
+
+        try {
+            val builder = ActivatorBuilder()
+                .setContext(this@MainActivity)
+                .setSsid(ssid)
+                .setPassword(password)
+                .setActivatorModel(ActivatorModelEnum.THING_AP)
+                .setTimeOut(120)
+                .setToken(token)
+                .setListener(object : IThingSmartActivatorListener {
+                    override fun onError(errorCode: String?, errorMsg: String?) {
+                        Log.e(TAG, "AP pairing error: $errorCode - $errorMsg")
+                        runOnUiThread {
+                            val eventData = JSONObject().apply {
+                                put("type", "wifi_pairing_error")
+                                put("error_code", errorCode)
+                                put("error_msg", errorMsg)
+                            }
+                            eventSink?.success(eventData.toString())
+                        }
+                    }
+
+                    override fun onActiveSuccess(devResp: DeviceBean?) {
+                        Log.d(TAG, "AP pairing success! devId: ${devResp?.devId}")
+                        runOnUiThread {
+                            val eventData = JSONObject().apply {
+                                put("type", "wifi_pairing_success")
+                                put("device_id", devResp?.devId)
+                                put("name", devResp?.name)
+                                put("is_online", devResp?.getIsOnline())
+                            }
+                            eventSink?.success(eventData.toString())
+                        }
+                    }
+
+                    override fun onStep(step: String?, data: Any?) {
+                        Log.d(TAG, "AP pairing step: $step, data: $data")
+                        runOnUiThread {
+                            val eventData = JSONObject().apply {
+                                put("type", "wifi_pairing_step")
+                                put("step", step)
+                            }
+                            eventSink?.success(eventData.toString())
+                        }
+                    }
+                })
+
+            currentActivator = ThingHomeSdk.getActivatorInstance().newActivator(builder)
+            currentActivator?.start()
+
+            runOnUiThread {
+                result.success(mapOf("status" to "pairing_started", "mode" to "ap"))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "AP pairing exception: ${e.message}", e)
+            result.error("AP_PAIRING_ERROR", "Failed to start AP pairing: ${e.message}", null)
+        }
+    }
+
+    // EZ Mode: get token + start in one step (phone stays on home Wi-Fi)
+    private fun handleStartWifiPairingWithMode(ssid: String, password: String, mode: String, result: MethodChannel.Result) {
+        Log.d(TAG, "startWifiPairing EZ mode called for SSID: $ssid")
+
+        if (currentHomeId <= 0) {
+            result.error("NO_HOME", "No Tuya home available. Please login first.", null)
+            return
+        }
+
+        // Stop any existing activator
+        try {
+            currentActivator?.stop()
+            currentActivator?.onDestroy()
+            currentActivator = null
+        } catch (e: Exception) {
+            Log.w(TAG, "Error stopping previous activator: ${e.message}")
+        }
+
+        try {
+            ThingHomeSdk.getActivatorInstance().getActivatorToken(currentHomeId, object : IThingActivatorGetToken {
+                override fun onSuccess(token: String) {
+                    Log.d(TAG, "Got activator token: $token")
+
                     val builder = ActivatorBuilder()
                         .setContext(this@MainActivity)
                         .setSsid(ssid)
                         .setPassword(password)
                         .setActivatorModel(ActivatorModelEnum.THING_EZ)
-                        .setTimeOut(100)
+                        .setTimeOut(120)
                         .setToken(token)
                         .setListener(object : IThingSmartActivatorListener {
                             override fun onError(errorCode: String?, errorMsg: String?) {
@@ -269,28 +408,47 @@ class MainActivity : FlutterActivity() {
                             }
 
                             override fun onStep(step: String?, data: Any?) {
-                                Log.d(TAG, "Wi-Fi pairing step: $step")
+                                Log.d(TAG, "Wi-Fi pairing step: $step, data: $data")
+                                runOnUiThread {
+                                    val eventData = JSONObject().apply {
+                                        put("type", "wifi_pairing_step")
+                                        put("step", step)
+                                    }
+                                    eventSink?.success(eventData.toString())
+                                }
                             }
                         })
 
-                    val activator: IThingActivator = ThingHomeSdk.getActivatorInstance().newMultiActivator(builder)
-                    activator.start()
+                    currentActivator = ThingHomeSdk.getActivatorInstance().newMultiActivator(builder)
+                    currentActivator?.start()
                     
                     runOnUiThread {
-                        result.success(mapOf("status" to "pairing_started"))
+                        result.success(mapOf("status" to "pairing_started", "mode" to "ez"))
                     }
                 }
 
                 override fun onFailure(errorCode: String?, errorMsg: String?) {
                     Log.e(TAG, "Failed to get activator token: $errorCode - $errorMsg")
                     runOnUiThread {
-                        result.error("TOKEN_ERROR", "Failed to get pairing token: $errorMsg", null)
+                        result.error("TOKEN_ERROR", "Failed to get pairing token: $errorMsg (code: $errorCode)", null)
                     }
                 }
             })
         } catch (e: Exception) {
             Log.e(TAG, "Wi-Fi pairing exception: ${e.message}", e)
             result.error("WIFI_PAIRING_ERROR", "Failed to start Wi-Fi pairing: ${e.message}", null)
+        }
+    }
+
+    private fun handleStopWifiPairing(result: MethodChannel.Result) {
+        try {
+            currentActivator?.stop()
+            currentActivator?.onDestroy()
+            currentActivator = null
+            result.success(mapOf("status" to "stopped"))
+        } catch (e: Exception) {
+            Log.e(TAG, "Stop Wi-Fi pairing error: ${e.message}")
+            result.success(mapOf("status" to "stopped"))
         }
     }
 
@@ -552,6 +710,38 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             Log.e(TAG, "stopListenDevice exception: ${e.message}", e)
             result.success(mapOf("status" to "stopped"))
+        }
+    }
+
+    // ========================================================================
+    // removeDevice - Unpair/Remove a device from Tuya Cloud
+    // ========================================================================
+    private fun handleRemoveDevice(deviceId: String, result: MethodChannel.Result) {
+        Log.d(TAG, "removeDevice called for: $deviceId")
+        try {
+            val device = ThingHomeSdk.newDeviceInstance(deviceId)
+            if (device != null) {
+                device.removeDevice(object : IResultCallback {
+                    override fun onError(code: String?, error: String?) {
+                        Log.e(TAG, "Remove device failed: code=$code, error=$error")
+                        result.error(code ?: "REMOVE_FAILED", error ?: "Unknown error", null)
+                    }
+                    override fun onSuccess() {
+                        Log.d(TAG, "Device successfully removed: $deviceId")
+                        deviceListeners[deviceId]?.let {
+                            it.unRegisterDevListener()
+                            it.onDestroy()
+                        }
+                        deviceListeners.remove(deviceId)
+                        result.success(mapOf("status" to "success"))
+                    }
+                })
+            } else {
+                result.error("DEVICE_NOT_FOUND", "Device instance not found", null)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "removeDevice exception: ${e.message}", e)
+            result.error("EXCEPTION", e.message, null)
         }
     }
 

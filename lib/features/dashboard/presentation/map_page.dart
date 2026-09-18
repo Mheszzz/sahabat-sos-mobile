@@ -87,7 +87,7 @@ class _MapPageState extends State<MapPage> {
           }
         } else if (status == ServiceStatus.enabled) {
           if (_isDialogShowing) {
-            Navigator.pop(context); // Tutup dialog
+            if (mounted) Navigator.pop(context); // Tutup dialog
             _isDialogShowing = false;
           }
           _checkLocation(); 

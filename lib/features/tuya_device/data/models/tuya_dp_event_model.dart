@@ -7,6 +7,7 @@ enum TuyaEventType {
   bleDeviceFound,
   wifiPairingSuccess,
   wifiPairingError,
+  wifiPairingStep,
   unknown,
 }
 
@@ -64,13 +65,20 @@ class TuyaDpEvent {
       case 'wifi_pairing_error':
         type = TuyaEventType.wifiPairingError;
         break;
+      case 'wifi_pairing_step':
+        type = TuyaEventType.wifiPairingStep;
+        break;
     }
 
     // For BLE device found events, map the device info fields into dps
     if (type == TuyaEventType.bleDeviceFound || type == TuyaEventType.wifiPairingSuccess) {
       parsedDps = {
         'name': json['name'] as String? ?? 'Tuya Device',
-        'error_msg': json['error_msg'] as String? ?? '',
+      };
+    } else if (type == TuyaEventType.wifiPairingError) {
+      parsedDps = {
+        'error_code': json['error_code']?.toString() ?? '',
+        'error_msg': json['error_msg']?.toString() ?? 'Unknown error',
       };
     }
 
@@ -88,14 +96,12 @@ class TuyaDpEvent {
 
   /// Check if this event represents an SOS button press
   bool get isSosTriggered {
-    // Check common Tuya SOS Data Point codes
-    // DP "1" with value true = standard SOS button
-    // DP "sos_state" with value "alarm" = SOS alarm state
-    if (eventType != TuyaEventType.dpUpdate) return false;
-
-    if (dps.containsKey('1') && dps['1'] == true) return true;
-    if (dps.containsKey('sos_state') && dps['sos_state'] == 'alarm') return true;
-    if (dps.containsKey('1') && dps['1'] == 'alarm') return true;
+    // For dedicated SOS button devices, ANY dpUpdate is a trigger
+    // because the device has no other function
+    if (eventType == TuyaEventType.dpUpdate) return true;
+    
+    // Some SOS buttons report via statusChanged when pressed
+    if (eventType == TuyaEventType.statusChanged && isOnline) return true;
 
     return false;
   }

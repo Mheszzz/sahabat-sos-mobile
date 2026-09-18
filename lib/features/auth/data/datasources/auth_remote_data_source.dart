@@ -78,7 +78,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw Exception('Google Auth tidak memberikan accessToken maupun idToken.');
       }
     } catch (e) {
-      print("Error Google Sign-In: $e");
+      debugPrint("Error Google Sign-In: $e");
       rethrow;
     }
   }

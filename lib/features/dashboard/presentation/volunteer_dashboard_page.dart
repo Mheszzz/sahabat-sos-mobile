@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'package:flutter/cupertino.dart';
 class VolunteerDashboardPage extends StatefulWidget {
   const VolunteerDashboardPage({super.key});
 
@@ -124,7 +124,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                   children: [
                     Row(
                       children: const [
-                        Icon(Icons.warning, color: Colors.white, size: 20),
+                        Icon(CupertinoIcons.exclamationmark_triangle_fill, color: Colors.white, size: 20),
                         SizedBox(width: 8),
                         Text(
                           'Darurat SOS',
@@ -140,7 +140,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: const [
-                        Icon(Icons.location_on_outlined, color: Colors.white, size: 16),
+                        Icon(CupertinoIcons.location, color: Colors.white, size: 16),
                         SizedBox(width: 4),
                         Expanded(
                           child: Text(
@@ -163,7 +163,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed: () {},
-                        icon: const Icon(Icons.navigation_outlined, color: Color(0xFFC62828)),
+                        icon: const Icon(CupertinoIcons.location_north_line, color: Color(0xFFC62828)),
                         label: const Text(
                           'Pandu Arah',
                           style: TextStyle(color: Color(0xFFC62828), fontWeight: FontWeight.bold),
@@ -181,7 +181,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed: () {},
-                        icon: const Icon(Icons.check_circle_outline, color: Color(0xFF8B0000)),
+                        icon: const Icon(CupertinoIcons.checkmark_circle, color: Color(0xFF8B0000)),
                         label: const Text(
                           'Selesai',
                           style: TextStyle(color: Color(0xFF8B0000), fontWeight: FontWeight.bold),
@@ -231,7 +231,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              Icon(Icons.arrow_forward, color: primaryTeal, size: 14),
+                              Icon(CupertinoIcons.arrow_right, color: primaryTeal, size: 14),
                             ],
                           ),
                         ),
@@ -246,7 +246,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                         border: Border.all(color: Colors.grey[300]!, width: 4),
                       ),
                       child: const Center(
-                        child: Icon(Icons.map, size: 64, color: Colors.grey),
+                        child: Icon(CupertinoIcons.map, size: 64, color: Colors.grey),
                       ),
                     ),
                   ],
@@ -282,7 +282,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                         children: [
                           const CircleAvatar(
                             backgroundColor: primaryTeal,
-                            child: Icon(Icons.add_box_outlined, color: Colors.white),
+                            child: Icon(CupertinoIcons.plus_app, color: Colors.white),
                           ),
                           const SizedBox(width: 16),
                           Column(
@@ -312,7 +312,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                         children: [
                           const CircleAvatar(
                             backgroundColor: Colors.amber,
-                            child: Icon(Icons.timer_outlined, color: Colors.white),
+                            child: Icon(CupertinoIcons.timer, color: Colors.white),
                           ),
                           const SizedBox(width: 16),
                           Column(
@@ -342,3 +342,5 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
     );
   }
 }
+
+
