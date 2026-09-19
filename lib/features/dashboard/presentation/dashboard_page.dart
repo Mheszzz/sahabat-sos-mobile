@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +10,8 @@ import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
+import 'package:sahabat_sos_mobile/features/tuya_device/data/services/tuya_channel_service.dart';
+import 'package:sahabat_sos_mobile/features/tuya_device/data/models/tuya_device_model.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -31,21 +34,32 @@ class _DashboardPageState extends State<DashboardPage>
 
   // Beranda data from API
   String _userName = '';
-  int _activeSos = 0;
-  int _totalLaporan = 0;
   bool _isBerandaLoading = true;
+  TuyaDeviceModel? _tuyaDevice;
+  StreamSubscription? _deviceSubscription;
 
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 50),
+      duration: const Duration(milliseconds: 150),
     );
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.88).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
     _fetchBeranda();
+    
+    // Dengarkan perubahan real-time dari Tuya
+    final tuyaService = sl<TuyaChannelService>();
+    _deviceSubscription = tuyaService.dpEventStream.listen((event) {
+      if (mounted && _tuyaDevice != null && event.deviceId == _tuyaDevice!.deviceId) {
+        setState(() {
+          final newDps = Map<String, dynamic>.from(_tuyaDevice!.dps)..addAll(event.dps);
+          _tuyaDevice = _tuyaDevice!.copyWith(dps: newDps);
+        });
+      }
+    });
   }
 
   Future<void> _fetchBeranda() async {
@@ -54,6 +68,7 @@ class _DashboardPageState extends State<DashboardPage>
       final token = prefs.getString('auth_token');
       if (token == null) return;
 
+      // Ambil data user
       final response = await sl<Dio>().get(
         ApiConstants.beranda,
         options: Options(headers: {
@@ -62,12 +77,24 @@ class _DashboardPageState extends State<DashboardPage>
         }),
       );
 
+      // Ambil data device Tuya
+      final tuyaService = sl<TuyaChannelService>();
+      var devices = await tuyaService.getDeviceList();
+      
+      if (devices.isEmpty) {
+        try {
+          await tuyaService.initTuya();
+          devices = await tuyaService.getDeviceList();
+        } catch (_) {}
+      }
+
       if (response.statusCode == 200 && mounted) {
         final data = response.data;
         setState(() {
           _userName = data['user']?['name'] ?? '';
-          _activeSos = data['summary']?['active_sos'] ?? 0;
-          _totalLaporan = data['summary']?['total_laporan'] ?? 0;
+          if (devices.isNotEmpty) {
+             _tuyaDevice = devices.first;
+          }
           _isBerandaLoading = false;
         });
       }
@@ -83,6 +110,7 @@ class _DashboardPageState extends State<DashboardPage>
   void dispose() {
     _animationController.dispose();
     _tapTimer?.cancel();
+    _deviceSubscription?.cancel();
     super.dispose();
   }
 
@@ -143,7 +171,7 @@ class _DashboardPageState extends State<DashboardPage>
       titleSpacing: 16,
       title: Row(
         children: [
-          const Icon(Icons.accessibility_new, color: primaryTeal, size: 24),
+          const Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal, size: 24),
           const SizedBox(width: 8),
           Text(
             _userName.isNotEmpty ? 'Halo, $_userName' : 'Sahabat SOS',
@@ -156,6 +184,14 @@ class _DashboardPageState extends State<DashboardPage>
         ],
       ),
       actions: [
+        IconButton(
+          icon: const Icon(CupertinoIcons.refresh, color: primaryTeal),
+          tooltip: 'Refresh',
+          onPressed: () {
+            setState(() => _isBerandaLoading = true);
+            _fetchBeranda();
+          },
+        ),
         Padding(
           padding: const EdgeInsets.only(right: 8.0),
           child: Tooltip(
@@ -174,7 +210,7 @@ class _DashboardPageState extends State<DashboardPage>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: const [
-                    Icon(Icons.map_outlined, color: primaryTeal, size: 20),
+                    Icon(CupertinoIcons.map, color: primaryTeal, size: 20),
                     SizedBox(width: 4),
                     Text(
                       'Peta',
@@ -218,17 +254,16 @@ class _DashboardPageState extends State<DashboardPage>
                 final locationService = sl<LocationService>();
                 bool hasPermission = await locationService.requestPermission();
                 if (!hasPermission) {
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Izin lokasi dibutuhkan untuk mengirim SOS')),
-                    );
-                  }
+                  if (!mounted) return;
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Izin lokasi dibutuhkan untuk mengirim SOS')),
+                  );
                   return;
                 }
                 
                 Position position = await Geolocator.getCurrentPosition(
-                  desiredAccuracy: LocationAccuracy.high,
+                  locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
                 );
                 
                 final prefs = sl<SharedPreferences>();
@@ -248,11 +283,10 @@ class _DashboardPageState extends State<DashboardPage>
                 );
                 
                 // Hide loading
-                if (context.mounted) {
-                  Navigator.pop(context);
-                }
+                if (!mounted) return;
+                Navigator.pop(context);
                 
-                if (response.statusCode == 201 && context.mounted) {
+                if (response.statusCode == 201) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Sinyal SOS berhasil dikirim.')),
                   );
@@ -260,24 +294,19 @@ class _DashboardPageState extends State<DashboardPage>
                 }
               } catch (e) {
                 // Hide loading
-                if (context.mounted) {
-                  Navigator.pop(context);
-                }
+                if (!mounted) return;
+                Navigator.pop(context);
                 
                 if (e is DioException && e.response?.statusCode == 422) {
                   // SOS still active
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(e.response?.data['message'] ?? 'SOS masih aktif')),
-                    );
-                    context.push('/sos-status');
-                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(e.response?.data['message'] ?? 'SOS masih aktif')),
+                  );
+                  context.push('/sos-status');
                 } else {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Gagal mengirim SOS: $e')),
-                    );
-                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Gagal mengirim SOS: $e')),
+                  );
                 }
               }
             }
@@ -339,7 +368,7 @@ class _DashboardPageState extends State<DashboardPage>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        Icons.notifications_active,
+                        CupertinoIcons.exclamationmark_triangle_fill,
                         color: Colors.white,
                         size: 80,
                         shadows: [
@@ -411,7 +440,7 @@ class _DashboardPageState extends State<DashboardPage>
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(16),
@@ -427,21 +456,24 @@ class _DashboardPageState extends State<DashboardPage>
                 : Row(
                     children: [
                       _buildStatItem(
-                        icon: Icons.warning_amber_rounded,
-                        label: 'SOS Aktif',
-                        value: '$_activeSos',
-                        color: Colors.red,
+                        icon: CupertinoIcons.battery_100,
+                        label: 'Baterai',
+                        value: _tuyaDevice?.batteryLevel != null ? '${_tuyaDevice!.batteryLevel}%' : 'N/A',
+                        color: Colors.green,
                       ),
-                      Container(
-                        width: 1,
-                        height: 40,
-                        color: Colors.grey.withValues(alpha: 0.3),
-                      ),
+                      Container(width: 1, height: 40, color: Colors.grey.withValues(alpha: 0.3)),
                       _buildStatItem(
-                        icon: Icons.description_outlined,
-                        label: 'Total Laporan',
-                        value: '$_totalLaporan',
+                        icon: CupertinoIcons.wifi,
+                        label: 'Koneksi',
+                        value: _tuyaDevice != null ? (_tuyaDevice!.isOnline ? 'Terhubung' : 'Terputus') : 'N/A',
                         color: primaryTeal,
+                      ),
+                      Container(width: 1, height: 40, color: Colors.grey.withValues(alpha: 0.3)),
+                      _buildStatItem(
+                        icon: CupertinoIcons.antenna_radiowaves_left_right,
+                        label: 'Sinyal',
+                        value: _tuyaDevice?.signalStrengthFormatted ?? 'N/A',
+                        color: Colors.blue,
                       ),
                     ],
                   ),
@@ -458,35 +490,37 @@ class _DashboardPageState extends State<DashboardPage>
     required Color color,
   }) {
     return Expanded(
-      child: Row(
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color, size: 18),
+            child: Icon(icon, color: color, size: 16),
           ),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-              Text(
-                label,
-                style: const TextStyle(fontSize: 10, color: Colors.black54),
-              ),
-            ],
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10, color: Colors.black54),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -496,13 +530,13 @@ class _DashboardPageState extends State<DashboardPage>
   Widget _buildMenuGrid() {
     final items = [
       _MenuItemData(
-        icon: Icons.campaign,
+        icon: CupertinoIcons.exclamationmark_bubble,
         label: 'Kirim Laporan',
         route: '/quick-report',
       ),
-      _MenuItemData(icon: Icons.cell_tower, label: 'Perangkat Saya', route: '/tuya-devices'),
-      _MenuItemData(icon: Icons.badge, label: 'Kontak Darurat', route: '/emergency-contacts'),
-      _MenuItemData(icon: Icons.history, label: 'Riwayat Bantuan'),
+      _MenuItemData(icon: CupertinoIcons.antenna_radiowaves_left_right, label: 'Perangkat Saya', route: '/tuya-devices'),
+      _MenuItemData(icon: CupertinoIcons.phone, label: 'Kontak Darurat', route: '/emergency-contacts'),
+      _MenuItemData(icon: CupertinoIcons.clock, label: 'Riwayat Bantuan'),
     ];
 
     return GridView.builder(
@@ -584,3 +618,4 @@ class _MenuItemData {
   final String? route;
   _MenuItemData({required this.icon, required this.label, this.route});
 }
+

@@ -24,6 +24,7 @@ class _SosStatusPageState extends State<SosStatusPage> {
   bool _isCancelling = false;
   double _cancelProgress = 0.0;
   String _sosStatus = 'aktif';
+  int? _sosId;
   
   @override
   void initState() {
@@ -33,6 +34,8 @@ class _SosStatusPageState extends State<SosStatusPage> {
     _statusTimer = Timer.periodic(const Duration(seconds: 5), (_) => _fetchSosStatus());
   }
 
+  int _emptyPollCount = 0;
+
   Future<void> _fetchSosStatus() async {
     try {
       final prefs = sl<SharedPreferences>();
@@ -40,7 +43,7 @@ class _SosStatusPageState extends State<SosStatusPage> {
       if (token == null) return;
 
       final response = await sl<Dio>().get(
-        ApiConstants.baseUrl + '/sos/active', // Add to ApiConstants later if needed
+        ApiConstants.emergencyActive,
         options: Options(headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -51,13 +54,18 @@ class _SosStatusPageState extends State<SosStatusPage> {
         final data = response.data['data'];
         if (data != null) {
           setState(() {
+            _sosId = data['id'];
             _sosStatus = data['status_sos'] ?? 'aktif';
+            _emptyPollCount = 0; // reset
           });
         } else {
-          // If no active SOS, maybe it was finished
-          setState(() {
-             _sosStatus = 'selesai';
-          });
+          // Give it a 15-second grace period (3 polls) to allow background API to finish
+          _emptyPollCount++;
+          if (_emptyPollCount > 3) {
+            setState(() {
+               _sosStatus = 'selesai';
+            });
+          }
         }
       }
     } catch (e) {
@@ -96,13 +104,46 @@ class _SosStatusPageState extends State<SosStatusPage> {
     });
   }
   
-  void _cancelSos() {
-    // In a real app, call API to cancel SOS here if backend supports it.
-    // For now, just pop.
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('SOS Dibatalkan')),
-    );
-    context.pop();
+  Future<void> _cancelSos() async {
+    if (_sosId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tidak dapat membatalkan: ID SOS tidak ditemukan')),
+      );
+      context.pop();
+      return;
+    }
+
+    try {
+      final prefs = sl<SharedPreferences>();
+      final token = prefs.getString('auth_token');
+      if (token == null) return;
+
+      final response = await sl<Dio>().post(
+        ApiConstants.emergencyCancel(_sosId),
+        data: {
+          'alasan_batal': 'Dibatalkan oleh pengguna',
+        },
+        options: Options(headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        }),
+      );
+
+      if (response.statusCode == 200 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('SOS Berhasil Dibatalkan')),
+        );
+        context.pop();
+      }
+    } catch (e) {
+      debugPrint('Gagal membatalkan SOS: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal membatalkan SOS')),
+        );
+        context.pop();
+      }
+    }
   }
 
   @override

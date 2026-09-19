@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:get_it/get_it.dart';
@@ -185,8 +186,8 @@ class _HistoryPageState extends State<HistoryPage> {
           ? 'Lihat Detail SOS'
           : 'Lihat Detail Laporan',
       imagePlaceholderIcon: type == HistoryType.sos
-          ? Icons.map_outlined
-          : Icons.image_outlined,
+          ? CupertinoIcons.map
+          : CupertinoIcons.doc_text,
       imageUrl: foto != null
           ? (foto.startsWith('http')
                 ? foto
@@ -339,7 +340,7 @@ class _HistoryPageState extends State<HistoryPage> {
       titleSpacing: 16,
       title: Row(
         children: const [
-          Icon(Icons.accessibility_new, color: primaryTeal, size: 24),
+          Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal, size: 24),
           SizedBox(width: 8),
           Text(
             'Sahabat SOS',
@@ -356,10 +357,10 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Widget _buildFilterChips() {
     final icons = [
-      Icons.all_inbox_rounded,
-      Icons.sos,
-      Icons.description_outlined,
-      Icons.check_circle_outline,
+      CupertinoIcons.tray_fill,
+      CupertinoIcons.exclamationmark_triangle_fill,
+      CupertinoIcons.doc_text,
+      CupertinoIcons.checkmark_circle,
     ];
 
     int getCount(int index) {
@@ -558,9 +559,9 @@ class _HistoryPageState extends State<HistoryPage> {
                 child: Row(
                   children: [
                     if (index == 3 && isSelected && _customStartDate != null)
-                      const Icon(Icons.date_range, size: 14, color: primaryTeal)
+                      const Icon(CupertinoIcons.calendar, size: 14, color: primaryTeal)
                     else
-                      Icon(Icons.access_time, size: 14, color: isSelected ? primaryTeal : Colors.grey.shade500),
+                      Icon(CupertinoIcons.time, size: 14, color: isSelected ? primaryTeal : Colors.grey.shade500),
                     const SizedBox(width: 6),
                     Text(
                       index == 3 && isSelected && _customStartDate != null
@@ -589,7 +590,7 @@ class _HistoryPageState extends State<HistoryPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           IconButton(
-            icon: const Icon(Icons.chevron_left),
+            icon: const Icon(CupertinoIcons.chevron_left),
             onPressed: _currentPage > 1
                 ? () => setState(() => _currentPage--)
                 : null,
@@ -634,7 +635,7 @@ class _HistoryPageState extends State<HistoryPage> {
             );
           }),
           IconButton(
-            icon: const Icon(Icons.chevron_right),
+            icon: const Icon(CupertinoIcons.chevron_right),
             onPressed: _currentPage < _totalPages
                 ? () => setState(() => _currentPage++)
                 : null,
@@ -657,7 +658,7 @@ class _HistoryPageState extends State<HistoryPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, color: Colors.red.shade400, size: 48),
+          Icon(CupertinoIcons.exclamationmark_circle, color: Colors.red.shade400, size: 48),
           const SizedBox(height: 16),
           Text(
             'Oops! Terjadi Kesalahan',
@@ -676,7 +677,7 @@ class _HistoryPageState extends State<HistoryPage> {
           const SizedBox(height: 20),
           ElevatedButton.icon(
             onPressed: _fetchHistory,
-            icon: const Icon(Icons.refresh, size: 18),
+            icon: const Icon(CupertinoIcons.refresh, size: 18),
             label: const Text('Coba Lagi'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red.shade600,
@@ -705,7 +706,7 @@ class _HistoryPageState extends State<HistoryPage> {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              Icons.folder_open_rounded,
+              CupertinoIcons.folder,
               size: 64,
               color: Colors.grey.shade400,
             ),
@@ -736,7 +737,7 @@ class _HistoryPageState extends State<HistoryPage> {
   ) {
     final lowerTitle = title.toLowerCase();
     if (lowerTitle.contains('pendamping')) {
-      return (icon: Icons.people_alt_rounded, color: const Color(0xFF1565C0));
+      return (icon: CupertinoIcons.person_2_fill, color: const Color(0xFF1565C0));
     } else if (lowerTitle.contains('medis') ||
         lowerTitle.contains('obat') ||
         lowerTitle.contains('ambulans')) {
@@ -746,19 +747,19 @@ class _HistoryPageState extends State<HistoryPage> {
       );
     } else if (lowerTitle.contains('ancaman') ||
         lowerTitle.contains('bahaya')) {
-      return (icon: Icons.shield_rounded, color: const Color(0xFFE65100));
+      return (icon: CupertinoIcons.exclamationmark_triangle_fill, color: const Color(0xFFE65100));
     } else if (lowerTitle.contains('tersesat')) {
-      return (icon: Icons.explore_rounded, color: const Color(0xFF00838F));
+      return (icon: CupertinoIcons.compass_fill, color: const Color(0xFF00838F));
     } else if (lowerTitle.contains('aksesibilitas')) {
       return (icon: Icons.accessible_rounded, color: const Color(0xFF6A1B9A));
     } else if (lowerTitle.contains('lainnya')) {
-      return (icon: Icons.more_horiz_rounded, color: const Color(0xFF546E7A));
+      return (icon: CupertinoIcons.ellipsis_circle_fill, color: const Color(0xFF546E7A));
     }
 
     // Default fallback
     return isSos
-        ? (icon: Icons.sos, color: Colors.red.shade600)
-        : (icon: Icons.assignment_outlined, color: primaryTeal);
+        ? (icon: CupertinoIcons.exclamationmark_triangle_fill, color: Colors.red.shade600)
+        : (icon: CupertinoIcons.doc_text, color: primaryTeal);
   }
 
   Widget _buildHistoryCard(HistoryItem item) {
@@ -867,7 +868,7 @@ class _HistoryPageState extends State<HistoryPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Icon(
-                          Icons.location_on_outlined,
+                          CupertinoIcons.location,
                           size: 16,
                           color: Colors.black54,
                         ),
@@ -892,7 +893,7 @@ class _HistoryPageState extends State<HistoryPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Icon(
-                            Icons.description_outlined,
+                            CupertinoIcons.doc_text,
                             size: 16,
                             color: Colors.black54,
                           ),
@@ -1015,7 +1016,7 @@ class _HistoryPageState extends State<HistoryPage> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
-                    Icons.shield_outlined,
+                    CupertinoIcons.shield,
                     color: primaryTeal,
                     size: 24,
                   ),
@@ -1053,3 +1054,4 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 }
+

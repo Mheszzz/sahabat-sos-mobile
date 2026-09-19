@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
@@ -18,7 +19,6 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   static const Color primaryTeal = Color(0xFF00695C);
-  static const Color bgColor = Color(0xFFF5F6F8);
 
   bool _isLoading = true;
   Map<String, dynamic>? _fullUserData;
@@ -115,14 +115,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   IconData _getCategoryIcon(String category) {
     switch (category.toLowerCase()) {
       case 'tunanetra':
-        return Icons.visibility_off_outlined;
+        return CupertinoIcons.eye_slash;
       case 'tunarungu':
         return Icons.hearing_disabled_outlined;
       case 'tunawicara':
-        return Icons.speaker_notes_off_outlined;
+        return CupertinoIcons.mic_slash;
       case 'umum':
       default:
-        return Icons.person_outline_rounded;
+        return CupertinoIcons.person;
     }
   }
 
@@ -165,7 +165,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           _buildSectionHeader(
-                            icon: Icons.accessibility_new_rounded,
+                            icon: CupertinoIcons.hand_raised,
                             title: 'Aksesibilitas',
                           ),
                           const SizedBox(height: 12),
@@ -173,7 +173,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(height: 24),
 
                           _buildSectionHeader(
-                            icon: Icons.shield_rounded,
+                            icon: CupertinoIcons.shield,
                             title: 'Privasi & Lokasi',
                           ),
                           const SizedBox(height: 12),
@@ -181,13 +181,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(height: 24),
 
                           _buildSectionHeader(
-                            icon: Icons.bluetooth_connected_rounded,
+                            icon: CupertinoIcons.bluetooth,
                             title: 'Perangkat Pintar',
                           ),
                           const SizedBox(height: 12),
                           _buildGlassContainer(
                             child: _buildHelpTile(
-                              icon: Icons.sensors_rounded,
+                              icon: CupertinoIcons.antenna_radiowaves_left_right,
                               iconColor: primaryTeal,
                               iconBg: primaryTeal.withValues(alpha: 0.1),
                               title: 'Kelola Tombol SOS (Tuya)',
@@ -198,7 +198,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(height: 24),
 
                           _buildSectionHeader(
-                            icon: Icons.headset_mic_rounded,
+                            icon: CupertinoIcons.question_circle,
                             title: 'Bantuan',
                           ),
                           const SizedBox(height: 12),
@@ -206,6 +206,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(height: 32),
 
                           _buildLogoutButton(),
+                          const SizedBox(height: 8),
+                          const Center(
+                            child: Text(
+                              'versi 1.0 Beta',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -223,14 +233,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
-      centerTitle: true,
-      title: const Text(
-        'Profil Saya',
-        style: TextStyle(
-          color: primaryTeal,
-          fontWeight: FontWeight.bold,
-          fontSize: 18,
-        ),
+      centerTitle: false,
+      titleSpacing: 16,
+      title: const Row(
+        children: [
+          Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal, size: 24),
+          SizedBox(width: 8),
+          Text(
+            'Sahabat SOS',
+            style: TextStyle(
+              color: primaryTeal,
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+            ),
+          ),
+        ],
       ),
       actions: [
         IconButton(
@@ -242,7 +259,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               }
             }
           },
-          icon: const Icon(Icons.edit_note_rounded, color: primaryTeal, size: 28),
+          icon: const Icon(CupertinoIcons.pencil, color: primaryTeal, size: 28),
           tooltip: 'Edit Profil',
         ),
         const SizedBox(width: 8),
@@ -317,7 +334,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(width: 6),
-              const Icon(Icons.verified, color: primaryTeal, size: 20),
+              const Icon(CupertinoIcons.checkmark_seal_fill, color: primaryTeal, size: 20),
             ],
           ),
           const SizedBox(height: 4),
@@ -347,19 +364,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 24),
           _buildInfoBox(
-            icon: Icons.phone_android_rounded,
+            icon: CupertinoIcons.phone,
             label: 'Telepon Darurat',
             value: _phone,
           ),
           const SizedBox(height: 6),
           _buildInfoBox(
-            icon: Icons.location_on_rounded,
+            icon: CupertinoIcons.location_solid,
             label: 'Lokasi Saat Ini',
             value: _location,
           ),
           const SizedBox(height: 6),
           _buildInfoBox(
-            icon: Icons.home_rounded,
+            icon: CupertinoIcons.house,
             label: 'Alamat Lengkap',
             value: _address,
           ),
@@ -418,7 +435,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         children: [
           _buildToggleItem(
-            icon: Icons.record_voice_over_rounded,
+            icon: CupertinoIcons.speaker_2,
             title: 'Panduan Suara (TalkBack)',
             subtitle: 'Narasi suara otomatis aktif.',
             value: _voiceGuide,
@@ -429,7 +446,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const Divider(height: 1, indent: 56),
           _buildToggleItem(
-            icon: Icons.vibration_rounded,
+            icon: CupertinoIcons.waveform_path,
             title: 'Umpan Balik Getaran',
             subtitle: 'Getaran taktil tombol.',
             value: _haptic,
@@ -440,7 +457,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const Divider(height: 1, indent: 56),
           _buildToggleItem(
-            icon: Icons.contrast_rounded,
+            icon: CupertinoIcons.circle_lefthalf_fill,
             title: 'Kontras Tinggi',
             subtitle: 'Warna gelap & terang pekat.',
             value: _highContrast,
@@ -450,7 +467,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const Divider(height: 1, indent: 56),
           _buildToggleItem(
-            icon: Icons.text_fields_rounded,
+            icon: CupertinoIcons.textformat,
             title: 'Teks Besar',
             subtitle: 'Ukuran font lebih besar.',
             value: _largeText,
@@ -514,7 +531,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.gps_fixed_rounded, color: Color(0xFFEF6C00), size: 24),
+            child: const Icon(CupertinoIcons.location_fill, color: Color(0xFFEF6C00), size: 24),
           ),
           const SizedBox(width: 16),
           const Expanded(
@@ -540,7 +557,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         children: [
           _buildHelpTile(
-            icon: Icons.help_outline_rounded,
+            icon: CupertinoIcons.info,
             iconColor: Colors.blue.shade700,
             iconBg: Colors.blue.shade50,
             title: 'Pusat Bantuan & Panduan',
@@ -548,7 +565,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const Divider(height: 1, indent: 56),
           _buildHelpTile(
-            icon: Icons.headset_mic_rounded,
+            icon: CupertinoIcons.headphones,
             iconColor: Colors.orange.shade700,
             iconBg: Colors.orange.shade50,
             title: 'Hubungi Sahabat SOS',
@@ -590,7 +607,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: Colors.black38),
+            const Icon(CupertinoIcons.chevron_right, color: Colors.black38),
           ],
         ),
       ),
@@ -617,11 +634,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           } catch (_) {}
           await prefs.remove('auth_token');
           await prefs.remove('is_profile_complete');
-          if (context.mounted) {
-            context.go(AppRoutes.login);
-          }
+          if (!mounted) return;
+          context.go(AppRoutes.login);
         },
-        icon: const Icon(Icons.logout_rounded),
+        icon: const Icon(CupertinoIcons.arrow_right_square),
         label: const Text('Keluar Akun', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFFFFEBEE),
@@ -632,29 +648,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-
-  Widget _buildModernTextField(TextEditingController controller, String hint, IconData icon, {TextInputType? keyboardType, bool readOnly = false}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: readOnly ? const Color(0xFFE2E4EA) : const Color(0xFFF5F6F8),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        readOnly: readOnly,
-        style: TextStyle(
-          fontSize: 14, 
-          color: readOnly ? const Color(0xFF8A8FA3) : const Color(0xFF1A1A2E)
-        ),
-        decoration: InputDecoration(
-          border: InputBorder.none,
-          hintText: hint,
-          hintStyle: const TextStyle(fontSize: 13, color: Color(0xFFB0B4C4)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-          prefixIcon: Icon(icon, color: const Color(0xFF8A8FA3)),
-        ),
-      ),
-    );
-  }
 }
+
+
+

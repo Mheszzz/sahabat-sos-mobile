@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sahabat_sos_mobile/routing/routes.dart';
 import 'package:get_it/get_it.dart' as get_it;
@@ -17,7 +18,6 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   static const Color primaryDark = Color(0xFF006D77); // Dark green
-  static const Color bgColor = Color(0xFFEFEFEF); // Very light greyish
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +65,16 @@ class _LoginPageState extends State<LoginPage> {
                         const Spacer(),
                         const SizedBox(height: 20),
                         _buildFooter(),
+                        const SizedBox(height: 12),
+                        const Center(
+                          child: Text(
+                            'versi 1.0 Beta',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF6B7080),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -93,7 +103,7 @@ class _LoginPageState extends State<LoginPage> {
         Row(
           children: [
             _circleIconButton(
-              icon: Icons.volume_up_rounded,
+              icon: CupertinoIcons.volume_up,
               bg: const Color(0xFF7CF0D6),
               iconColor: primaryDark,
               onTap: () {},
@@ -139,8 +149,7 @@ class _LoginPageState extends State<LoginPage> {
               // Panggil remote data source dari GetIt
               final authDataSource = get_it.GetIt.instance<AuthRemoteDataSource>();
               final result = await authDataSource.signInWithGoogle();
-
-              if (!context.mounted) return;
+              if (!mounted) return;
 
               setState(() {
                 _isLoading = false;
@@ -165,7 +174,7 @@ class _LoginPageState extends State<LoginPage> {
                       }
                     }
                   } catch (_) {}
-                  if (!context.mounted) return;
+                  if (!mounted) return;
                   
                   final userRole = get_it.GetIt.instance<SharedPreferences>().getString('user_role');
                   if (userRole == 'relawan') {
@@ -174,15 +183,17 @@ class _LoginPageState extends State<LoginPage> {
                     context.go(AppRoutes.dashboard);
                   }
                 } else {
+                  if (!mounted) return;
                   context.push(AppRoutes.registerStep2);
                 }
               } else {
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Login dibatalkan oleh user.')),
                 );
               }
             } catch (e) {
-              if (!context.mounted) return;
+              if (!mounted) return;
               setState(() {
                 _isLoading = false;
               });
@@ -218,7 +229,7 @@ class _LoginPageState extends State<LoginPage> {
                         width: 24,
                         height: 24,
                         errorBuilder: (_, _, _) => const Icon(
-                          Icons.error_outline,
+                          CupertinoIcons.exclamationmark_circle,
                           size: 24,
                           color: Colors.red,
                         ),

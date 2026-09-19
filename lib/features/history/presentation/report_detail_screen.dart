@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -35,9 +36,6 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
   // Fresh data from API
   String? _freshStatus;
-  String? _freshDescription;
-  String? _freshOfficerInfo;
-  bool _isFetchingDetail = false;
   String? _userRole;
 
   @override
@@ -72,7 +70,6 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
   /// Fetch fresh detail from API to get latest status, officer info, etc.
   Future<void> _fetchDetailFromApi() async {
-    setState(() => _isFetchingDetail = true);
     try {
       final prefs = sl<SharedPreferences>();
       final token = prefs.getString('auth_token');
@@ -91,17 +88,11 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         if (data != null) {
           setState(() {
             _freshStatus = data['status'];
-            _freshDescription = data['deskripsi'];
-            if (data['relawan'] != null) {
-              _freshOfficerInfo = 'Relawan: ${data['relawan']['name'] ?? '-'}';
-            }
           });
         }
       }
     } catch (e) {
       debugPrint('Gagal fetch detail laporan: $e');
-    } finally {
-      if (mounted) setState(() => _isFetchingDetail = false);
     }
   }
 
@@ -270,9 +261,9 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
   IconData _getStatusIcon(String status) {
     status = status.toLowerCase();
-    if (status == 'selesai') return Icons.check_circle;
-    if (status == 'ditangani') return Icons.engineering;
-    return Icons.warning;
+    if (status == 'selesai') return CupertinoIcons.checkmark_circle_fill;
+    if (status == 'ditangani') return CupertinoIcons.wrench_fill;
+    return CupertinoIcons.exclamationmark_triangle_fill;
   }
 
   void _showFullScreenImage(BuildContext context, String imageUrl) {
@@ -295,7 +286,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               width: double.infinity,
               height: double.infinity,
               errorBuilder: (context, error, stackTrace) => 
-                  const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                  const Icon(CupertinoIcons.xmark_rectangle, size: 50, color: Colors.grey),
             ),
           ),
         ),
@@ -352,7 +343,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         iconTheme: const IconThemeData(color: Color(0xFF00695C)),
         title: Row(
           children: const [
-            Icon(Icons.accessibility_new, color: Color(0xFF00695C), size: 22),
+            Icon(CupertinoIcons.heart_circle_fill, color: Color(0xFF00695C), size: 22),
             SizedBox(width: 8),
             Text(
               'Detail Laporan',
@@ -477,7 +468,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.broken_image, size: 40, color: Colors.grey[400]),
+                                Icon(CupertinoIcons.xmark_rectangle, size: 40, color: Colors.grey[400]),
                                 const SizedBox(height: 8),
                                 Text('Gambar tidak tersedia', style: TextStyle(color: Colors.grey[500], fontSize: 13)),
                               ],
@@ -496,7 +487,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                               child: const Padding(
                                 padding: EdgeInsets.all(8.0),
                                 child: Icon(
-                                  Icons.open_in_full_rounded,
+                                  CupertinoIcons.arrow_up_left_arrow_down_right,
                                   color: Colors.white,
                                   size: 20,
                                 ),
@@ -526,7 +517,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                               color: const Color(0xFFE0F2F1),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(Icons.calendar_today, color: Color(0xFF00695C), size: 20),
+                            child: const Icon(CupertinoIcons.calendar, color: Color(0xFF00695C), size: 20),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -554,7 +545,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                               color: const Color(0xFFFBE9E7),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(Icons.location_on, color: Color(0xFFD84315), size: 20),
+                            child: const Icon(CupertinoIcons.location_solid, color: Color(0xFFD84315), size: 20),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -595,7 +586,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                                       point: LatLng(widget.item.latitude!, widget.item.longitude!),
                                       width: 40,
                                       height: 40,
-                                      child: const Icon(Icons.location_on, color: Colors.red, size: 40),
+                                      child: const Icon(CupertinoIcons.location_solid, color: Colors.red, size: 40),
                                     ),
                                   ],
                                 ),
@@ -619,7 +610,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                     children: [
                       const CircleAvatar(
                         backgroundColor: Color(0xFF00695C),
-                        child: Icon(Icons.person, color: Colors.white),
+                        child: Icon(CupertinoIcons.person_fill, color: Colors.white),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -649,7 +640,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                       children: [
                         Row(
                           children: const [
-                            Icon(Icons.description_outlined, color: Colors.black54, size: 20),
+                            Icon(CupertinoIcons.doc_text, color: Colors.black54, size: 20),
                             SizedBox(width: 8),
                             Text('Keterangan Tambahan', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.black87)),
                           ],
@@ -695,7 +686,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                                 child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)
                               )
                             : Icon(
-                                _isPlaying ? Icons.pause : Icons.play_arrow, 
+                                _isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill, 
                                 color: Colors.white, 
                                 size: 32,
                               ),
@@ -762,3 +753,5 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     );
   }
 }
+
+

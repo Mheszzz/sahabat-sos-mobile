@@ -47,26 +47,32 @@ class EmergencyTriggerService {
         latitude = cachedPosition.latitude;
         longitude = cachedPosition.longitude;
       } else {
-        // Fallback to direct Geolocator call
-        final position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-        ).timeout(const Duration(seconds: 5));
-        latitude = position.latitude;
-        longitude = position.longitude;
+        // Fallback to getLastKnownPosition for INSTANT response (0 second delay)
+        final position = await Geolocator.getLastKnownPosition();
+        if (position != null) {
+          latitude = position.latitude;
+          longitude = position.longitude;
+        } else {
+          // If absolute worst case, try low accuracy for max 1 second
+          final quickPosition = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
+          ).timeout(const Duration(seconds: 1));
+          latitude = quickPosition.latitude;
+          longitude = quickPosition.longitude;
+        }
       }
     } catch (e) {
-      // Continue without location if GPS fails
-      // Location is optional but highly recommended
+      // Continue without location if GPS fails (it will use 0.0 fallback)
     }
 
     final payload = {
       'device_id': event.deviceId,
       'timestamp': event.timestamp.toIso8601String(),
-      'trigger_source': 'ble_button',
+      'trigger_source': 'tuya_wifi',
       'dps': event.dps,
       'is_simulation': event.isSimulation,
-      'latitude': latitude,
-      'longitude': longitude,
+      'latitude': latitude ?? 0.0,
+      'longitude': longitude ?? 0.0,
     };
 
     // Attempt to send with retries
@@ -81,16 +87,22 @@ class EmergencyTriggerService {
               'Authorization': 'Bearer $token',
               'Accept': 'application/json',
             },
+            // Don't throw exception for 422 so we can read the message
+            validateStatus: (status) => status != null && (status >= 200 && status < 300 || status == 422),
           ),
         );
 
         if (response.statusCode == 200 || response.statusCode == 201) {
           return true;
+        } else if (response.statusCode == 422) {
+          // Check if this is "Anda masih memiliki sinyal SOS aktif..."
+          final message = response.data['message'] ?? 'Data tidak lengkap / Error 422';
+          throw EmergencyTriggerException(message.toString());
         }
       } on DioException catch (e) {
         if (attempt == _maxRetries) {
           throw EmergencyTriggerException(
-            'Failed to send emergency after $_maxRetries attempts: ${e.message}',
+            'Gagal mengirim sinyal darurat: ${e.message}',
           );
         }
         // Wait before retrying

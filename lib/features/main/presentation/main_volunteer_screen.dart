@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/volunteer_dashboard_page.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/map_page.dart';
 import 'package:sahabat_sos_mobile/features/profile/presentation/screens/volunteer_profile_screen.dart';
@@ -41,10 +42,10 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
   static const Color _unselectedColor = Colors.grey;
 
   final List<_NavItem> _navItems = const [
-    _NavItem(icon: Icons.home_outlined, selectedIcon: Icons.home, label: 'Beranda'),
-    _NavItem(icon: Icons.assignment_outlined, selectedIcon: Icons.assignment, label: 'Tugas'),
-    _NavItem(icon: Icons.map_outlined, selectedIcon: Icons.map, label: 'Peta'),
-    _NavItem(icon: Icons.person_outline, selectedIcon: Icons.person, label: 'Profil'),
+    _NavItem(icon: CupertinoIcons.house, selectedIcon: CupertinoIcons.house_fill, label: 'Beranda'),
+    _NavItem(icon: CupertinoIcons.doc_text, selectedIcon: CupertinoIcons.doc_text_fill, label: 'Tugas'),
+    _NavItem(icon: CupertinoIcons.map, selectedIcon: CupertinoIcons.map_fill, label: 'Peta'),
+    _NavItem(icon: CupertinoIcons.person, selectedIcon: CupertinoIcons.person_solid, label: 'Profil'),
   ];
 
   @override

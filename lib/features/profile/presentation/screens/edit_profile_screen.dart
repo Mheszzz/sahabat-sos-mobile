@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -105,7 +106,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         Map<String, dynamic> dataToUpdate = {
           'name': nameController.text.isNotEmpty ? nameController.text : '-',
           'kategori_user': selectedCategory,
-          'alamat': addressController.text.isNotEmpty ? addressController.text : '-',
+          'alamat': addressController.text.trim().isNotEmpty ? addressController.text.trim() : '-',
           'no_telp': phoneController.text.isNotEmpty ? phoneController.text : '-',
           'getaran': haptic ? 1 : 0,
           'panduan_suara': voiceGuide ? 1 : 0,
@@ -265,7 +266,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                     shape: BoxShape.circle,
                                     border: Border.all(color: Colors.white, width: 2),
                                   ),
-                                  child: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
+                                  child: const Icon(CupertinoIcons.camera_fill, color: Colors.white, size: 18),
                                 ),
                               ),
                             ],
@@ -273,9 +274,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      _buildModernTextField(nameController, 'Nama Lengkap', Icons.person_outline),
+                      _buildModernTextField(nameController, 'Nama Lengkap', CupertinoIcons.person),
                       const SizedBox(height: 16),
-                      _buildModernTextField(emailController, 'Email', Icons.email_outlined, keyboardType: TextInputType.emailAddress, readOnly: true),
+                      _buildModernTextField(emailController, 'Email', CupertinoIcons.mail, keyboardType: TextInputType.emailAddress, readOnly: true),
                       const SizedBox(height: 16),
                       
                       _buildGlassContainer(
@@ -284,13 +285,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             value: selectedCategory,
                             isExpanded: true,
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                            icon: Icon(Icons.arrow_drop_down, color: primaryTeal.withValues(alpha: 0.7)),
+                            icon: Icon(CupertinoIcons.chevron_down, color: primaryTeal.withValues(alpha: 0.7)),
                             dropdownColor: const Color(0xFFF5F6F8),
                             items: [
-                              {'value': 'umum', 'label': 'Umum', 'icon': Icons.person_outline_rounded},
-                              {'value': 'tunanetra', 'label': 'Tunanetra', 'icon': Icons.visibility_off_outlined},
+                              {'value': 'umum', 'label': 'Umum', 'icon': CupertinoIcons.person},
+                              {'value': 'tunanetra', 'label': 'Tunanetra', 'icon': CupertinoIcons.eye_slash},
                               {'value': 'tunarungu', 'label': 'Tunarungu', 'icon': Icons.hearing_disabled_outlined},
-                              {'value': 'tunawicara', 'label': 'Tunawicara', 'icon': Icons.speaker_notes_off_outlined},
+                              {'value': 'tunawicara', 'label': 'Tunawicara', 'icon': CupertinoIcons.mic_slash},
                             ].map((item) {
                               return DropdownMenuItem<String>(
                                 value: item['value'] as String,
@@ -315,9 +316,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                       
                       const SizedBox(height: 16),
-                      _buildModernTextField(phoneController, 'Nomor Telepon', Icons.phone_outlined, keyboardType: TextInputType.phone),
+                      _buildModernTextField(phoneController, 'Nomor Telepon', CupertinoIcons.phone, keyboardType: TextInputType.phone),
                       const SizedBox(height: 16),
-                      _buildModernTextField(addressController, 'Alamat Tempat Tinggal', Icons.home_outlined),
+                      _buildModernTextField(addressController, 'Alamat Tempat Tinggal', CupertinoIcons.house),
                       const SizedBox(height: 32),
                       ElevatedButton(
                         onPressed: _saveProfile,
@@ -344,3 +345,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 }
+
+
+
+
+

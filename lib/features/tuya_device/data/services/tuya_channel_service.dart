@@ -75,6 +75,52 @@ class TuyaChannelService {
     }
   }
 
+  /// Start Wi-Fi AP Mode pairing (more reliable than EZ Mode)
+  Future<Map<String, dynamic>> startWifiPairingAP(String ssid, String password) async {
+    try {
+      final result = await _methodChannel.invokeMethod('startWifiPairingAP', {
+        'ssid': ssid,
+        'password': password,
+      });
+      return Map<String, dynamic>.from(result as Map);
+    } on PlatformException catch (e) {
+      throw TuyaServiceException('Failed to start Wi-Fi AP pairing: ${e.message}');
+    }
+  }
+
+  /// Step 1 AP Mode: Get pairing token (requires internet)
+  Future<Map<String, dynamic>> getWifiToken() async {
+    try {
+      final result = await _methodChannel.invokeMethod('getWifiToken');
+      return Map<String, dynamic>.from(result as Map);
+    } on PlatformException catch (e) {
+      throw TuyaServiceException('Failed to get Wi-Fi token: ${e.message}');
+    }
+  }
+
+  /// Step 2 AP Mode: Start AP pairing with pre-fetched token (no internet needed)
+  Future<Map<String, dynamic>> startApPairingWithToken(String ssid, String password, String token) async {
+    try {
+      final result = await _methodChannel.invokeMethod('startApPairingWithToken', {
+        'ssid': ssid,
+        'password': password,
+        'token': token,
+      });
+      return Map<String, dynamic>.from(result as Map);
+    } on PlatformException catch (e) {
+      throw TuyaServiceException('Failed to start AP pairing: ${e.message}');
+    }
+  }
+
+  /// Stop Wi-Fi pairing
+  Future<void> stopWifiPairing() async {
+    try {
+      await _methodChannel.invokeMethod('stopWifiPairing');
+    } on PlatformException catch (e) {
+      throw TuyaServiceException('Failed to stop Wi-Fi pairing: ${e.message}');
+    }
+  }
+
   /// Stop BLE scanning
   Future<Map<String, dynamic>> stopBLEScan() async {
     try {
@@ -108,6 +154,17 @@ class TuyaChannelService {
           .toList();
     } on PlatformException catch (e) {
       throw TuyaServiceException('Failed to get device list: ${e.message}');
+    }
+  }
+
+  /// Remove a device from Tuya Cloud
+  Future<void> removeDevice(String deviceId) async {
+    try {
+      await _methodChannel.invokeMethod('removeDevice', {
+        'deviceId': deviceId,
+      });
+    } on PlatformException catch (e) {
+      throw TuyaServiceException('Failed to remove device: ${e.message}');
     }
   }
 

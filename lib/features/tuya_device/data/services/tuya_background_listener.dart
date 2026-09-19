@@ -18,12 +18,19 @@ class TuyaBackgroundListener {
 
   StreamSubscription<TuyaDpEvent>? _subscription;
   bool _isRunning = false;
+  
+  // Debounce: prevent multiple triggers within 10 seconds
+  DateTime? _lastTriggerTime;
+  static const Duration _debounceDuration = Duration(seconds: 10);
 
   /// Callback invoked when an SOS event is detected
   void Function(TuyaDpEvent event)? onSosDetected;
 
   /// Callback invoked when an emergency trigger is sent to server
   void Function(bool success, TuyaDpEvent event)? onEmergencySent;
+  
+  /// Callback invoked with error message when trigger fails  
+  void Function(String errorMsg)? onEmergencyError;
 
   TuyaBackgroundListener({
     required this._tuyaService,
@@ -62,6 +69,16 @@ class TuyaBackgroundListener {
       },
     );
 
+    // Listen to all currently registered devices
+    try {
+      final devices = await _tuyaService.getDeviceList();
+      for (final device in devices) {
+        await _tuyaService.listenDevice(device.deviceId);
+      }
+    } catch (_) {
+      // Ignore errors if device list can't be fetched immediately
+    }
+
     _isRunning = true;
   }
 
@@ -76,6 +93,14 @@ class TuyaBackgroundListener {
   /// Handle incoming DP events
   Future<void> _handleEvent(TuyaDpEvent event) async {
     if (!event.isSosTriggered) return;
+    
+    // Debounce: ignore if triggered within last 30 seconds
+    final now = DateTime.now();
+    if (_lastTriggerTime != null && 
+        now.difference(_lastTriggerTime!) < _debounceDuration) {
+      return;
+    }
+    _lastTriggerTime = now;
 
     // Notify callback
     onSosDetected?.call(event);
@@ -84,7 +109,16 @@ class TuyaBackgroundListener {
     try {
       final success = await _emergencyService.triggerEmergency(event);
       onEmergencySent?.call(success, event);
+    } on EmergencyTriggerException catch (e) {
+      // If 422 "SOS masih aktif", still navigate to status page
+      if (e.message.contains('sinyal SOS aktif')) {
+        onEmergencySent?.call(true, event);
+      } else {
+        onEmergencyError?.call(e.message);
+        onEmergencySent?.call(false, event);
+      }
     } catch (e) {
+      onEmergencyError?.call(e.toString());
       onEmergencySent?.call(false, event);
     }
   }

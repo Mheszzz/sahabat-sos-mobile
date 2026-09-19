@@ -1,5 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:get_it/get_it.dart';
+import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/dashboard_page.dart';
 import 'package:sahabat_sos_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:sahabat_sos_mobile/features/reports/presentation/quick_report_screen.dart';
@@ -22,6 +25,15 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    _initLocationTracking();
+  }
+
+  Future<void> _initLocationTracking() async {
+    final locationService = GetIt.instance<LocationService>();
+    final hasPermission = await locationService.requestPermission();
+    if (hasPermission) {
+      locationService.startTracking();
+    }
   }
 
   @override
@@ -45,11 +57,11 @@ class _MainScreenState extends State<MainScreen> {
   static const Color _unselectedColor = Colors.grey;
 
   final List<_NavItem> _navItems = const [
-    _NavItem(icon: Icons.home_outlined, selectedIcon: Icons.home, label: 'Home'),
-    _NavItem(icon: Icons.campaign_outlined, selectedIcon: Icons.campaign, label: 'Report'),
-    _NavItem(icon: Icons.cell_tower, selectedIcon: Icons.cell_tower, label: 'Devices'),
-    _NavItem(icon: Icons.history_outlined, selectedIcon: Icons.history, label: 'History'),
-    _NavItem(icon: Icons.person_outline, selectedIcon: Icons.person, label: 'Profile'),
+    _NavItem(icon: CupertinoIcons.house, selectedIcon: CupertinoIcons.house_fill, label: 'Home'),
+    _NavItem(icon: CupertinoIcons.exclamationmark_bubble, selectedIcon: CupertinoIcons.exclamationmark_bubble_fill, label: 'Report'),
+    _NavItem(icon: CupertinoIcons.antenna_radiowaves_left_right, selectedIcon: CupertinoIcons.antenna_radiowaves_left_right, label: 'Devices'),
+    _NavItem(icon: CupertinoIcons.clock, selectedIcon: CupertinoIcons.clock_fill, label: 'History'),
+    _NavItem(icon: CupertinoIcons.person, selectedIcon: CupertinoIcons.person_solid, label: 'Profile'),
   ];
 
   @override
@@ -121,26 +133,6 @@ class _MainScreenState extends State<MainScreen> {
                                   isSelected ? item.selectedIcon : item.icon,
                                   color: isSelected ? primaryTeal : _unselectedColor,
                                   size: 24,
-                                  shadows: isSelected
-                                      ? [
-                                          Shadow(
-                                            color: primaryTeal.withValues(alpha: 0.4),
-                                            offset: const Offset(1, 2),
-                                            blurRadius: 4,
-                                          ),
-                                          const Shadow(
-                                            color: Colors.black12,
-                                            offset: Offset(2, 3),
-                                            blurRadius: 6,
-                                          ),
-                                        ]
-                                      : [
-                                          const Shadow(
-                                            color: Colors.black12,
-                                            offset: Offset(1, 2),
-                                            blurRadius: 3,
-                                          ),
-                                        ],
                                 ),
                                 const SizedBox(height: 4),
                                 Text(

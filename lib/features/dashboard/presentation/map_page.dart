@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sahabat_sos_mobile/routing/routes.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
@@ -87,7 +88,7 @@ class _MapPageState extends State<MapPage> {
           }
         } else if (status == ServiceStatus.enabled) {
           if (_isDialogShowing) {
-            Navigator.pop(context); // Tutup dialog
+            if (mounted) Navigator.pop(context); // Tutup dialog
             _isDialogShowing = false;
           }
           _checkLocation(); 
@@ -205,7 +206,7 @@ class _MapPageState extends State<MapPage> {
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: primaryTeal),
+          icon: const Icon(CupertinoIcons.back, color: primaryTeal),
           onPressed: () => context.pop(),
         ),
       ),

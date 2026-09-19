@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart' as get_it;
@@ -20,7 +21,6 @@ class RegisterStep2Page extends StatefulWidget {
 class _RegisterStep2PageState extends State<RegisterStep2Page> {
   static const Color primaryDark = Color(0xFF006D77);
   static const Color accentTeal = Color(0xFF0E9F6E);
-  static const Color bgColor = Color(0xFFEFEFEF);
   static const Color fieldFill = Color(0xFFEFF1F8);
   static const Color mutedText = Color(0xFF6B7080);
 
@@ -127,16 +127,16 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                           style: TextStyle(fontSize: 13.5, color: mutedText, height: 1.4),
                         ),
                         const SizedBox(height: 22),
-                        _buildSectionHeader(Icons.badge_outlined, 'Pilih Peran'),
+                        _buildSectionHeader(CupertinoIcons.person_crop_circle_badge_checkmark, 'Pilih Peran'),
                         const SizedBox(height: 12),
                         _buildRoleSelection(),
                         const SizedBox(height: 22),
-                        _buildSectionHeader(Icons.person_outline, 'Informasi Pribadi'),
+                        _buildSectionHeader(CupertinoIcons.person, 'Informasi Pribadi'),
                         const SizedBox(height: 12),
                         _buildPersonalInfoCard(),
                         if (_selectedRole == _RoleType.pengguna) ...[
                           const SizedBox(height: 22),
-                          _buildSectionHeader(Icons.accessibility_new_rounded, 'Kebutuhan Utama'),
+                          _buildSectionHeader(CupertinoIcons.person_2, 'Kebutuhan Utama'),
                           const SizedBox(height: 12),
                           _buildNeedGrid(),
                           const SizedBox(height: 22),
@@ -172,7 +172,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
           ),
         ),
         SizedBox(width: 6),
-        Icon(Icons.verified_rounded, size: 16, color: accentTeal),
+        Icon(CupertinoIcons.checkmark_seal_fill, size: 16, color: accentTeal),
       ],
     );
   }
@@ -183,7 +183,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
       children: [
         Row(
           children: const [
-            Icon(Icons.verified_user_outlined, size: 15, color: accentTeal),
+            Icon(CupertinoIcons.checkmark_shield, size: 15, color: accentTeal),
             SizedBox(width: 6),
             Text(
               'Langkah 2 dari 2: Personalisasi Darurat',
@@ -271,7 +271,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                 hintText: 'Contoh: Budi Santoso',
                 hintStyle: TextStyle(fontSize: 13, color: Color(0xFFB0B4C4)),
                 contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                prefixIcon: Icon(Icons.person_outline, color: Color(0xFF8A8FA3)),
+                prefixIcon: Icon(CupertinoIcons.person, color: Color(0xFF8A8FA3)),
               ),
             ),
           ),
@@ -299,7 +299,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                 hintText: 'Contoh: 081234567890',
                 hintStyle: TextStyle(fontSize: 13, color: Color(0xFFB0B4C4)),
                 contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                prefixIcon: Icon(Icons.phone_outlined, color: Color(0xFF8A8FA3)),
+                prefixIcon: Icon(CupertinoIcons.phone, color: Color(0xFF8A8FA3)),
               ),
             ),
           ),
@@ -355,7 +355,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                   hintText: 'Contoh: Mahasiswa, Pegawai Swasta',
                   hintStyle: TextStyle(fontSize: 13, color: Color(0xFFB0B4C4)),
                   contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  prefixIcon: Icon(Icons.work_outline, color: Color(0xFF8A8FA3)),
+                  prefixIcon: Icon(CupertinoIcons.briefcase, color: Color(0xFF8A8FA3)),
                 ),
               ),
             ),
@@ -400,7 +400,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
         Expanded(
           child: _buildRoleCard(
             type: _RoleType.pengguna,
-            icon: Icons.person_outline,
+            icon: CupertinoIcons.person,
             label: 'Pengguna',
           ),
         ),
@@ -408,7 +408,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
         Expanded(
           child: _buildRoleCard(
             type: _RoleType.relawan,
-            icon: Icons.volunteer_activism_outlined,
+            icon: CupertinoIcons.person_2,
             label: 'Relawan',
           ),
         ),
@@ -473,7 +473,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
               Expanded(
                 child: _buildNeedCard(
                   type: _NeedType.tunanetra,
-                  icon: Icons.visibility_off_outlined,
+                  icon: CupertinoIcons.eye_slash,
                   label: 'Tunanetra',
                 ),
               ),
@@ -496,7 +496,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
               Expanded(
                 child: _buildNeedCard(
                   type: _NeedType.tunawicara,
-                  icon: Icons.speaker_notes_off_outlined,
+                  icon: CupertinoIcons.mic_slash,
                   label: 'Tunawicara',
                 ),
               ),
@@ -504,7 +504,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
               Expanded(
                 child: _buildNeedCard(
                   type: _NeedType.umum,
-                  icon: Icons.person_outline_rounded,
+                  icon: CupertinoIcons.person,
                   label: 'Umum',
                 ),
               ),
@@ -553,7 +553,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                       const CircleAvatar(
                         radius: 9,
                         backgroundColor: Colors.white,
-                        child: Icon(Icons.check, size: 12, color: primaryDark),
+                        child: Icon(CupertinoIcons.checkmark_alt, size: 12, color: primaryDark),
                       ),
                     ] else ...[
                       const Spacer(),
@@ -593,31 +593,31 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader(Icons.tune_rounded, 'Sensor & Aksesibilitas'),
+        _buildSectionHeader(CupertinoIcons.slider_horizontal_3, 'Sensor & Aksesibilitas'),
         const SizedBox(height: 16),
         _buildSensorToggleRow(
-          icon: Icons.record_voice_over_outlined,
+          icon: CupertinoIcons.speaker_2,
           label: 'Panduan Suara Otomatis',
           value: _voiceGuidanceEnabled,
           onChanged: (v) => setState(() => _voiceGuidanceEnabled = v),
         ),
         const SizedBox(height: 16),
         _buildSensorToggleRow(
-          icon: Icons.vibration_rounded,
+          icon: CupertinoIcons.waveform_path,
           label: 'Getaran Haptik Penuh',
           value: _hapticVibrationEnabled,
           onChanged: (v) => setState(() => _hapticVibrationEnabled = v),
         ),
         const SizedBox(height: 16),
         _buildSensorToggleRow(
-          icon: Icons.hearing_rounded,
+          icon: CupertinoIcons.speaker_2,
           label: 'TalkBack / Pembaca Layar',
           value: _talkbackEnabled,
           onChanged: (v) => setState(() => _talkbackEnabled = v),
         ),
         const SizedBox(height: 16),
         _buildSensorToggleRow(
-          icon: Icons.text_increase_rounded,
+          icon: CupertinoIcons.textformat,
           label: 'Teks Besar / High Contrast',
           value: _largeTextEnabled,
           onChanged: (v) => setState(() => _largeTextEnabled = v),
@@ -674,7 +674,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
       return;
     }
 
-    if (_nameController.text.isEmpty || _addressController.text.isEmpty || _userPhoneController.text.isEmpty) {
+    if (_nameController.text.isEmpty || _addressController.text.trim().isEmpty || _userPhoneController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nama, Nomor Telepon & Alamat wajib diisi!')));
       return;
     }
@@ -701,7 +701,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
 
       final Map<String, dynamic> payload = {
         'name': _nameController.text,
-        'alamat': _addressController.text,
+        'alamat': _addressController.text.trim(),
         'no_telp': _userPhoneController.text,
         'role': _selectedRole == _RoleType.relawan ? 'relawan' : 'pengguna',
         'status_ketersediaan': 'aktif',
@@ -729,12 +729,13 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
         ),
       );
 
-      if (context.mounted) Navigator.pop(context); // Tutup Loading
+      if (!mounted) return;
+      Navigator.pop(context); // Tutup Loading
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         await prefs.setBool('is_profile_complete', true);
         await prefs.setString('user_role', _selectedRole == _RoleType.relawan ? 'relawan' : 'pengguna');
-        if (!context.mounted) return;
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profil berhasil disimpan!')));
         if (_selectedRole == _RoleType.relawan) {
           context.go(AppRoutes.homeVolunteer);
@@ -742,12 +743,12 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
           context.go(AppRoutes.dashboard);
         }
       } else {
-        if (!context.mounted) return;
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menyimpan profil: ${response.data}')));
       }
     } catch (e) {
-      if (context.mounted) Navigator.pop(context); // Tutup Loading
-      if (!context.mounted) return;
+      if (!mounted) return;
+      Navigator.pop(context); // Tutup Loading
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi kesalahan: $e')));
     }
   }
@@ -767,7 +768,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: const [
-            Icon(Icons.verified_user_outlined, size: 18),
+            Icon(CupertinoIcons.checkmark_shield, size: 18),
             SizedBox(width: 8),
             Text(
               'Simpan Registrasi',
@@ -799,9 +800,8 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
           } catch (_) {}
           await prefs.remove('auth_token');
           await prefs.remove('is_profile_complete');
-          if (context.mounted) {
-            context.go(AppRoutes.login);
-          }
+          if (!mounted) return;
+          context.go(AppRoutes.login);
         },
         style: OutlinedButton.styleFrom(
           foregroundColor: const Color(0xFF1A1A2E),
@@ -816,3 +816,10 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
     );
   }
 }
+
+
+
+
+
+
+

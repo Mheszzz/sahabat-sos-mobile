@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart';
@@ -123,7 +124,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         final List? apiPesan = data['pesan_cepat'];
         if (apiPesan != null && apiPesan.isNotEmpty) {
           final newMessages = apiPesan.map<Map<String, dynamic>>((text) {
-            return {'icon': Icons.check_circle, 'text': text};
+            return {'icon': CupertinoIcons.checkmark_circle_fill, 'text': text};
           }).toList();
 
           _quickMessages.clear();
@@ -150,19 +151,19 @@ class _QuickReportScreenState extends State<QuickReportScreen>
   IconData _getCategoryIcon(String id) {
     switch (id) {
       case 'butuh_pendamping':
-        return Icons.people_alt_rounded;
+        return CupertinoIcons.person_2_fill;
       case 'kondisi_medis':
         return Icons.local_hospital_rounded;
       case 'ancaman_bahaya':
-        return Icons.shield_rounded;
+        return CupertinoIcons.exclamationmark_triangle_fill;
       case 'tersesat':
-        return Icons.explore_rounded;
+        return CupertinoIcons.compass_fill;
       case 'aksesibilitas_rusak':
         return Icons.accessible_rounded;
       case 'lainnya':
-        return Icons.more_horiz_rounded;
+        return CupertinoIcons.ellipsis_circle_fill;
       default:
-        return Icons.help_outline_rounded;
+        return CupertinoIcons.info;
     }
   }
 
@@ -197,7 +198,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       if (permission == LocationPermission.deniedForever) return;
 
       _cachedPosition = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
 
       final placemarks = await geo.Geocoding().placemarkFromCoordinates(
@@ -335,8 +336,10 @@ class _QuickReportScreenState extends State<QuickReportScreen>
 
         try {
           position = await Geolocator.getCurrentPosition(
-            timeLimit: const Duration(seconds: 10),
-            desiredAccuracy: LocationAccuracy.high,
+            locationSettings: const LocationSettings(
+              timeLimit: Duration(seconds: 10),
+              accuracy: LocationAccuracy.high,
+            ),
           );
         } catch (e) {
           // Fallback to last known position if current position times out
@@ -439,7 +442,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                   side: BorderSide(color: Colors.white.withValues(alpha: 0.5), width: 1.5),
                 ),
                 title: const Icon(
-                  Icons.check_circle_rounded,
+                  CupertinoIcons.checkmark_circle_fill,
                   color: primaryTeal,
                   size: 65,
                 ),
@@ -546,7 +549,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Icon(
-                        Icons.error_outline,
+                        CupertinoIcons.exclamationmark_triangle,
                         color: Colors.black87,
                         size: 48,
                       ),
@@ -635,7 +638,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       titleSpacing: 16,
       title: Row(
         children: const [
-          Icon(Icons.accessibility_new, color: primaryTeal, size: 22),
+          Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal, size: 22),
           SizedBox(width: 8),
           Text(
             'Sahabat SOS',
@@ -650,26 +653,6 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     );
   }
 
-  Widget _buildGlassCard({required Widget child, EdgeInsetsGeometry? padding}) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: padding ?? const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10),
-            ],
-          ),
-          child: child,
-        ),
-      ),
-    );
-  }
 
   Widget _buildSectionHeader(String title, {String? trailing}) {
     return Row(
@@ -740,7 +723,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                       child: Icon(
                         category.icon,
                         size: 22,
-                        color: Colors.black87,
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -934,10 +917,10 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                       ),
                       child: Icon(
                         _isRecording
-                            ? Icons.stop_rounded
+                            ? CupertinoIcons.stop_fill
                             : (_selectedAudio != null
-                                  ? Icons.check_rounded
-                                  : Icons.mic_rounded),
+                                  ? CupertinoIcons.checkmark
+                                  : CupertinoIcons.mic_fill),
                         color: _isRecording
                             ? Colors.white
                             : (_selectedAudio != null
@@ -1023,8 +1006,8 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                       children: [
                         Icon(
                           _selectedAudio != null
-                              ? Icons.check_circle_rounded
-                              : Icons.mic_none_rounded,
+                              ? CupertinoIcons.checkmark_circle_fill
+                              : CupertinoIcons.mic,
                           size: 16,
                           color: _selectedAudio != null
                               ? Colors.green.shade600
@@ -1107,7 +1090,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                   child: hasPhoto
                       ? null
                       : const Icon(
-                          Icons.camera_alt_rounded,
+                          CupertinoIcons.camera_fill,
                           color: Color(0xFF1565C0),
                           size: 24,
                         ),
@@ -1156,8 +1139,8 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                     children: [
                       Icon(
                         hasPhoto
-                            ? Icons.check_circle_rounded
-                            : Icons.camera_alt_outlined,
+                            ? CupertinoIcons.checkmark_circle_fill
+                            : CupertinoIcons.camera,
                         size: 16,
                         color: Colors.black87,
                       ),
@@ -1204,7 +1187,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(
-                  Icons.my_location_rounded,
+                  CupertinoIcons.location_fill,
                   color: Colors.black87, // Dark green
                   size: 24,
                 ),
@@ -1234,7 +1217,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(
-                    Icons.check_circle_rounded,
+                    CupertinoIcons.checkmark_circle_fill,
                     size: 16,
                     color: Color(0xFF15803D),
                   ),
@@ -1278,7 +1261,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                   strokeWidth: 2,
                 ),
               )
-            : const Icon(Icons.send, size: 18),
+            : const Icon(CupertinoIcons.paperplane_fill, size: 18),
         label: Text(
           _isLoading ? 'Mengirim...' : 'Kirim Laporan Sekarang',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
@@ -1291,7 +1274,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: const [
-        Icon(Icons.shield_outlined, size: 14, color: Colors.black54),
+        Icon(CupertinoIcons.shield, size: 14, color: Colors.black54),
         SizedBox(width: 6),
         Flexible(
           child: Text(
@@ -1304,3 +1287,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     );
   }
 }
+
+
+
+

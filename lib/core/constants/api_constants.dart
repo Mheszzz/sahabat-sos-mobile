@@ -23,8 +23,9 @@ class ApiConstants {
   static const String laporanNearby = '$baseUrl/laporan/nearby';
   static String laporanStatus(dynamic id) => '$baseUrl/laporan/$id/status';
 
-  // Emergency
   static const String emergencyTrigger = '$baseUrl/sos/trigger';
+  static const String emergencyActive = '$baseUrl/sos/active';
+  static String emergencyCancel(dynamic id) => '$baseUrl/sos/$id/cancel';
   
   // Tuya Device
   static const String tuyaDeviceRegister = '$baseUrl/tuya-device/register';
