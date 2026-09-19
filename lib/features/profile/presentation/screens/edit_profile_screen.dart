@@ -106,7 +106,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         Map<String, dynamic> dataToUpdate = {
           'name': nameController.text.isNotEmpty ? nameController.text : '-',
           'kategori_user': selectedCategory,
-          'alamat': addressController.text.isNotEmpty ? addressController.text : '-',
+          'alamat': addressController.text.trim().isNotEmpty ? addressController.text.trim() : '-',
           'no_telp': phoneController.text.isNotEmpty ? phoneController.text : '-',
           'getaran': haptic ? 1 : 0,
           'panduan_suara': voiceGuide ? 1 : 0,
@@ -288,10 +288,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             icon: Icon(CupertinoIcons.chevron_down, color: primaryTeal.withValues(alpha: 0.7)),
                             dropdownColor: const Color(0xFFF5F6F8),
                             items: [
-                              {'value': 'umum', 'label': 'Umum', 'icon': Icons.person_outline_rounded},
-                              {'value': 'tunanetra', 'label': 'Tunanetra', 'icon': Icons.visibility_off_outlined},
+                              {'value': 'umum', 'label': 'Umum', 'icon': CupertinoIcons.person},
+                              {'value': 'tunanetra', 'label': 'Tunanetra', 'icon': CupertinoIcons.eye_slash},
                               {'value': 'tunarungu', 'label': 'Tunarungu', 'icon': Icons.hearing_disabled_outlined},
-                              {'value': 'tunawicara', 'label': 'Tunawicara', 'icon': Icons.speaker_notes_off_outlined},
+                              {'value': 'tunawicara', 'label': 'Tunawicara', 'icon': CupertinoIcons.mic_slash},
                             ].map((item) {
                               return DropdownMenuItem<String>(
                                 value: item['value'] as String,
@@ -345,5 +345,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 }
+
+
+
 
 

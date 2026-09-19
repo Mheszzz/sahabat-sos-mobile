@@ -115,14 +115,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   IconData _getCategoryIcon(String category) {
     switch (category.toLowerCase()) {
       case 'tunanetra':
-        return Icons.visibility_off_outlined;
+        return CupertinoIcons.eye_slash;
       case 'tunarungu':
         return Icons.hearing_disabled_outlined;
       case 'tunawicara':
-        return Icons.speaker_notes_off_outlined;
+        return CupertinoIcons.mic_slash;
       case 'umum':
       default:
-        return Icons.person_outline_rounded;
+        return CupertinoIcons.person;
     }
   }
 
@@ -165,7 +165,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           _buildSectionHeader(
-                            icon: CupertinoIcons.person_circle_fill,
+                            icon: CupertinoIcons.hand_raised,
                             title: 'Aksesibilitas',
                           ),
                           const SizedBox(height: 12),
@@ -173,7 +173,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(height: 24),
 
                           _buildSectionHeader(
-                            icon: CupertinoIcons.shield_fill,
+                            icon: CupertinoIcons.shield,
                             title: 'Privasi & Lokasi',
                           ),
                           const SizedBox(height: 12),
@@ -198,7 +198,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(height: 24),
 
                           _buildSectionHeader(
-                            icon: CupertinoIcons.headphones,
+                            icon: CupertinoIcons.question_circle,
                             title: 'Bantuan',
                           ),
                           const SizedBox(height: 12),
@@ -206,10 +206,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(height: 32),
 
                           _buildLogoutButton(),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 8),
                           const Center(
                             child: Text(
-                              'versi 1 beta',
+                              'versi 1.0 Beta',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.black54,
@@ -233,14 +233,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
-      centerTitle: true,
-      title: const Text(
-        'Profil Saya',
-        style: TextStyle(
-          color: primaryTeal,
-          fontWeight: FontWeight.bold,
-          fontSize: 18,
-        ),
+      centerTitle: false,
+      titleSpacing: 16,
+      title: const Row(
+        children: [
+          Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal, size: 24),
+          SizedBox(width: 8),
+          Text(
+            'Sahabat SOS',
+            style: TextStyle(
+              color: primaryTeal,
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+            ),
+          ),
+        ],
       ),
       actions: [
         IconButton(
@@ -357,7 +364,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 24),
           _buildInfoBox(
-            icon: CupertinoIcons.device_phone_portrait,
+            icon: CupertinoIcons.phone,
             label: 'Telepon Darurat',
             value: _phone,
           ),
@@ -369,7 +376,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 6),
           _buildInfoBox(
-            icon: CupertinoIcons.house_fill,
+            icon: CupertinoIcons.house,
             label: 'Alamat Lengkap',
             value: _address,
           ),
@@ -428,7 +435,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         children: [
           _buildToggleItem(
-            icon: CupertinoIcons.waveform,
+            icon: CupertinoIcons.speaker_2,
             title: 'Panduan Suara (TalkBack)',
             subtitle: 'Narasi suara otomatis aktif.',
             value: _voiceGuide,

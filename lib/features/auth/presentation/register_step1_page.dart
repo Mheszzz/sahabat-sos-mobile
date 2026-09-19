@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sahabat_sos_mobile/routing/routes.dart';
 import 'package:get_it/get_it.dart' as get_it;
@@ -98,7 +99,7 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
           ),
         ),
         SizedBox(width: 6),
-        Icon(Icons.verified_rounded, size: 16, color: accentTeal),
+        Icon(CupertinoIcons.checkmark_seal_fill, size: 16, color: accentTeal),
       ],
     );
   }
@@ -109,7 +110,7 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
       children: [
         Row(
           children: const [
-            Icon(Icons.person_add_alt_1_outlined, size: 15, color: accentTeal),
+            Icon(CupertinoIcons.person_add, size: 15, color: accentTeal),
             SizedBox(width: 6),
             Text(
               'Langkah 1 dari 2: Registrasi Akun',
@@ -214,7 +215,7 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
                         width: 26,
                         height: 26,
                         errorBuilder: (_, _, _) => const Icon(
-                          Icons.error_outline,
+                          CupertinoIcons.exclamationmark_circle,
                           size: 26,
                           color: Colors.red,
                         ),
@@ -320,3 +321,4 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
     );
   }
 }
+

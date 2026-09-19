@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sahabat_sos_mobile/routing/routes.dart';
 import 'package:get_it/get_it.dart' as get_it;
@@ -67,7 +68,7 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: 12),
                         const Center(
                           child: Text(
-                            'versi 1 beta',
+                            'versi 1.0 Beta',
                             style: TextStyle(
                               fontSize: 12,
                               color: Color(0xFF6B7080),
@@ -102,7 +103,7 @@ class _LoginPageState extends State<LoginPage> {
         Row(
           children: [
             _circleIconButton(
-              icon: Icons.volume_up_rounded,
+              icon: CupertinoIcons.volume_up,
               bg: const Color(0xFF7CF0D6),
               iconColor: primaryDark,
               onTap: () {},
@@ -228,7 +229,7 @@ class _LoginPageState extends State<LoginPage> {
                         width: 24,
                         height: 24,
                         errorBuilder: (_, _, _) => const Icon(
-                          Icons.error_outline,
+                          CupertinoIcons.exclamationmark_circle,
                           size: 24,
                           color: Colors.red,
                         ),

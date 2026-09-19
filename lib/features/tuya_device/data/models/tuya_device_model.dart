@@ -8,6 +8,18 @@ class TuyaDeviceModel {
   final Map<String, dynamic> dps;
   final DateTime? lastEventAt;
 
+  String get signalStrengthFormatted {
+    if (signalStrength == null) return 'N/A';
+    switch (signalStrength!.toLowerCase()) {
+      case 'strong': return 'Kuat';
+      case 'weak': return 'Lemah';
+      case 'fair': return 'Sedang';
+      case 'good': return 'Bagus';
+      case 'poor': return 'Buruk';
+      default: return signalStrength!;
+    }
+  }
+
   const TuyaDeviceModel({
     required this.deviceId,
     required this.name,

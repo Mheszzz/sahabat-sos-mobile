@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:get_it/get_it.dart';
+import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/dashboard_page.dart';
 import 'package:sahabat_sos_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:sahabat_sos_mobile/features/reports/presentation/quick_report_screen.dart';
@@ -23,6 +25,15 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    _initLocationTracking();
+  }
+
+  Future<void> _initLocationTracking() async {
+    final locationService = GetIt.instance<LocationService>();
+    final hasPermission = await locationService.requestPermission();
+    if (hasPermission) {
+      locationService.startTracking();
+    }
   }
 
   @override

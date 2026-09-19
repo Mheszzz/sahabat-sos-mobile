@@ -96,12 +96,17 @@ class TuyaDpEvent {
 
   /// Check if this event represents an SOS button press
   bool get isSosTriggered {
-    // For dedicated SOS button devices, ANY dpUpdate is a trigger
-    // because the device has no other function
-    if (eventType == TuyaEventType.dpUpdate) return true;
+    // Only process DP updates for SOS triggers
+    if (eventType != TuyaEventType.dpUpdate) return false;
     
-    // Some SOS buttons report via statusChanged when pressed
-    if (eventType == TuyaEventType.statusChanged && isOnline) return true;
+    // Simulation events
+    if (isSimulation) return true;
+
+    // Real physical SOS button sends DP 23 = true when pressed
+    if (dps['23'] == true || dps['23'] == 'true') return true;
+    
+    // Generic Tuya switch standard DP fallback
+    if (dps['1'] == true || dps['1'] == 'true') return true;
 
     return false;
   }

@@ -19,9 +19,9 @@ class TuyaBackgroundListener {
   StreamSubscription<TuyaDpEvent>? _subscription;
   bool _isRunning = false;
   
-  // Debounce: prevent multiple triggers within 30 seconds
+  // Debounce: prevent multiple triggers within 10 seconds
   DateTime? _lastTriggerTime;
-  static const Duration _debounceDuration = Duration(seconds: 30);
+  static const Duration _debounceDuration = Duration(seconds: 10);
 
   /// Callback invoked when an SOS event is detected
   void Function(TuyaDpEvent event)? onSosDetected;

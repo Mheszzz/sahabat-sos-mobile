@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 
 class EmergencyContactsPage extends StatelessWidget {
   const EmergencyContactsPage({super.key});
@@ -76,7 +77,7 @@ class EmergencyContactsPage extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () {},
-                icon: const Icon(Icons.person_add_alt_1, color: Colors.white),
+                icon: const Icon(CupertinoIcons.person_add, color: Colors.white),
                 label: const Text(
                   'Tambah Kontak Darurat',
                   style: TextStyle(
@@ -205,7 +206,7 @@ class EmergencyContactsPage extends StatelessWidget {
               badgeColor: const Color(0xFFFFF4D2),
               badgeTextColor: const Color(0xFFB58500),
               badgeDotColor: const Color(0xFFF4B400),
-              relationIcon: Icons.favorite_border,
+              relationIcon: CupertinoIcons.heart,
               relationText: 'Istri',
               phone: '0812-9876-5432',
               accessIcon: Icons.bolt,
@@ -238,7 +239,7 @@ class EmergencyContactsPage extends StatelessWidget {
               name: 'Posko Relawan Sahabat SOS',
               avatarWidget: const CircleAvatar(
                 backgroundColor: Color(0xFFF0EBE1),
-                child: Icon(Icons.emergency_outlined, color: Color(0xFF8B7043)),
+                child: Icon(CupertinoIcons.exclamationmark_triangle, color: Color(0xFF8B7043)),
               ),
               badgeText: 'Petugas Siaga 24 Jam',
               badgeColor: Colors.grey[200]!,
@@ -265,7 +266,7 @@ class EmergencyContactsPage extends StatelessWidget {
               badgeColor: const Color(0xFFF5EFE9),
               badgeTextColor: const Color(0xFF8B5E34),
               badgeDotColor: const Color(0xFF8B5E34),
-              relationIcon: Icons.people_outline,
+              relationIcon: CupertinoIcons.person_2,
               relationText: 'Adik',
               phone: '0857-1234-5678',
               isPrimary: false,
@@ -283,7 +284,7 @@ class EmergencyContactsPage extends StatelessWidget {
               child: Row(
                 children: [
                   const Icon(
-                    Icons.privacy_tip_outlined,
+                    CupertinoIcons.lock_shield,
                     color: Color(0xFF8B5E34),
                     size: 20,
                   ),
@@ -433,7 +434,7 @@ class EmergencyContactsPage extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 8),
                                   Icon(
-                                    Icons.phone,
+                                    CupertinoIcons.phone_fill,
                                     size: 14,
                                     color: primaryColor,
                                   ),
@@ -491,7 +492,7 @@ class EmergencyContactsPage extends StatelessWidget {
                             child: ElevatedButton.icon(
                               onPressed: () {},
                               icon: const Icon(
-                                Icons.phone,
+                                CupertinoIcons.phone_fill,
                                 color: Colors.white,
                                 size: 18,
                               ),
@@ -516,7 +517,7 @@ class EmergencyContactsPage extends StatelessWidget {
                             child: ElevatedButton.icon(
                               onPressed: () {},
                               icon: const Icon(
-                                Icons.phone,
+                                CupertinoIcons.phone_fill,
                                 color: Colors.white,
                                 size: 18,
                               ),
@@ -538,7 +539,7 @@ class EmergencyContactsPage extends StatelessWidget {
                             child: OutlinedButton.icon(
                               onPressed: () {},
                               icon: Icon(
-                                Icons.edit,
+                                CupertinoIcons.pencil,
                                 color: primaryColor,
                                 size: 18,
                               ),

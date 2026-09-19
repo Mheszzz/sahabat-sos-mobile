@@ -26,7 +26,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
               // Header Logo
               Row(
                 children: const [
-                  Icon(Icons.accessibility_new, color: primaryTeal),
+                  Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal),
                   SizedBox(width: 8),
                   Text(
                     'Sahabat SOS',
@@ -282,7 +282,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                         children: [
                           const CircleAvatar(
                             backgroundColor: primaryTeal,
-                            child: Icon(CupertinoIcons.plus_app, color: Colors.white),
+                            child: Icon(CupertinoIcons.checkmark_circle, color: Colors.white),
                           ),
                           const SizedBox(width: 16),
                           Column(

@@ -10,7 +10,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/models/tuya_device_model.dart';
 import '../../data/models/tuya_dp_event_model.dart';
 import '../../data/services/tuya_channel_service.dart';
-import '../../data/services/emergency_trigger_service.dart';
 
 class TuyaDeviceListScreen extends StatefulWidget {
   final bool showBackButton;
@@ -23,7 +22,6 @@ class TuyaDeviceListScreen extends StatefulWidget {
 
 class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
   final _tuyaService = GetIt.instance<TuyaChannelService>();
-  final _emergencyService = GetIt.instance<EmergencyTriggerService>();
 
   List<TuyaDeviceModel> _devices = [];
   bool _isLoading = false;
@@ -81,63 +79,38 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
     }
   }
 
+  DateTime? _lastSnackbarTime;
+
   void _handleDpEvent(TuyaDpEvent event) {
     if (!mounted) return;
 
     setState(() {
+      // Prevent spamming identical events in the list within a short time window
+      if (_recentEvents.isNotEmpty) {
+        final lastEvent = _recentEvents.first;
+        if (event.eventType == lastEvent.eventType && 
+            event.isSosTriggered == lastEvent.isSosTriggered &&
+            DateTime.now().difference(lastEvent.timestamp).inSeconds < 2) {
+          return; // Skip inserting duplicate event
+        }
+      }
+      
       _recentEvents.insert(0, event);
       if (_recentEvents.length > 20) _recentEvents.removeLast();
     });
 
     if (event.isSosTriggered) {
-      _onSosDetected(event);
+      final now = DateTime.now();
+      if (_lastSnackbarTime == null || now.difference(_lastSnackbarTime!) > const Duration(seconds: 10)) {
+        _lastSnackbarTime = now;
+        _onSosDetected(event);
+      }
     }
   }
 
   Future<void> _onSosDetected(TuyaDpEvent event) async {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(CupertinoIcons.exclamationmark_triangle, color: Colors.white),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  event.isSimulation
-                      ? '🧪 SIMULASI SOS terdeteksi dari ${event.deviceId}'
-                      : '🚨 SOS DARURAT terdeteksi dari ${event.deviceId}!',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: event.isSimulation ? Colors.orange : Colors.red,
-          duration: const Duration(seconds: 5),
-        ),
-      );
-    }
-
-    try {
-      await _emergencyService.triggerEmergency(event);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Sinyal darurat berhasil dikirim ke server'),
-            backgroundColor: Color(0xFF005C61),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Gagal kirim ke server: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+    // ScaffoldMessenger removed as requested by user.
+    // Navigation to emergency screen is handled globally by TuyaBackgroundListener in main.dart
   }
 
   Future<void> _simulateSos() async {
@@ -162,18 +135,30 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
   }
 
   Widget _buildGlassContainer({required Widget child, EdgeInsetsGeometry? padding, Color? color}) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: padding ?? const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: color ?? Colors.white.withValues(alpha: 0.6),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 20,
+            spreadRadius: -5,
+            offset: const Offset(0, 8),
           ),
-          child: child,
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            padding: padding ?? const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color ?? Colors.white.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1.5),
+            ),
+            child: child,
+          ),
         ),
       ),
     );
@@ -188,16 +173,18 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Color(0xFF005C61)),
+                centerTitle: false,
+        titleSpacing: 16,
         title: const Row(
           children: [
-            Icon(CupertinoIcons.antenna_radiowaves_left_right, color: Color(0xFF005C61)),
+            Icon(CupertinoIcons.heart_circle_fill, color: Color(0xFF005C61), size: 24),
             SizedBox(width: 8),
             Text(
-              'Perangkat Tuya',
+              'Sahabat SOS',
               style: TextStyle(
                 color: Color(0xFF005C61),
                 fontWeight: FontWeight.bold,
-                fontSize: 18,
+                fontSize: 20,
               ),
             ),
           ],
@@ -209,16 +196,40 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
           ),
         ],
       ),
-      body: Container(
-        constraints: const BoxConstraints.expand(),
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFE0F7FA), Color(0xFFF5F6F8), Color(0xFFE0F2F1)],
+      body: Stack(
+        children: [
+          Container(color: const Color(0xFFF2F2F7)),
+          Positioned(
+            top: -100,
+            left: -50,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                color: const Color(0xFF005C61).withValues(alpha: 0.3),
+                shape: BoxShape.circle,
+              ),
+            ),
           ),
-        ),
-        child: SafeArea(
+          Positioned(
+            bottom: -50,
+            right: -100,
+            child: Container(
+              width: 350,
+              height: 350,
+              decoration: BoxDecoration(
+                color: Colors.blueAccent.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
+              child: Container(color: Colors.transparent),
+            ),
+          ),
+          SafeArea(
           child: _isLoading
               ? const Center(child: CircularProgressIndicator(color: Color(0xFF005C61)))
               : SingleChildScrollView(
@@ -226,12 +237,25 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      const Text(
+                        'Perangkat SOS',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       // Status Card
                       _buildStatusCard(),
                       const SizedBox(height: 16),
 
                       // Simulation Test Card
                       _buildSimulationCard(),
+                      const SizedBox(height: 16),
+
+                      // Action Buttons for Adding Devices
+                      _buildActionButtons(),
                       const SizedBox(height: 16),
 
                       // Device List
@@ -245,30 +269,6 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                     ],
                   ),
                 ),
-        ),
-      ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          FloatingActionButton.extended(
-            heroTag: 'scan_wifi',
-            onPressed: () => context.push('/tuya-devices/scan-wifi'),
-            backgroundColor: Colors.blue.shade700.withValues(alpha: 0.85),
-            icon: const Icon(CupertinoIcons.wifi, color: Colors.white),
-            label: const Text('Pairing Wi-Fi', style: TextStyle(color: Colors.white)),
-          ),
-          const SizedBox(height: 12),
-          FloatingActionButton.extended(
-            heroTag: 'scan_ble',
-            onPressed: () => context.push('/tuya-devices/scan'),
-            backgroundColor: const Color(0xFF005C61),
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            icon: const Icon(CupertinoIcons.bluetooth, color: Colors.white),
-            label: const Text('Scan BLE', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -284,16 +284,16 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: isConnected 
-                ? Colors.greenAccent.withValues(alpha: 0.2) 
+                ? const Color(0xFF2E7D32).withValues(alpha: 0.2) 
                 : Colors.redAccent.withValues(alpha: 0.2),
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: isConnected ? Colors.greenAccent : Colors.redAccent,
+                color: isConnected ? const Color(0xFF2E7D32) : Colors.redAccent,
               ),
             ),
             child: Icon(
               isConnected ? CupertinoIcons.bluetooth : CupertinoIcons.clear,
-              color: isConnected ? Colors.greenAccent : Colors.redAccent,
+              color: isConnected ? const Color(0xFF2E7D32) : Colors.redAccent,
             ),
           ),
           const SizedBox(width: 12),
@@ -316,11 +316,11 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
             width: 10,
             height: 10,
             decoration: BoxDecoration(
-              color: isConnected ? Colors.greenAccent : Colors.redAccent,
-              shape: BoxShape.circle,
+              color: isConnected ? const Color(0xFF2E7D32) : Colors.redAccent,
+              borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
-                  color: (isConnected ? Colors.greenAccent : Colors.redAccent).withValues(alpha: 0.5),
+                  color: (isConnected ? const Color(0xFF2E7D32) : Colors.redAccent).withValues(alpha: 0.5),
                   blurRadius: 6,
                   spreadRadius: 2,
                 )
@@ -390,6 +390,42 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
     );
   }
 
+  Widget _buildActionButtons() {
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: () => context.push('/tuya-devices/scan-wifi'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade700.withValues(alpha: 0.85),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 2,
+            ),
+            icon: const Icon(CupertinoIcons.wifi),
+            label: const Text('Pairing Wi-Fi'),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: () => context.push('/tuya-devices/scan'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF005C61),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 2,
+            ),
+            icon: const Icon(CupertinoIcons.bluetooth),
+            label: const Text('Scan BLE'),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildDeviceListSection() {
     if (_devices.isEmpty) {
       return _buildGlassContainer(
@@ -442,13 +478,13 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: device.isOnline 
-                ? Colors.greenAccent.withValues(alpha: 0.2) 
+                ? const Color(0xFF2E7D32).withValues(alpha: 0.2) 
                 : Colors.white.withValues(alpha: 0.6),
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               CupertinoIcons.antenna_radiowaves_left_right,
-              color: device.isOnline ? Colors.greenAccent : Colors.black54,
+              color: device.isOnline ? const Color(0xFF2E7D32) : Colors.black54,
             ),
           ),
           const SizedBox(width: 12),
@@ -467,8 +503,8 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: device.isOnline ? Colors.greenAccent : Colors.redAccent,
-                        shape: BoxShape.circle,
+                        color: device.isOnline ? const Color(0xFF2E7D32) : Colors.redAccent,
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -476,7 +512,7 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                       device.isOnline ? 'Online' : 'Offline',
                       style: TextStyle(
                         fontSize: 12,
-                        color: device.isOnline ? Colors.greenAccent : Colors.redAccent,
+                        color: device.isOnline ? const Color(0xFF2E7D32) : Colors.redAccent,
                       ),
                     ),
                     if (device.batteryLevel != null) ...[
@@ -579,6 +615,7 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
     );
   }
 }
+
 
 
 

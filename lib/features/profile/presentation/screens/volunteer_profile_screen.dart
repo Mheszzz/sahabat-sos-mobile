@@ -136,7 +136,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                           const SizedBox(height: 24),
 
                           _buildSectionHeader(
-                            icon: CupertinoIcons.shield_fill,
+                            icon: CupertinoIcons.shield,
                             title: 'Privasi & Lokasi',
                           ),
                           const SizedBox(height: 12),
@@ -144,7 +144,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                           const SizedBox(height: 24),
 
                           _buildSectionHeader(
-                            icon: CupertinoIcons.headphones,
+                            icon: CupertinoIcons.question_circle,
                             title: 'Bantuan',
                           ),
                           const SizedBox(height: 12),
@@ -152,10 +152,10 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                           const SizedBox(height: 32),
 
                           _buildLogoutButton(),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 8),
                           const Center(
                             child: Text(
-                              'versi 1 beta',
+                              'versi 1.0 Beta',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.black54,
@@ -179,15 +179,22 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
       backgroundColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
-      centerTitle: true,
-      title: const Text(
-        'Profil Relawan',
-        style: TextStyle(
-          color: primaryTeal,
-          fontWeight: FontWeight.bold,
-          fontSize: 18,
+              centerTitle: false,
+        titleSpacing: 16,
+        title: const Row(
+          children: [
+            Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal, size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Sahabat SOS',
+              style: TextStyle(
+                color: primaryTeal,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+          ],
         ),
-      ),
       actions: [
         IconButton(
           onPressed: () async {
@@ -313,7 +320,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           ),
           const SizedBox(height: 24),
           _buildInfoBox(
-            icon: CupertinoIcons.device_phone_portrait,
+            icon: CupertinoIcons.phone,
             label: 'Nomor Telepon',
             value: _phone,
           ),
@@ -325,7 +332,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           ),
           const SizedBox(height: 6),
           _buildInfoBox(
-            icon: CupertinoIcons.house_fill,
+            icon: CupertinoIcons.house,
             label: 'Alamat Lengkap',
             value: _address,
           ),
@@ -364,7 +371,8 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+                mainAxisSize: MainAxisSize.min,
+                children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(color: primaryTeal.withValues(alpha: 0.1), shape: BoxShape.circle),
@@ -374,7 +382,8 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+                mainAxisSize: MainAxisSize.min,
+                children: [
                 Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black87)),
                 const SizedBox(height: 4),
                 Text(value, style: const TextStyle(fontSize: 13, color: Colors.black54, height: 1.4)),
@@ -402,11 +411,12 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+                mainAxisSize: MainAxisSize.min,
+                children: [
                 Text(label, style: const TextStyle(fontSize: 11, color: Colors.black54)),
                 const SizedBox(height: 4),
                 Text(
-                  value,
+                    value.trim(),
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87),
                 ),
               ],
@@ -435,17 +445,19 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+                mainAxisSize: MainAxisSize.min,
+                children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12)),
-            child: const Icon(CupertinoIcons.location_fill, color: Color(0xFFEF6C00), size: 24),
+            child: const Icon(CupertinoIcons.location, color: Color(0xFFEF6C00), size: 24),
           ),
           const SizedBox(width: 16),
           const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+                mainAxisSize: MainAxisSize.min,
+                children: [
                 Text('Status Ketersediaan & Lokasi', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black87)),
                 SizedBox(height: 6),
                 Text(
@@ -508,6 +520,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black87)),
                   const SizedBox(height: 2),
@@ -528,7 +541,31 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
       height: 52,
       child: ElevatedButton.icon(
         onPressed: () async {
-          final prefs = await SharedPreferences.getInstance();
+            final confirm = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: const Text('Keluar Akun'),
+                content: const Text('Apakah Anda yakin ingin keluar dari akun ini?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Batal', style: TextStyle(color: Colors.black54)),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFD32F2F),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('Keluar'),
+                  ),
+                ],
+              ),
+            );
+            if (confirm != true) return;
+            final prefs = await SharedPreferences.getInstance();
           final token = prefs.getString('auth_token');
           try {
             await _dio.post(
@@ -557,5 +594,8 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     );
   }
 }
+
+
+
 
 

@@ -47,16 +47,22 @@ class EmergencyTriggerService {
         latitude = cachedPosition.latitude;
         longitude = cachedPosition.longitude;
       } else {
-        // Fallback to direct Geolocator call
-        final position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-        ).timeout(const Duration(seconds: 5));
-        latitude = position.latitude;
-        longitude = position.longitude;
+        // Fallback to getLastKnownPosition for INSTANT response (0 second delay)
+        final position = await Geolocator.getLastKnownPosition();
+        if (position != null) {
+          latitude = position.latitude;
+          longitude = position.longitude;
+        } else {
+          // If absolute worst case, try low accuracy for max 1 second
+          final quickPosition = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
+          ).timeout(const Duration(seconds: 1));
+          latitude = quickPosition.latitude;
+          longitude = quickPosition.longitude;
+        }
       }
     } catch (e) {
-      // Continue without location if GPS fails
-      // Location is optional but highly recommended
+      // Continue without location if GPS fails (it will use 0.0 fallback)
     }
 
     final payload = {

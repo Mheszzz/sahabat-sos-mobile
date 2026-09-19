@@ -15,11 +15,14 @@ void main() async {
   // Will only activate if user is already authenticated
   final tuyaListener = GetIt.instance<TuyaBackgroundListener>();
   
+  tuyaListener.onSosDetected = (event) {
+    // Navigate immediately for 0-second UI response!
+    // The background API call will happen concurrently.
+    AppRouter.router.push('/sos-status');
+  };
+  
   tuyaListener.onEmergencySent = (success, event) {
-    if (success) {
-      // Navigate to the SOS status page from anywhere in the app
-      AppRouter.router.push('/sos-status');
-    }
+    // We already navigated, but we could show a success toast here if needed
   };
   
   tuyaListener.onEmergencyError = (errorMsg) {

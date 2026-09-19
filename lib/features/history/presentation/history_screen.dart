@@ -187,7 +187,7 @@ class _HistoryPageState extends State<HistoryPage> {
           : 'Lihat Detail Laporan',
       imagePlaceholderIcon: type == HistoryType.sos
           ? CupertinoIcons.map
-          : CupertinoIcons.photo,
+          : CupertinoIcons.doc_text,
       imageUrl: foto != null
           ? (foto.startsWith('http')
                 ? foto
@@ -340,7 +340,7 @@ class _HistoryPageState extends State<HistoryPage> {
       titleSpacing: 16,
       title: Row(
         children: const [
-          Icon(CupertinoIcons.person_circle_fill, color: primaryTeal, size: 24),
+          Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal, size: 24),
           SizedBox(width: 8),
           Text(
             'Sahabat SOS',
@@ -737,7 +737,7 @@ class _HistoryPageState extends State<HistoryPage> {
   ) {
     final lowerTitle = title.toLowerCase();
     if (lowerTitle.contains('pendamping')) {
-      return (icon: Icons.people_alt_rounded, color: const Color(0xFF1565C0));
+      return (icon: CupertinoIcons.person_2_fill, color: const Color(0xFF1565C0));
     } else if (lowerTitle.contains('medis') ||
         lowerTitle.contains('obat') ||
         lowerTitle.contains('ambulans')) {
@@ -747,19 +747,19 @@ class _HistoryPageState extends State<HistoryPage> {
       );
     } else if (lowerTitle.contains('ancaman') ||
         lowerTitle.contains('bahaya')) {
-      return (icon: Icons.shield_rounded, color: const Color(0xFFE65100));
+      return (icon: CupertinoIcons.exclamationmark_triangle_fill, color: const Color(0xFFE65100));
     } else if (lowerTitle.contains('tersesat')) {
-      return (icon: Icons.explore_rounded, color: const Color(0xFF00838F));
+      return (icon: CupertinoIcons.compass_fill, color: const Color(0xFF00838F));
     } else if (lowerTitle.contains('aksesibilitas')) {
       return (icon: Icons.accessible_rounded, color: const Color(0xFF6A1B9A));
     } else if (lowerTitle.contains('lainnya')) {
-      return (icon: Icons.more_horiz_rounded, color: const Color(0xFF546E7A));
+      return (icon: CupertinoIcons.ellipsis_circle_fill, color: const Color(0xFF546E7A));
     }
 
     // Default fallback
     return isSos
         ? (icon: CupertinoIcons.exclamationmark_triangle_fill, color: Colors.red.shade600)
-        : (icon: Icons.assignment_outlined, color: primaryTeal);
+        : (icon: CupertinoIcons.doc_text, color: primaryTeal);
   }
 
   Widget _buildHistoryCard(HistoryItem item) {

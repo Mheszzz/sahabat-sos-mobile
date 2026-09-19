@@ -64,6 +64,15 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
         .listen((event) {
       if (!mounted) return;
       setState(() {
+        // Prevent spamming identical events in the UI history within 2 seconds
+        if (_deviceEvents.isNotEmpty) {
+          final lastEvent = _deviceEvents.first;
+          if (event.isSosTriggered == lastEvent.isSosTriggered &&
+              DateTime.now().difference(lastEvent.timestamp).inSeconds < 2) {
+            return; // Skip duplicate UI log
+          }
+        }
+
         _deviceEvents.insert(0, event);
         if (_deviceEvents.length > 50) _deviceEvents.removeLast();
         
@@ -135,18 +144,30 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
   }
 
   Widget _buildGlassContainer({required Widget child, EdgeInsetsGeometry? padding, Color? color}) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: padding ?? const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: color ?? Colors.white.withValues(alpha: 0.6),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 20,
+            spreadRadius: -5,
+            offset: const Offset(0, 8),
           ),
-          child: child,
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            padding: padding ?? const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color ?? Colors.white.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1.5),
+            ),
+            child: child,
+          ),
         ),
       ),
     );
@@ -180,16 +201,40 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
           ),
         ],
       ),
-      body: Container(
-        constraints: const BoxConstraints.expand(),
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFE0F7FA), Color(0xFFF5F6F8), Color(0xFFE0F2F1)],
+      body: Stack(
+        children: [
+          Container(color: const Color(0xFFF2F2F7)),
+          Positioned(
+            top: -100,
+            left: -50,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                color: const Color(0xFF005C61).withValues(alpha: 0.3),
+                shape: BoxShape.circle,
+              ),
+            ),
           ),
-        ),
-        child: SafeArea(
+          Positioned(
+            bottom: -50,
+            right: -100,
+            child: Container(
+              width: 350,
+              height: 350,
+              decoration: BoxDecoration(
+                color: Colors.blueAccent.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
+              child: Container(color: Colors.transparent),
+            ),
+          ),
+          SafeArea(
           child: _isLoading
               ? const Center(
                   child: CircularProgressIndicator(color: Color(0xFF005C61)),
@@ -212,7 +257,8 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
                     ],
                   ),
                 ),
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -225,15 +271,15 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: (_device?.isOnline ?? false)
-                  ? Colors.greenAccent.withValues(alpha: 0.2)
+                  ? const Color(0xFF2E7D32).withValues(alpha: 0.2)
                   : Colors.redAccent.withValues(alpha: 0.2),
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               CupertinoIcons.antenna_radiowaves_left_right,
               size: 32,
               color: (_device?.isOnline ?? false)
-                  ? Colors.greenAccent
+                  ? const Color(0xFF2E7D32)
                   : Colors.redAccent,
             ),
           ),
@@ -263,12 +309,12 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
                       height: 8,
                       decoration: BoxDecoration(
                         color: (_device?.isOnline ?? false)
-                            ? Colors.greenAccent
+                            ? const Color(0xFF2E7D32)
                             : Colors.redAccent,
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(14),
                         boxShadow: [
                           BoxShadow(
-                            color: ((_device?.isOnline ?? false) ? Colors.greenAccent : Colors.redAccent).withValues(alpha: 0.5),
+                            color: ((_device?.isOnline ?? false) ? const Color(0xFF2E7D32) : Colors.redAccent).withValues(alpha: 0.5),
                             blurRadius: 6,
                             spreadRadius: 2,
                           )
@@ -282,7 +328,7 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                         color: (_device?.isOnline ?? false)
-                            ? Colors.greenAccent
+                            ? const Color(0xFF2E7D32)
                             : Colors.redAccent,
                       ),
                     ),
@@ -312,10 +358,10 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
         const SizedBox(width: 8),
         Expanded(
           child: _buildStatusTile(
-            icon: CupertinoIcons.bars,
+            icon: CupertinoIcons.antenna_radiowaves_left_right,
             iconColor: Colors.blueAccent,
             label: 'Sinyal',
-            value: _device?.signalStrength ?? 'N/A',
+            value: _device?.signalStrengthFormatted ?? 'N/A',
           ),
         ),
         const SizedBox(width: 8),

@@ -4,7 +4,6 @@ import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../features/tuya_device/data/services/tuya_channel_service.dart';
 import '../../../../features/tuya_device/presentation/screens/tuya_device_list_screen.dart';
-import '../../../../features/tuya_device/presentation/screens/tuya_device_detail_screen.dart';
 
 class DevicePage extends StatefulWidget {
   const DevicePage({super.key});
@@ -16,7 +15,6 @@ class DevicePage extends StatefulWidget {
 class _DevicePageState extends State<DevicePage> {
   final _tuyaService = GetIt.instance<TuyaChannelService>();
   bool _isLoading = true;
-  String? _firstDeviceId;
 
   @override
   void initState() {
@@ -32,10 +30,9 @@ class _DevicePageState extends State<DevicePage> {
       if (token.isNotEmpty) {
         await _tuyaService.loginAnonymous(token);
       }
-      final devices = await _tuyaService.getDeviceList();
+      
       if (mounted) {
         setState(() {
-          _firstDeviceId = devices.isNotEmpty ? devices.first.deviceId : null;
           _isLoading = false;
         });
       }
@@ -51,10 +48,6 @@ class _DevicePageState extends State<DevicePage> {
         backgroundColor: Color(0xFF005C61),
         body: Center(child: CircularProgressIndicator(color: Colors.white)),
       );
-    }
-
-    if (_firstDeviceId != null) {
-      return TuyaDeviceDetailScreen(deviceId: _firstDeviceId!, showBackButton: false);
     }
 
     return const TuyaDeviceListScreen(showBackButton: false);

@@ -723,7 +723,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                       child: Icon(
                         category.icon,
                         size: 22,
-                        color: Colors.black87,
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(width: 10),
