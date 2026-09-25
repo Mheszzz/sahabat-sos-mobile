@@ -1,3 +1,4 @@
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart' as import_event_bus;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,18 +31,24 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
   Future<void> _initVolunteerData() async {
     try {
       final profile = await _volunteerDataSource.getRelawanProfile();
-      if (profile['data'] != null && profile['data']['id'] != null) {
-        _volunteerId = profile['data']['id'];
+      
+      // Backend mengembalikan {'user': {...}, 'is_profile_complete': true}
+      final userData = profile['user'] ?? profile['data']; // Fallback jika ternyata pakai 'data'
+      
+      if (userData != null && userData['id'] != null) {
+        _volunteerId = userData['id'];
         
-        // 1. Pastikan websocket diinisialisasi secara berurutan sebelum mendengarkan (mencegah race condition)
+        // 1. Pastikan websocket diinisialisasi
         final prefs = sl<SharedPreferences>();
         final token = prefs.getString('auth_token');
         if (token != null) {
           await WebsocketService.init(token);
         }
 
-        // 2. Sekarang echo pasti tidak null, kita bisa listen
+        // 2. Sekarang kita bisa listen
         WebsocketService.listenToNewSosForVolunteer(_volunteerId!, _onNewSosReceived);
+      } else {
+        debugPrint("⚠️ Gagal init websocket: Data user relawan kosong atau tidak memiliki ID.");
       }
     } catch (e) {
       debugPrint("Gagal load profile relawan: $e");
@@ -62,21 +69,38 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
     super.dispose();
   }
 
+  bool _isDialogShowing = false;
+  final List<int> _rejectedSosIds = [];
+
   void _showNewAssignmentDialog(Map<String, dynamic> sosData) {
+    if (_isDialogShowing) return;
+    
+    final sosId = sosData['id'] as int;
+    if (_rejectedSosIds.contains(sosId)) {
+      debugPrint('SOS #$sosId diabaikan karena sudah pernah ditolak.');
+      return; // Jangan munculkan pop-up lagi
+    }
+
+    _isDialogShowing = true;
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => NewAssignmentDialog(
         sosData: sosData,
         onAccept: () async {
+          _isDialogShowing = false;
           Navigator.pop(ctx);
           try {
-            await _volunteerDataSource.updateSosStatus(sosData['id'], 'proses');
+            await _volunteerDataSource.updateSosStatus(sosId, 'proses');
+            
+            // Trigger refresh ke peta secara instan!
+            import_event_bus.GlobalEventBus.refreshMap.value = !import_event_bus.GlobalEventBus.refreshMap.value;
+
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Tugas berhasil diterima!')),
+                const SnackBar(content: Text('Tugas berhasil diterima! Buka tab Peta.')),
               );
-              // TODO: Refresh UI dashboard
             }
           } catch (e) {
             if (mounted) {
@@ -87,9 +111,16 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
           }
         },
         onReject: () async {
+          _isDialogShowing = false;
+          _rejectedSosIds.add(sosId); // Catat bahwa SOS ini ditolak
           Navigator.pop(ctx);
+          
           try {
-            await _volunteerDataSource.rejectSos(sosData['id']);
+            await _volunteerDataSource.rejectSos(sosId);
+            
+            // Trigger refresh peta juga, untuk memastikan icon segitiga merahnya terupdate/dipertahankan
+            import_event_bus.GlobalEventBus.refreshMap.value = !import_event_bus.GlobalEventBus.refreshMap.value;
+
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Tugas dialihkan ke relawan lain.')),
@@ -449,5 +480,6 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
     );
   }
 }
+
 
 

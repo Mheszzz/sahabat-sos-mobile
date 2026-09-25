@@ -1,3 +1,4 @@
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart' as import_event_bus;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
@@ -42,6 +43,7 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
   @override
   void initState() {
     super.initState();
+    import_event_bus.GlobalEventBus.refreshMap.addListener(_fetchActiveSos);
 
     _pulseController = AnimationController(
       vsync: this,
@@ -138,20 +140,58 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
 
   Future<void> _fetchActiveSos() async {
     try {
-      final response = await sl<Dio>().get(
-        ApiConstants.sosActiveRelawan,
-        options: Options(headers: _getHeaders()),
-      );
+      final dio = sl<Dio>();
+      final options = Options(headers: _getHeaders());
 
-      if (response.statusCode == 200 && mounted) {
-        final List<dynamic> data = response.data['data'] ?? [];
-        final newList = data.cast<Map<String, dynamic>>().toList();
-        final newIds = newList.map((e) => e['id'] as int).toList();
+      // 1. Fetch SOS yang belum diambil
+      final responseUnassigned = await dio.get(ApiConstants.sosActiveRelawan, options: options);
+      
+      // 2. Fetch SOS yang SEDANG diproses oleh relawan ini
+      final responseAssigned = await dio.get(ApiConstants.sosRelawanTasks, options: options);
 
+      if (mounted) {
+        List<Map<String, dynamic>> combinedList = [];
+
+        // Parse Unassigned
+        if (responseUnassigned.statusCode == 200) {
+          final dynamic rawData = responseUnassigned.data['data'];
+          if (rawData != null && rawData is Map<String, dynamic>) {
+            combinedList.add(rawData);
+          } else if (rawData is List) {
+            combinedList.addAll(rawData.cast<Map<String, dynamic>>());
+          }
+        }
+
+        // Parse Assigned (yang sudah diterima/diproses relawan ini)
+        if (responseAssigned.statusCode == 200) {
+          final dynamic rawData = responseAssigned.data['data'];
+          if (rawData != null && rawData is Map<String, dynamic>) {
+            final dataMap = Map<String, dynamic>.from(rawData);
+            dataMap['is_assigned'] = true;
+            combinedList.add(dataMap);
+          } else if (rawData is List) {
+            final assignedList = rawData.cast<Map<String, dynamic>>().map((e) {
+              final map = Map<String, dynamic>.from(e);
+              map['is_assigned'] = true;
+              return map;
+            }).toList();
+            combinedList.addAll(assignedList);
+          }
+        }
+
+        // Filter duplicates just in case
+        final uniqueMap = <int, Map<String, dynamic>>{};
+        for (var item in combinedList) {
+          final id = item['id'] as int;
+          uniqueMap[id] = item;
+        }
+        final finalUniqueList = uniqueMap.values.toList();
+
+        final newIds = finalUniqueList.map((e) => e['id'] as int).toList();
         _unsubscribeRemovedSos(newIds);
 
         setState(() {
-          _activeSosList = newList;
+          _activeSosList = finalUniqueList;
           _isLoading = false;
         });
 
@@ -194,6 +234,7 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
 
   @override
   void dispose() {
+    import_event_bus.GlobalEventBus.refreshMap.removeListener(_fetchActiveSos);
     _locationService.currentPosition.removeListener(_onPositionUpdate);
     _pulseController.dispose();
     _pollingTimer?.cancel();
@@ -317,7 +358,8 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
                       ..._activeSosList.map((sos) {
                         final lat = double.tryParse(sos['latitude'].toString()) ?? 0.0;
                         final lng = double.tryParse(sos['longitude'].toString()) ?? 0.0;
-                        final name = sos['user']?['nama'] ?? 'SOS';
+                        final name = sos['pengguna']?['name'] ?? 'SOS';
+                        final isAssigned = sos['is_assigned'] == true;
 
                         return Marker(
                           point: LatLng(lat, lng),
@@ -331,8 +373,9 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: isAssigned ? Colors.amber.shade100 : Colors.white,
                                     borderRadius: BorderRadius.circular(6),
+                                    border: isAssigned ? Border.all(color: Colors.amber.shade800, width: 1.5) : null,
                                     boxShadow: [
                                       BoxShadow(
                                         color: Colors.black.withValues(alpha: 0.15),
@@ -342,22 +385,20 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
                                   ),
                                   child: Text(
                                     name,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.bold,
-                                      color: sosRed,
+                                      color: isAssigned ? Colors.amber.shade900 : sosRed,
                                     ),
+                                    maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
-                                const Icon(
-                                  CupertinoIcons.exclamationmark_triangle_fill,
-                                  color: sosRed,
-                                  size: 36,
-                                  shadows: [
-                                    Shadow(blurRadius: 8, color: Colors.black26, offset: Offset(0, 3)),
-                                  ],
+                                Icon(
+                                  isAssigned ? CupertinoIcons.location_solid : CupertinoIcons.exclamationmark_triangle_fill,
+                                  color: isAssigned ? Colors.amber.shade800 : sosRed,
+                                  size: 32,
                                 ),
                               ],
                             ),
@@ -657,3 +698,6 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
     );
   }
 }
+
+
+

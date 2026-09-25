@@ -1,3 +1,5 @@
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:laravel_echo/laravel_echo.dart';
 import 'package:pusher_client_socket/pusher_client_socket.dart';
@@ -103,43 +105,73 @@ class WebsocketService {
 
   /// Relawan mendengarkan penugasan SOS baru secara realtime
   static void listenToNewSosForVolunteer(int volunteerId, Function(dynamic) onNewSosReceived) {
-    if (echo == null) {
-      debugPrint("⚠️ listenToNewSosForVolunteer: echo belum init");
+    if (_pusher == null) {
+      debugPrint("⚠️ listenToNewSosForVolunteer: pusher belum init");
       return;
     }
     
-    // ─── Channel spesifik relawan ───
-    debugPrint("👂 Listening private channel: relawan.$volunteerId");
-    echo!.private('relawan.$volunteerId')
-      .listen('.SOSCreated', (e) {
-        debugPrint("🚨 SOSCreated (.prefixed) diterima di relawan.$volunteerId");
-        onNewSosReceived(e);
-      });
-      
-    echo!.private('relawan.$volunteerId')
-      .listen('SOSCreated', (e) {
-        debugPrint("🚨 SOSCreated (no-prefix) diterima di relawan.$volunteerId");
-        onNewSosReceived(e);
-      });
+    void processEvent(dynamic event, String channel) {
+      try {
+        if (event == null) return;
+        
+        dynamic payload;
+        if (event is Map) {
+          // Biasanya Pusher mengirim data di dalam key 'data' (berupa JSON string)
+          final dataStr = event['data'];
+          if (dataStr is String) {
+            payload = jsonDecode(dataStr);
+          } else {
+            payload = dataStr ?? event;
+          }
+        } else {
+          payload = event;
+        }
 
+        // Jika event dari Laravel Reverb dibungkus class
+        if (payload is Map && payload.containsKey('sos')) {
+          payload = payload['sos'];
+        }
+        
+        onNewSosReceived(payload);
+      } catch (e) {
+        debugPrint("❌ Gagal parsing event dari $channel: $e\nData Asli: $event");
+      }
+    }
+
+    // ─── Channel spesifik relawan ───
+    final privateChannelName = 'private-relawan.$volunteerId';
+    debugPrint("👂 Listening private channel: $privateChannelName");
+    
+    final privateChannel = _pusher!.subscribe(privateChannelName);
+    
+    privateChannel.bind('SOSCreated', (event) {
+      debugPrint("🚨 SOSCreated diterima di $privateChannelName");
+      processEvent(event, privateChannelName);
+    });
+    
     // ─── Channel umum semua relawan ───
-    debugPrint("👂 Listening private channel: relawan-channel");
-    echo!.private('relawan-channel')
-      .listen('.SOSCreated', (e) {
-        debugPrint("🚨 SOSCreated (.prefixed) diterima di relawan-channel");
-        onNewSosReceived(e);
-      });
-      
-    echo!.private('relawan-channel')
-      .listen('SOSCreated', (e) {
-        debugPrint("🚨 SOSCreated (no-prefix) diterima di relawan-channel");
-        onNewSosReceived(e);
-      });
+    final publicChannelName = 'private-relawan-channel';
+    debugPrint("👂 Listening private channel: $publicChannelName");
+    
+    final publicChannel = _pusher!.subscribe(publicChannelName);
+    
+    publicChannel.bind('SOSCreated', (event) {
+      debugPrint("🚨 SOSCreated diterima di $publicChannelName");
+      processEvent(event, publicChannelName);
+    });
+
+    publicChannel.bind('SOSUpdateStatus', (event) {
+      debugPrint("🔄 SOSUpdateStatus diterima di $publicChannelName - Refreshing Map!");
+      // Langsung panggil event bus agar peta ter-refresh detik itu juga (hilangkan marker yang batal)
+      GlobalEventBus.refreshMap.value = !GlobalEventBus.refreshMap.value;
+    });
   }
 
   /// Berhenti mendengarkan penugasan SOS baru
   static void stopListeningNewSosForVolunteer(int volunteerId) {
-    echo?.leave('relawan.$volunteerId');
-    echo?.leave('relawan-channel');
+    _pusher?.unsubscribe('private-relawan.$volunteerId');
+    _pusher?.unsubscribe('private-relawan-channel');
   }
 }
+
+
