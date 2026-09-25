@@ -90,8 +90,12 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required String role,
   }) async {
     try {
+      final endpoint = role == 'relawan' 
+          ? ApiConstants.authRegisterRelawan 
+          : ApiConstants.authRegisterPengguna;
+
       final response = await dio.post(
-        ApiConstants.authRegister,
+        endpoint,
         data: {
           'name': name,
           'email': email,

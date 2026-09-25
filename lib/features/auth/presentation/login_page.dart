@@ -50,7 +50,11 @@ class _LoginPageState extends State<LoginPage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _buildTopBar(),
-                        const SizedBox(height: 36),
+                        const SizedBox(height: 24),
+                        Center(
+                          child: Image.asset('assets/images/logo_full.png', height: 80),
+                        ),
+                        const SizedBox(height: 24),
                         const Text(
                           'Selamat Datang Kembali',
                           textAlign: TextAlign.center,

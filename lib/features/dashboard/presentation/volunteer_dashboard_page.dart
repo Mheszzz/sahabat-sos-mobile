@@ -25,10 +25,10 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
             children: [
               // Header Logo
               Row(
-                children: const [
-                  Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal),
-                  SizedBox(width: 8),
-                  Text(
+                children: [
+                  Image.asset('assets/images/logo.png', width: 24, height: 24),
+                  const SizedBox(width: 8),
+                  const Text(
                     'Sahabat SOS',
                     style: TextStyle(
                       color: primaryTeal,

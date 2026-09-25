@@ -61,9 +61,10 @@ class AppRouter {
     routes: [
       GoRoute(
         path: AppRoutes.splash,
-        builder: (context, state) => const Scaffold(
+        builder: (context, state) => Scaffold(
+          backgroundColor: const Color(0xFFF5F6F8),
           body: Center(
-            child: Text('Sahabat SOS Mobile - Splash Screen'),
+            child: Image.asset('assets/images/logo.png', width: 120),
           ),
         ),
       ),

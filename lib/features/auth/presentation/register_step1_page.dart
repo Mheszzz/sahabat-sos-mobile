@@ -89,17 +89,8 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
 
   Widget _buildBrandRow() {
     return Row(
-      children: const [
-        Text(
-          'Sahabat SOS',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: primaryDark,
-          ),
-        ),
-        SizedBox(width: 6),
-        Icon(CupertinoIcons.checkmark_seal_fill, size: 16, color: accentTeal),
+      children: [
+        Image.asset('assets/images/logo_full.png', height: 40),
       ],
     );
   }

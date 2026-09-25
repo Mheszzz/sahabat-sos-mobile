@@ -171,7 +171,7 @@ class _DashboardPageState extends State<DashboardPage>
       titleSpacing: 16,
       title: Row(
         children: [
-          const Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal, size: 24),
+          Image.asset('assets/images/logo.png', width: 24, height: 24),
           const SizedBox(width: 8),
           Text(
             _userName.isNotEmpty ? 'Halo, $_userName' : 'Sahabat SOS',

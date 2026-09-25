@@ -235,11 +235,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       scrolledUnderElevation: 0,
       centerTitle: false,
       titleSpacing: 16,
-      title: const Row(
+      title: Row(
         children: [
-          Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal, size: 24),
-          SizedBox(width: 8),
-          Text(
+          Image.asset('assets/images/logo.png', width: 24, height: 24),
+          const SizedBox(width: 8),
+          const Text(
             'Sahabat SOS',
             style: TextStyle(
               color: primaryTeal,

@@ -162,17 +162,8 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
 
   Widget _buildBrandRow() {
     return Row(
-      children: const [
-        Text(
-          'Sahabat SOS',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: primaryDark,
-          ),
-        ),
-        SizedBox(width: 6),
-        Icon(CupertinoIcons.checkmark_seal_fill, size: 16, color: accentTeal),
+      children: [
+        Image.asset('assets/images/logo_full.png', height: 40),
       ],
     );
   }
@@ -733,6 +724,19 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
       Navigator.pop(context); // Tutup Loading
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        try {
+          await dio.put(
+            ApiConstants.profile,
+            data: {'name': _nameController.text},
+            options: Options(
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Accept': 'application/json',
+              },
+            ),
+          );
+        } catch (_) {}
+
         await prefs.setBool('is_profile_complete', true);
         await prefs.setString('user_role', _selectedRole == _RoleType.relawan ? 'relawan' : 'pengguna');
         if (!mounted) return;

@@ -87,30 +87,59 @@ class _HistoryPageState extends State<HistoryPage> {
       final token = prefs.getString('auth_token');
       final dio = GetIt.instance<Dio>();
 
-      final response = await dio.get(
+      final headers = {if (token != null) 'Authorization': 'Bearer $token'};
+
+      // Fetch Laporan
+      final laporanResponseFuture = dio.get(
         ApiConstants.laporan,
-        options: Options(
-          headers: {if (token != null) 'Authorization': 'Bearer $token'},
-        ),
+        options: Options(headers: headers),
       );
+      
+      // Fetch SOS User History (safe catch for relawan who might not have access)
+      final sosResponseFuture = dio.get(
+        ApiConstants.sosUserHistory,
+        options: Options(headers: headers),
+      ).catchError((e) {
+        if (e is DioException && e.response?.statusCode == 403) {
+          return Response(requestOptions: e.requestOptions, statusCode: 403, data: {'data': []});
+        }
+        throw e;
+      });
 
-      if (response.statusCode == 200) {
-        final data = response.data['data'] is List
-            ? response.data['data']
-            : (response.data['data']['data'] ?? []);
+      final results = await Future.wait([laporanResponseFuture, sosResponseFuture]);
+      final laporanResponse = results[0];
+      final sosResponse = results[1];
 
-        setState(() {
-          _allItems = (data as List)
-              .map((item) => _mapToHistoryItem(item))
-              .toList();
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _errorMessage = 'Gagal mengambil data riwayat.';
-          _isLoading = false;
-        });
+      List<dynamic> allData = [];
+
+      if (laporanResponse.statusCode == 200) {
+        final laporanData = laporanResponse.data['data'] is List
+            ? laporanResponse.data['data']
+            : (laporanResponse.data['data']['data'] ?? []);
+        allData.addAll(laporanData as List);
       }
+      
+      if (sosResponse.statusCode == 200) {
+        final sosData = sosResponse.data['data'] is List
+            ? sosResponse.data['data']
+            : (sosResponse.data['data']['data'] ?? []);
+        
+        // SOS might not have "kategori_laporan" field, let's inject it so it maps correctly
+        final mappedSos = (sosData as List).map((e) {
+          e['kategori_laporan'] = e['kategori_laporan'] ?? 'SOS';
+          return e;
+        });
+        allData.addAll(mappedSos);
+      }
+
+      setState(() {
+        _allItems = allData.map((item) => _mapToHistoryItem(item)).toList();
+        
+        // Sort items by date descending
+        _allItems.sort((a, b) => b.dateTime.compareTo(a.dateTime));
+        
+        _isLoading = false;
+      });
     } on DioException catch (e) {
       setState(() {
         _errorMessage = e.response != null
@@ -136,7 +165,7 @@ class _HistoryPageState extends State<HistoryPage> {
           return word[0].toUpperCase() + word.substring(1).toLowerCase();
         })
         .join(' ');
-    String statusStr = data['status'] ?? 'aktif';
+    String statusStr = data['status'] ?? data['status_sos'] ?? 'aktif';
 
     HistoryType type = HistoryType.laporan;
     if (kategori.toLowerCase() == 'sos' ||
@@ -154,7 +183,7 @@ class _HistoryPageState extends State<HistoryPage> {
     String? relawanName = data['relawan']?['name'];
     String? officerInfo = relawanName != null ? 'Relawan $relawanName' : null;
 
-    String rawDate = data['waktu_laporan'] ?? data['created_at'] ?? '';
+    String rawDate = data['waktu_laporan'] ?? data['waktu_sos'] ?? data['created_at'] ?? '';
     String displayDate = rawDate;
     if (rawDate.length >= 16) {
       displayDate = rawDate.replaceAll('T', ' ').substring(0, 16);
@@ -270,6 +299,8 @@ class _HistoryPageState extends State<HistoryPage> {
       backgroundColor: Colors.transparent,
       appBar: _buildAppBar(),
       body: Container(
+        height: double.infinity,
+        width: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -339,10 +370,10 @@ class _HistoryPageState extends State<HistoryPage> {
       centerTitle: false,
       titleSpacing: 16,
       title: Row(
-        children: const [
-          Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal, size: 24),
-          SizedBox(width: 8),
-          Text(
+        children: [
+          Image.asset('assets/images/logo.png', width: 24, height: 24),
+          const SizedBox(width: 8),
+          const Text(
             'Sahabat SOS',
             style: TextStyle(
               color: primaryTeal,

@@ -1,8 +1,82 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:get_it/get_it.dart';
+import '../data/datasources/emergency_contact_remote_data_source.dart';
 
-class EmergencyContactsPage extends StatelessWidget {
+class EmergencyContactsPage extends StatefulWidget {
   const EmergencyContactsPage({super.key});
+
+  @override
+  State<EmergencyContactsPage> createState() => _EmergencyContactsPageState();
+}
+
+class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
+  final _dataSource = GetIt.instance<EmergencyContactRemoteDataSource>();
+  List<dynamic> _contacts = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchContacts();
+  }
+
+  Future<void> _fetchContacts() async {
+    setState(() => _isLoading = true);
+    try {
+      final data = await _dataSource.getContacts();
+      setState(() {
+        _contacts = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  Future<void> _toggleNotif(int id, bool val) async {
+    try {
+      await _dataSource.toggleNotif(id, val);
+      _fetchContacts();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+  
+  Future<void> _deleteContact(int id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus Kontak'),
+        content: const Text('Apakah Anda yakin ingin menghapus kontak ini?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirm != true) return;
+
+    try {
+      await _dataSource.deleteContact(id);
+      _fetchContacts();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -10,31 +84,57 @@ class EmergencyContactsPage extends StatelessWidget {
     const bgColor = Color(0xFFF8F9FA);
 
     return Scaffold(
-      backgroundColor: bgColor,
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text(
           'Kontak Darurat',
           style: TextStyle(
-            color: Colors.black,
+            color: primaryColor,
             fontWeight: FontWeight.bold,
-            fontSize: 18,
+            fontSize: 20,
           ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
+        scrolledUnderElevation: 0,
+        iconTheme: const IconThemeData(color: primaryColor),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: Container(
+        height: double.infinity,
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFE0F7FA), // Light blue/teal
+              Color(0xFFF5F6F8), // Greyish white
+              Color(0xFFE0F2F1), // Light teal
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
             // Protokol Siaga Cepat
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFE8F1F0),
-                borderRadius: BorderRadius.circular(12),
+                color: Colors.white.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -100,9 +200,16 @@ class EmergencyContactsPage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[200]!),
+                color: Colors.white.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Row(
                 children: [
@@ -167,9 +274,9 @@ class EmergencyContactsPage extends StatelessWidget {
                     color: Colors.grey[200],
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text(
-                    '4',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  child: Text(
+                    _isLoading ? '...' : '${_contacts.length}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                 ),
                 const Spacer(),
@@ -195,91 +302,51 @@ class EmergencyContactsPage extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Cards
-            _buildContactCard(
-              name: 'Siti Rahmawati',
-              avatarWidget: const CircleAvatar(
-                backgroundImage: NetworkImage(
-                  'https://i.pravatar.cc/150?img=5',
-                ), // placeholder
-              ),
-              badgeText: 'Responden Utama / Keluarga',
-              badgeColor: const Color(0xFFFFF4D2),
-              badgeTextColor: const Color(0xFFB58500),
-              badgeDotColor: const Color(0xFFF4B400),
-              relationIcon: CupertinoIcons.heart,
-              relationText: 'Istri',
-              phone: '0812-9876-5432',
-              accessIcon: Icons.bolt,
-              accessText: 'Akses: Menerima SMS & Telepon SOS otomatis',
-              isPrimary: true,
-              primaryColor: primaryColor,
-            ),
-
-            _buildContactCard(
-              name: 'dr. Bambang Irawan',
-              avatarWidget: const CircleAvatar(
-                backgroundImage: NetworkImage(
-                  'https://i.pravatar.cc/150?img=11',
-                ), // placeholder
-              ),
-              badgeText: 'Dokter Pribadi / Medis',
-              badgeColor: const Color(0xFFE8F1F0),
-              badgeTextColor: primaryColor,
-              badgeDotColor: primaryColor,
-              relationIcon: Icons.medical_services_outlined,
-              relationText: 'Dokter Pendamping',
-              phone: '0811-2233-4455',
-              accessIcon: Icons.health_and_safety_outlined,
-              accessText: 'Akses: Menerima Notifikasi Medis Langsung',
-              isPrimary: false,
-              primaryColor: primaryColor,
-            ),
-
-            _buildContactCard(
-              name: 'Posko Relawan Sahabat SOS',
-              avatarWidget: const CircleAvatar(
-                backgroundColor: Color(0xFFF0EBE1),
-                child: Icon(CupertinoIcons.exclamationmark_triangle, color: Color(0xFF8B7043)),
-              ),
-              badgeText: 'Petugas Siaga 24 Jam',
-              badgeColor: Colors.grey[200]!,
-              badgeTextColor: Colors.grey[700]!,
-              badgeDotColor: Colors.grey[600]!,
-              relationIcon: Icons.support_agent,
-              relationText: 'Layanan Publik',
-              phone: '(022)7654321',
-              accessIcon: Icons.verified_user_outlined,
-              accessText: 'Akses: Terkoneksi otomatis & Dispatch Cepat',
-              isPrimary: false,
-              primaryColor: primaryColor,
-              isPosko: true,
-            ),
-
-            _buildContactCard(
-              name: 'Rian Hidayat',
-              avatarWidget: const CircleAvatar(
-                backgroundImage: NetworkImage(
-                  'https://i.pravatar.cc/150?img=12',
-                ), // placeholder
-              ),
-              badgeText: 'Saudara Kandung',
-              badgeColor: const Color(0xFFF5EFE9),
-              badgeTextColor: const Color(0xFF8B5E34),
-              badgeDotColor: const Color(0xFF8B5E34),
-              relationIcon: CupertinoIcons.person_2,
-              relationText: 'Adik',
-              phone: '0857-1234-5678',
-              isPrimary: false,
-              primaryColor: primaryColor,
-            ),
-
+            if (_isLoading)
+               const Center(child: Padding(
+                 padding: EdgeInsets.all(20.0),
+                 child: CircularProgressIndicator(),
+               ))
+            else if (_contacts.isEmpty)
+               const Center(child: Padding(
+                 padding: EdgeInsets.all(30.0),
+                 child: Text('Belum ada kontak darurat yang terdaftar.', style: TextStyle(color: Colors.grey)),
+               ))
+            else
+               ..._contacts.map((contact) {
+                 final isPrimary = contact['tipe'] == 'utama';
+                 final bool terimaNotif = contact['terima_notif'] == 1 || contact['terima_notif'] == true;
+                 
+                 return _buildContactCard(
+                   id: contact['id'],
+                   name: contact['nama'] ?? '-',
+                   avatarWidget: CircleAvatar(
+                     backgroundColor: isPrimary ? primaryColor : Colors.grey[400],
+                     child: const Icon(CupertinoIcons.person_fill, color: Colors.white),
+                   ),
+                   badgeText: isPrimary ? 'Kontak Utama' : 'Kontak Sekunder',
+                   badgeColor: isPrimary ? const Color(0xFFFFF4D2) : const Color(0xFFE8F1F0),
+                   badgeTextColor: isPrimary ? const Color(0xFFB58500) : primaryColor,
+                   badgeDotColor: isPrimary ? const Color(0xFFF4B400) : primaryColor,
+                   relationIcon: CupertinoIcons.person_2,
+                   relationText: 'Kerabat',
+                   phone: contact['no_telp'] ?? '-',
+                   accessIcon: terimaNotif ? Icons.notifications_active : Icons.notifications_off,
+                   accessText: terimaNotif ? 'Akses: Menerima Notifikasi' : 'Notifikasi Dinonaktifkan',
+                   isPrimary: isPrimary,
+                   primaryColor: primaryColor,
+                   terimaNotif: terimaNotif,
+                 );
+               }).toList(),
+               
             const SizedBox(height: 8),
             // Footer Info
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(8),
+                color: Colors.white.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
               ),
               child: Row(
                 children: [
@@ -299,13 +366,16 @@ class EmergencyContactsPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
   Widget _buildContactCard({
+    required int id,
     required String name,
     required Widget avatarWidget,
     required String badgeText,
@@ -320,25 +390,30 @@ class EmergencyContactsPage extends StatelessWidget {
     required bool isPrimary,
     required Color primaryColor,
     bool isPosko = false,
+    bool terimaNotif = true,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        color: Colors.white.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
             if (isPrimary)
               Container(
                 width: 4,
@@ -514,19 +589,22 @@ class EmergencyContactsPage extends StatelessWidget {
                           )
                         else ...[
                           Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () {},
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                _deleteContact(id);
+                              },
                               icon: const Icon(
-                                CupertinoIcons.phone_fill,
-                                color: Colors.white,
+                                CupertinoIcons.trash,
+                                color: Colors.red,
                                 size: 18,
                               ),
                               label: const Text(
-                                'Panggil',
-                                style: TextStyle(color: Colors.white),
+                                'Hapus',
+                                style: TextStyle(color: Colors.red),
                               ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: primaryColor,
+                              style: OutlinedButton.styleFrom(
+                                backgroundColor: Colors.red[50],
+                                side: BorderSide(color: Colors.red[100]!),
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
@@ -536,20 +614,19 @@ class EmergencyContactsPage extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: OutlinedButton.icon(
+                            child: ElevatedButton.icon(
                               onPressed: () {},
-                              icon: Icon(
+                              icon: const Icon(
                                 CupertinoIcons.pencil,
-                                color: primaryColor,
+                                color: Colors.white,
                                 size: 18,
                               ),
-                              label: Text(
+                              label: const Text(
                                 'Edit',
-                                style: TextStyle(color: primaryColor),
+                                style: TextStyle(color: Colors.white),
                               ),
-                              style: OutlinedButton.styleFrom(
-                                backgroundColor: Colors.grey[100],
-                                side: BorderSide(color: Colors.grey[200]!),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryColor,
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
@@ -566,6 +643,8 @@ class EmergencyContactsPage extends StatelessWidget {
             ),
           ],
         ),
+      ),
+      ),
       ),
     );
   }

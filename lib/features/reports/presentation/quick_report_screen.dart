@@ -637,10 +637,10 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       centerTitle: false,
       titleSpacing: 16,
       title: Row(
-        children: const [
-          Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal, size: 22),
-          SizedBox(width: 8),
-          Text(
+        children: [
+          Image.asset('assets/images/logo.png', width: 22, height: 22),
+          const SizedBox(width: 8),
+          const Text(
             'Sahabat SOS',
             style: TextStyle(
               color: primaryTeal,
