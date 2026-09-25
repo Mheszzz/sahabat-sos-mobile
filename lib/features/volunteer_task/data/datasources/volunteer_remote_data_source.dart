@@ -7,6 +7,7 @@ abstract class VolunteerRemoteDataSource {
   Future<Map<String, dynamic>> getActiveRelawanSos();
   Future<Map<String, dynamic>> getRelawanTasks();
   Future<Map<String, dynamic>> updateSosStatus(int id, String status);
+  Future<Map<String, dynamic>> rejectSos(int id);
 }
 
 class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
@@ -79,7 +80,7 @@ class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
     try {
       final response = await dio.patch(
         ApiConstants.sosStatusUpdate(id),
-        data: {'status': status},
+        data: {'status_sos': status},
         options: Options(headers: _getHeaders()),
       );
       if (response.statusCode == 200) {
@@ -89,6 +90,23 @@ class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
       }
     } on DioException catch (e) {
       throw Exception(e.response?.data?['message'] ?? e.message ?? 'Gagal mengupdate status SOS');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> rejectSos(int id) async {
+    try {
+      final response = await dio.post(
+        ApiConstants.sosReject(id),
+        options: Options(headers: _getHeaders()),
+      );
+      if (response.statusCode == 200) {
+        return response.data;
+      } else {
+        throw Exception(response.data['message'] ?? 'Gagal menolak SOS');
+      }
+    } on DioException catch (e) {
+      throw Exception(e.response?.data?['message'] ?? e.message ?? 'Gagal menolak SOS');
     }
   }
 }

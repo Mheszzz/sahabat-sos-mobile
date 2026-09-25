@@ -38,17 +38,6 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
     }
   }
 
-  Future<void> _toggleNotif(int id, bool val) async {
-    try {
-      await _dataSource.toggleNotif(id, val);
-      _fetchContacts();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-    }
-  }
-  
   Future<void> _deleteContact(int id) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -78,10 +67,117 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
     }
   }
 
+  Future<void> _showContactForm({Map<String, dynamic>? contact}) async {
+    final isEdit = contact != null;
+    final nameController = TextEditingController(text: contact?['nama']);
+    final phoneController = TextEditingController(text: contact?['no_telp']);
+    String tipe = contact?['tipe'] ?? 'sekunder';
+    bool terimaNotif = true;
+    if (isEdit && contact['terima_notif'] != null) {
+      terimaNotif = contact['terima_notif'] == 1 || contact['terima_notif'] == true;
+    }
+
+    final formKey = GlobalKey<FormState>();
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                left: 16, right: 16, top: 16,
+              ),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(isEdit ? 'Edit Kontak Darurat' : 'Tambah Kontak Darurat', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF005650))),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: nameController,
+                      decoration: const InputDecoration(labelText: 'Nama', border: OutlineInputBorder()),
+                      validator: (v) => v!.isEmpty ? 'Nama tidak boleh kosong' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: phoneController,
+                      decoration: const InputDecoration(labelText: 'Nomor Telepon', border: OutlineInputBorder()),
+                      keyboardType: TextInputType.phone,
+                      validator: (v) => v!.isEmpty ? 'Nomor telepon tidak boleh kosong' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: tipe,
+                      decoration: const InputDecoration(labelText: 'Tipe Kontak', border: OutlineInputBorder()),
+                      items: const [
+                        DropdownMenuItem(value: 'utama', child: Text('Utama')),
+                        DropdownMenuItem(value: 'sekunder', child: Text('Sekunder')),
+                      ],
+                      onChanged: (v) => setModalState(() => tipe = v!),
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile(
+                      title: const Text('Terima Notifikasi SOS'),
+                      value: terimaNotif,
+                      activeThumbColor: const Color(0xFF005650),
+                      onChanged: (v) => setModalState(() => terimaNotif = v),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF005650),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        onPressed: () async {
+                          if (!formKey.currentState!.validate()) return;
+                          Navigator.pop(ctx);
+                          setState(() => _isLoading = true);
+                          try {
+                            final data = {
+                              'nama': nameController.text,
+                              'no_telp': phoneController.text,
+                              'tipe': tipe,
+                              'terima_notif': terimaNotif,
+                            };
+                            if (isEdit) {
+                              await _dataSource.updateContact(contact['id'], data);
+                            } else {
+                              await _dataSource.addContact(data);
+                            }
+                            _fetchContacts();
+                          } catch (e) {
+                            setState(() => _isLoading = false);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                            }
+                          }
+                        },
+                        child: const Text('Simpan', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFF005650);
-    const bgColor = Color(0xFFF8F9FA);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -176,7 +272,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () {},
+                onPressed: _showContactForm,
                 icon: const Icon(CupertinoIcons.person_add, color: Colors.white),
                 label: const Text(
                   'Tambah Kontak Darurat',
@@ -336,8 +432,9 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
                    isPrimary: isPrimary,
                    primaryColor: primaryColor,
                    terimaNotif: terimaNotif,
+                   onEdit: () => _showContactForm(contact: contact),
                  );
-               }).toList(),
+               }),
                
             const SizedBox(height: 8),
             // Footer Info
@@ -391,6 +488,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
     required Color primaryColor,
     bool isPosko = false,
     bool terimaNotif = true,
+    VoidCallback? onEdit,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -615,7 +713,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: () {},
+                              onPressed: onEdit,
                               icon: const Icon(
                                 CupertinoIcons.pencil,
                                 color: Colors.white,

@@ -4,9 +4,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
+import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 
 class SosStatusPage extends StatefulWidget {
   const SosStatusPage({super.key});
@@ -25,13 +27,37 @@ class _SosStatusPageState extends State<SosStatusPage> {
   double _cancelProgress = 0.0;
   String _sosStatus = 'aktif';
   int? _sosId;
+
+  final LocationService _locationService = sl<LocationService>();
+  StreamSubscription<ServiceStatus>? _serviceStatusStream;
   
   @override
   void initState() {
     super.initState();
     _fetchSosStatus();
-    // Poll for status every 5 seconds since we don't have websockets in this snippet
+    // Poll for status every 5 seconds
     _statusTimer = Timer.periodic(const Duration(seconds: 5), (_) => _fetchSosStatus());
+    // Start real-time location tracking so volunteer can see user position
+    _startLocationTracking();
+  }
+
+  /// Mulai tracking lokasi user secara real-time.
+  /// LocationService secara otomatis akan menembak endpoint /api/user/update-location 
+  /// (yang akan dibroadcast oleh backend via Reverb).
+  Future<void> _startLocationTracking() async {
+    final hasPermission = await _locationService.requestPermission();
+    if (hasPermission) {
+      _locationService.startTracking();
+      
+      // Listen GPS service changes agar jika user mematikan GPS, kita tangkap
+      _serviceStatusStream = Geolocator.getServiceStatusStream().listen((status) {
+        if (status == ServiceStatus.enabled) {
+          _locationService.startTracking();
+        } else {
+          _locationService.stopTracking();
+        }
+      });
+    }
   }
 
   int _emptyPollCount = 0;
@@ -150,6 +176,8 @@ class _SosStatusPageState extends State<SosStatusPage> {
   void dispose() {
     _cancelTimer?.cancel();
     _statusTimer?.cancel();
+    _serviceStatusStream?.cancel();
+    _locationService.stopTracking();
     super.dispose();
   }
 

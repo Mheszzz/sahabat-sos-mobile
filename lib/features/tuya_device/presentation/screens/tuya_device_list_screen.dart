@@ -598,7 +598,7 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  '${event.timestamp.hour.toString().padLeft(2, '0')}:${event.timestamp.minute.toString().padLeft(2, '0')} • ${event.deviceId.substring(0, 8)}...',
+                                  '${event.timestamp.hour.toString().padLeft(2, '0')}:${event.timestamp.minute.toString().padLeft(2, '0')} • ${event.deviceId.length > 8 ? '${event.deviceId.substring(0, 8)}...' : event.deviceId}',
                                   style: const TextStyle(fontSize: 12, color: Colors.black54),
                                 ),
                               ],

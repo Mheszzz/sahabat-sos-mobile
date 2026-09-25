@@ -62,6 +62,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _address = userData['alamat'] ?? 'Alamat belum diatur';
           
           String cat = userData['kategori_user'] ?? 'umum';
+          if (cat.isEmpty) cat = 'umum';
           _category = cat.substring(0, 1).toUpperCase() + cat.substring(1);
           
           // The API returns aksesibilitas as an object if hit via /pengguna/profile

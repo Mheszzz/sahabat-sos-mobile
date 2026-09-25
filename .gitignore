@@ -46,3 +46,19 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Build artifacts & temp files
+*.jar
+*.pyc
+temp_aar/
+*.iml
+
+# Docker files (not relevant for mobile)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Temp fix/test scripts
+fix_*.dart
+fix_*.py
+test_*.dart

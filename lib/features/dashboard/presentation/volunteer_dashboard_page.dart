@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../volunteer_task/presentation/widgets/new_assignment_dialog.dart';
+import '../../volunteer_task/data/datasources/volunteer_remote_data_source.dart';
+import '../../../core/services/websocket_service.dart';
+import '../../../core/di/injection.dart';
+
 class VolunteerDashboardPage extends StatefulWidget {
   const VolunteerDashboardPage({super.key});
 
@@ -12,10 +18,111 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
   static const Color primaryTeal = Color(0xFF006D77);
   
   bool _isReady = false;
+  int? _volunteerId;
+  final _volunteerDataSource = sl<VolunteerRemoteDataSource>();
+
+  @override
+  void initState() {
+    super.initState();
+    _initVolunteerData();
+  }
+
+  Future<void> _initVolunteerData() async {
+    try {
+      final profile = await _volunteerDataSource.getRelawanProfile();
+      if (profile['data'] != null && profile['data']['id'] != null) {
+        _volunteerId = profile['data']['id'];
+        
+        // 1. Pastikan websocket diinisialisasi secara berurutan sebelum mendengarkan (mencegah race condition)
+        final prefs = sl<SharedPreferences>();
+        final token = prefs.getString('auth_token');
+        if (token != null) {
+          await WebsocketService.init(token);
+        }
+
+        // 2. Sekarang echo pasti tidak null, kita bisa listen
+        WebsocketService.listenToNewSosForVolunteer(_volunteerId!, _onNewSosReceived);
+      }
+    } catch (e) {
+      debugPrint("Gagal load profile relawan: $e");
+    }
+  }
+
+  void _onNewSosReceived(dynamic eventData) {
+    debugPrint("SOS Baru Masuk via Websocket: $eventData");
+    if (!mounted) return;
+    _showNewAssignmentDialog(eventData);
+  }
+
+  @override
+  void dispose() {
+    if (_volunteerId != null) {
+      WebsocketService.stopListeningNewSosForVolunteer(_volunteerId!);
+    }
+    super.dispose();
+  }
+
+  void _showNewAssignmentDialog(Map<String, dynamic> sosData) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => NewAssignmentDialog(
+        sosData: sosData,
+        onAccept: () async {
+          Navigator.pop(ctx);
+          try {
+            await _volunteerDataSource.updateSosStatus(sosData['id'], 'proses');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Tugas berhasil diterima!')),
+              );
+              // TODO: Refresh UI dashboard
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Gagal menerima tugas: $e')),
+              );
+            }
+          }
+        },
+        onReject: () async {
+          Navigator.pop(ctx);
+          try {
+            await _volunteerDataSource.rejectSos(sosData['id']);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Tugas dialihkan ke relawan lain.')),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Gagal mengalihkan tugas: $e')),
+              );
+            }
+          }
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          // Manual Trigger for Testing
+          _showNewAssignmentDialog({
+            'id': 1,
+            'pengguna': {
+              'nama_lengkap': 'Ahmad Fauzi (Tes Manual)'
+            }
+          });
+        },
+        backgroundColor: primaryTeal,
+        child: const Icon(CupertinoIcons.bell, color: Colors.white),
+      ),
       backgroundColor: bgColor,
       body: SafeArea(
         child: SingleChildScrollView(
