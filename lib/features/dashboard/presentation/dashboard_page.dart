@@ -296,6 +296,7 @@ class _DashboardPageState extends State<DashboardPage>
                   data: {
                     'latitude': latitude,
                     'longitude': longitude,
+                    'lokasi_user': locationService.lastGeocodedAddress,
                   },
                   options: Options(headers: {
                     'Authorization': 'Bearer $token',

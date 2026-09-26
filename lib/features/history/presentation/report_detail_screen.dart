@@ -268,6 +268,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     status = status.toLowerCase();
     if (status == 'selesai') return Colors.green;
     if (status == 'ditangani') return Colors.orange;
+    if (status == 'dibatalkan' || status == 'batal') return Colors.grey;
     return Colors.red;
   }
 
@@ -275,6 +276,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     status = status.toLowerCase();
     if (status == 'selesai') return CupertinoIcons.checkmark_circle_fill;
     if (status == 'ditangani') return CupertinoIcons.wrench_fill;
+    if (status == 'dibatalkan' || status == 'batal') return CupertinoIcons.xmark_circle_fill;
     return CupertinoIcons.exclamationmark_triangle_fill;
   }
 
@@ -440,8 +442,9 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                       ),
                       const Spacer(),
                       DropdownButton<String>(
-                        value: ['aktif', 'proses', 'selesai'].contains(statusString) ? statusString : 'aktif',
-                        items: ['aktif', 'proses', 'selesai']
+                        value: ['aktif', 'proses', 'selesai', 'dibatalkan', 'batal'].contains(statusString) ? statusString : 'aktif',
+                        items: ['aktif', 'proses', 'selesai', 'dibatalkan', 'batal']
+                            .toSet()
                             .map((e) => DropdownMenuItem(value: e, child: Text(e.toUpperCase())))
                             .toList(),
                         onChanged: (val) {

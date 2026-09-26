@@ -191,12 +191,6 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(CupertinoIcons.refresh, color: Color(0xFF00695C)),
-            onPressed: _loadDevices,
-          ),
-        ],
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -213,8 +207,12 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
         child: SafeArea(
           child: _isLoading
               ? const Center(child: CircularProgressIndicator(color: Color(0xFF00695C)))
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+              : RefreshIndicator(
+                  onRefresh: _loadDevices,
+                  color: const Color(0xFF00695C),
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -251,6 +249,7 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                     ],
                   ),
                 ),
+              ),
         ),
       ),
     );

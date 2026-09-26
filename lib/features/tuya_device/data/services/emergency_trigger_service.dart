@@ -73,6 +73,7 @@ class EmergencyTriggerService {
       'is_simulation': event.isSimulation,
       'latitude': latitude ?? 0.0,
       'longitude': longitude ?? 0.0,
+      'lokasi_user': _locationService.lastGeocodedAddress,
     };
 
     // Attempt to send with retries

@@ -7,7 +7,7 @@ import 'package:get_it/get_it.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'report_detail_screen.dart';
 
-enum HistoryStatus { selesai, ditangani, aktif }
+enum HistoryStatus { selesai, ditangani, aktif, dibatalkan }
 
 enum HistoryType { sos, laporan }
 
@@ -178,6 +178,8 @@ class _HistoryPageState extends State<HistoryPage> {
       status = HistoryStatus.selesai;
     } else if (statusStr == 'proses') {
       status = HistoryStatus.ditangani;
+    } else if (statusStr == 'dibatalkan' || statusStr == 'batal') {
+      status = HistoryStatus.dibatalkan;
     }
 
     String? relawanName = data['relawan']?['name'];
@@ -185,8 +187,26 @@ class _HistoryPageState extends State<HistoryPage> {
 
     String rawDate = data['waktu_laporan'] ?? data['waktu_sos'] ?? data['created_at'] ?? '';
     String displayDate = rawDate;
-    if (rawDate.length >= 16) {
-      displayDate = rawDate.replaceAll('T', ' ').substring(0, 16);
+    try {
+      if (rawDate.isNotEmpty) {
+        String parseableDate = rawDate.replaceAll(' ', 'T');
+        if (!parseableDate.endsWith('Z') && 
+            !parseableDate.contains('+') && 
+            (parseableDate.indexOf('T') == -1 || parseableDate.indexOf('-', parseableDate.indexOf('T')) == -1)) {
+          parseableDate += 'Z';
+        }
+        DateTime parsedDate = DateTime.parse(parseableDate).toLocal();
+        String year = parsedDate.year.toString().padLeft(4, '0');
+        String month = parsedDate.month.toString().padLeft(2, '0');
+        String day = parsedDate.day.toString().padLeft(2, '0');
+        String hour = parsedDate.hour.toString().padLeft(2, '0');
+        String minute = parsedDate.minute.toString().padLeft(2, '0');
+        displayDate = '$year-$month-$day $hour:$minute';
+      }
+    } catch (e) {
+      if (rawDate.length >= 16) {
+        displayDate = rawDate.replaceAll('T', ' ').substring(0, 16);
+      }
     }
 
     String baseUrlStorage = ApiConstants.baseUrl.replaceAll(
@@ -208,7 +228,7 @@ class _HistoryPageState extends State<HistoryPage> {
           ? 'SOS Darurat: $kategori'
           : 'Laporan: $kategori',
       dateTime: displayDate,
-      location: data['lokasi_laporan'] ?? 'Lokasi tidak diketahui',
+      location: data['lokasi_laporan'] ?? data['lokasi_user'] ?? 'Lokasi tidak diketahui',
       description: data['deskripsi'],
       officerInfo: officerInfo,
       detailButtonLabel: type == HistoryType.sos
@@ -797,6 +817,7 @@ class _HistoryPageState extends State<HistoryPage> {
     final isSos = item.type == HistoryType.sos;
     final isSelesai = item.status == HistoryStatus.selesai;
     final isAktif = item.status == HistoryStatus.aktif;
+    final isDibatalkan = item.status == HistoryStatus.dibatalkan;
 
     String statusLabel = 'Sedang Ditangani';
     Color statusColor = Colors.orange;
@@ -807,6 +828,9 @@ class _HistoryPageState extends State<HistoryPage> {
     } else if (isSelesai) {
       statusLabel = 'Selesai';
       statusColor = Colors.green.shade600;
+    } else if (isDibatalkan) {
+      statusLabel = 'Dibatalkan';
+      statusColor = Colors.grey.shade600;
     }
 
     final categoryMeta = _getCategoryIconAndColor(item.title, isSos);

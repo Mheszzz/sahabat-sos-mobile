@@ -97,6 +97,7 @@ class LocationService {
   }
 
   String _lastGeocodedAddress = "Lokasi Tidak Diketahui";
+  String get lastGeocodedAddress => _lastGeocodedAddress;
 
   /// Mengirim koordinat dan alamat ke Backend (dengan throttle geocoding)
   Future<void> _sendLocationToBackend(Position position) async {
