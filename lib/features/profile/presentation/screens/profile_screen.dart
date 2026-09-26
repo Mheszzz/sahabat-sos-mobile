@@ -62,6 +62,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _address = userData['alamat'] ?? 'Alamat belum diatur';
           
           String cat = userData['kategori_user'] ?? 'umum';
+          if (cat.isEmpty) cat = 'umum';
           _category = cat.substring(0, 1).toUpperCase() + cat.substring(1);
           
           // The API returns aksesibilitas as an object if hit via /pengguna/profile
@@ -235,11 +236,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       scrolledUnderElevation: 0,
       centerTitle: false,
       titleSpacing: 16,
-      title: const Row(
+      title: Row(
         children: [
-          Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal, size: 24),
-          SizedBox(width: 8),
-          Text(
+          Image.asset('assets/images/logo.png', width: 24, height: 24),
+          const SizedBox(width: 8),
+          const Text(
             'Sahabat SOS',
             style: TextStyle(
               color: primaryTeal,

@@ -2,8 +2,13 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/volunteer_dashboard_page.dart';
-import 'package:sahabat_sos_mobile/features/dashboard/presentation/map_page.dart';
+import 'package:sahabat_sos_mobile/features/dashboard/presentation/volunteer_map_page.dart';
 import 'package:sahabat_sos_mobile/features/profile/presentation/screens/volunteer_profile_screen.dart';
+
+import 'package:sahabat_sos_mobile/core/services/location_service.dart';
+import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
+import 'package:sahabat_sos_mobile/core/di/injection.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MainVolunteerScreen extends StatefulWidget {
   final int initialIndex;
@@ -15,11 +20,32 @@ class MainVolunteerScreen extends StatefulWidget {
 
 class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
   late int _selectedIndex;
+  final LocationService _locationService = sl<LocationService>();
 
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    _initVolunteerServices();
+  }
+
+  Future<void> _initVolunteerServices() async {
+    // 1. Start Location Tracking
+    final hasPerm = await _locationService.requestPermission();
+    if (hasPerm) {
+      _locationService.startTracking();
+    }
+
+    // 2. Initialize WebSocket so popup notifications can arrive
+    try {
+      final prefs = sl<SharedPreferences>();
+      final token = prefs.getString('auth_token');
+      if (token != null) {
+        await WebsocketService.init(token);
+      }
+    } catch (e) {
+      debugPrint('WebSocket init error in MainVolunteer: $e');
+    }
   }
 
   @override
@@ -35,7 +61,7 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
   final List<Widget> _pages = [
     const VolunteerDashboardPage(),
     const Scaffold(body: Center(child: Text('Tugas Aktif (Segera Hadir)'))),
-    const MapPage(),
+    const VolunteerMapPage(),
     const VolunteerProfileScreen(),
   ];
 

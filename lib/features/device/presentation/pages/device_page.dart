@@ -45,8 +45,8 @@ class _DevicePageState extends State<DevicePage> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: Color(0xFF005C61),
-        body: Center(child: CircularProgressIndicator(color: Colors.white)),
+        backgroundColor: Colors.transparent,
+        body: Center(child: CircularProgressIndicator(color: Color(0xFF00695C))),
       );
     }
 

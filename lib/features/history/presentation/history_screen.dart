@@ -7,7 +7,7 @@ import 'package:get_it/get_it.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'report_detail_screen.dart';
 
-enum HistoryStatus { selesai, ditangani, aktif }
+enum HistoryStatus { selesai, ditangani, aktif, dibatalkan }
 
 enum HistoryType { sos, laporan }
 
@@ -87,30 +87,59 @@ class _HistoryPageState extends State<HistoryPage> {
       final token = prefs.getString('auth_token');
       final dio = GetIt.instance<Dio>();
 
-      final response = await dio.get(
+      final headers = {if (token != null) 'Authorization': 'Bearer $token'};
+
+      // Fetch Laporan
+      final laporanResponseFuture = dio.get(
         ApiConstants.laporan,
-        options: Options(
-          headers: {if (token != null) 'Authorization': 'Bearer $token'},
-        ),
+        options: Options(headers: headers),
       );
+      
+      // Fetch SOS User History (safe catch for relawan who might not have access)
+      final sosResponseFuture = dio.get(
+        ApiConstants.sosUserHistory,
+        options: Options(headers: headers),
+      ).catchError((e) {
+        if (e is DioException && e.response?.statusCode == 403) {
+          return Response(requestOptions: e.requestOptions, statusCode: 403, data: {'data': []});
+        }
+        throw e;
+      });
 
-      if (response.statusCode == 200) {
-        final data = response.data['data'] is List
-            ? response.data['data']
-            : (response.data['data']['data'] ?? []);
+      final results = await Future.wait([laporanResponseFuture, sosResponseFuture]);
+      final laporanResponse = results[0];
+      final sosResponse = results[1];
 
-        setState(() {
-          _allItems = (data as List)
-              .map((item) => _mapToHistoryItem(item))
-              .toList();
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _errorMessage = 'Gagal mengambil data riwayat.';
-          _isLoading = false;
-        });
+      List<dynamic> allData = [];
+
+      if (laporanResponse.statusCode == 200) {
+        final laporanData = laporanResponse.data['data'] is List
+            ? laporanResponse.data['data']
+            : (laporanResponse.data['data']['data'] ?? []);
+        allData.addAll(laporanData as List);
       }
+      
+      if (sosResponse.statusCode == 200) {
+        final sosData = sosResponse.data['data'] is List
+            ? sosResponse.data['data']
+            : (sosResponse.data['data']['data'] ?? []);
+        
+        // SOS might not have "kategori_laporan" field, let's inject it so it maps correctly
+        final mappedSos = (sosData as List).map((e) {
+          e['kategori_laporan'] = e['kategori_laporan'] ?? 'SOS';
+          return e;
+        });
+        allData.addAll(mappedSos);
+      }
+
+      setState(() {
+        _allItems = allData.map((item) => _mapToHistoryItem(item)).toList();
+        
+        // Sort items by date descending
+        _allItems.sort((a, b) => b.dateTime.compareTo(a.dateTime));
+        
+        _isLoading = false;
+      });
     } on DioException catch (e) {
       setState(() {
         _errorMessage = e.response != null
@@ -136,7 +165,7 @@ class _HistoryPageState extends State<HistoryPage> {
           return word[0].toUpperCase() + word.substring(1).toLowerCase();
         })
         .join(' ');
-    String statusStr = data['status'] ?? 'aktif';
+    String statusStr = data['status'] ?? data['status_sos'] ?? 'aktif';
 
     HistoryType type = HistoryType.laporan;
     if (kategori.toLowerCase() == 'sos' ||
@@ -149,15 +178,35 @@ class _HistoryPageState extends State<HistoryPage> {
       status = HistoryStatus.selesai;
     } else if (statusStr == 'proses') {
       status = HistoryStatus.ditangani;
+    } else if (statusStr == 'dibatalkan' || statusStr == 'batal') {
+      status = HistoryStatus.dibatalkan;
     }
 
     String? relawanName = data['relawan']?['name'];
     String? officerInfo = relawanName != null ? 'Relawan $relawanName' : null;
 
-    String rawDate = data['waktu_laporan'] ?? data['created_at'] ?? '';
+    String rawDate = data['waktu_laporan'] ?? data['waktu_sos'] ?? data['created_at'] ?? '';
     String displayDate = rawDate;
-    if (rawDate.length >= 16) {
-      displayDate = rawDate.replaceAll('T', ' ').substring(0, 16);
+    try {
+      if (rawDate.isNotEmpty) {
+        String parseableDate = rawDate.replaceAll(' ', 'T');
+        if (!parseableDate.endsWith('Z') && 
+            !parseableDate.contains('+') && 
+            (parseableDate.indexOf('T') == -1 || parseableDate.indexOf('-', parseableDate.indexOf('T')) == -1)) {
+          parseableDate += 'Z';
+        }
+        DateTime parsedDate = DateTime.parse(parseableDate).toLocal();
+        String year = parsedDate.year.toString().padLeft(4, '0');
+        String month = parsedDate.month.toString().padLeft(2, '0');
+        String day = parsedDate.day.toString().padLeft(2, '0');
+        String hour = parsedDate.hour.toString().padLeft(2, '0');
+        String minute = parsedDate.minute.toString().padLeft(2, '0');
+        displayDate = '$year-$month-$day $hour:$minute';
+      }
+    } catch (e) {
+      if (rawDate.length >= 16) {
+        displayDate = rawDate.replaceAll('T', ' ').substring(0, 16);
+      }
     }
 
     String baseUrlStorage = ApiConstants.baseUrl.replaceAll(
@@ -179,7 +228,7 @@ class _HistoryPageState extends State<HistoryPage> {
           ? 'SOS Darurat: $kategori'
           : 'Laporan: $kategori',
       dateTime: displayDate,
-      location: data['lokasi_laporan'] ?? 'Lokasi tidak diketahui',
+      location: data['lokasi_laporan'] ?? data['lokasi_user'] ?? 'Lokasi tidak diketahui',
       description: data['deskripsi'],
       officerInfo: officerInfo,
       detailButtonLabel: type == HistoryType.sos
@@ -270,6 +319,8 @@ class _HistoryPageState extends State<HistoryPage> {
       backgroundColor: Colors.transparent,
       appBar: _buildAppBar(),
       body: Container(
+        height: double.infinity,
+        width: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -339,10 +390,10 @@ class _HistoryPageState extends State<HistoryPage> {
       centerTitle: false,
       titleSpacing: 16,
       title: Row(
-        children: const [
-          Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal, size: 24),
-          SizedBox(width: 8),
-          Text(
+        children: [
+          Image.asset('assets/images/logo.png', width: 24, height: 24),
+          const SizedBox(width: 8),
+          const Text(
             'Sahabat SOS',
             style: TextStyle(
               color: primaryTeal,
@@ -766,6 +817,7 @@ class _HistoryPageState extends State<HistoryPage> {
     final isSos = item.type == HistoryType.sos;
     final isSelesai = item.status == HistoryStatus.selesai;
     final isAktif = item.status == HistoryStatus.aktif;
+    final isDibatalkan = item.status == HistoryStatus.dibatalkan;
 
     String statusLabel = 'Sedang Ditangani';
     Color statusColor = Colors.orange;
@@ -776,6 +828,9 @@ class _HistoryPageState extends State<HistoryPage> {
     } else if (isSelesai) {
       statusLabel = 'Selesai';
       statusColor = Colors.green.shade600;
+    } else if (isDibatalkan) {
+      statusLabel = 'Dibatalkan';
+      statusColor = Colors.grey.shade600;
     }
 
     final categoryMeta = _getCategoryIconAndColor(item.title, isSos);

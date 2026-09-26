@@ -171,7 +171,7 @@ class _DashboardPageState extends State<DashboardPage>
       titleSpacing: 16,
       title: Row(
         children: [
-          const Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal, size: 24),
+          Image.asset('assets/images/logo.png', width: 24, height: 24),
           const SizedBox(width: 8),
           Text(
             _userName.isNotEmpty ? 'Halo, $_userName' : 'Sahabat SOS',
@@ -262,9 +262,30 @@ class _DashboardPageState extends State<DashboardPage>
                   return;
                 }
                 
-                Position position = await Geolocator.getCurrentPosition(
-                  locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-                );
+                double latitude = 0.0;
+                double longitude = 0.0;
+                
+                try {
+                  final cachedPos = locationService.currentPosition.value;
+                  if (cachedPos != null) {
+                    latitude = cachedPos.latitude;
+                    longitude = cachedPos.longitude;
+                  } else {
+                    final lastPos = await Geolocator.getLastKnownPosition();
+                    if (lastPos != null) {
+                      latitude = lastPos.latitude;
+                      longitude = lastPos.longitude;
+                    } else {
+                      final pos = await Geolocator.getCurrentPosition(
+                        locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
+                      ).timeout(const Duration(seconds: 2));
+                      latitude = pos.latitude;
+                      longitude = pos.longitude;
+                    }
+                  }
+                } catch (e) {
+                  // Fallback ke 0.0 jika gagal mendapatkan lokasi dalam 2 detik agar SOS tetap terkirim
+                }
                 
                 final prefs = sl<SharedPreferences>();
                 final token = prefs.getString('auth_token');
@@ -273,8 +294,9 @@ class _DashboardPageState extends State<DashboardPage>
                 final response = await sl<Dio>().post(
                   ApiConstants.emergencyTrigger,
                   data: {
-                    'latitude': position.latitude,
-                    'longitude': position.longitude,
+                    'latitude': latitude,
+                    'longitude': longitude,
+                    'lokasi_user': locationService.lastGeocodedAddress,
                   },
                   options: Options(headers: {
                     'Authorization': 'Bearer $token',

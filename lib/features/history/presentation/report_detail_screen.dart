@@ -75,8 +75,12 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       final token = prefs.getString('auth_token');
       if (token == null) return;
 
+      final url = widget.item.type == HistoryType.sos
+          ? ApiConstants.sosDetail(widget.item.id)
+          : ApiConstants.laporanDetail(widget.item.id);
+
       final response = await sl<Dio>().get(
-        '${ApiConstants.laporan}/${widget.item.id}',
+        url,
         options: Options(headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -87,7 +91,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         final data = response.data['data'];
         if (data != null) {
           setState(() {
-            _freshStatus = data['status'];
+            _freshStatus = data['status'] ?? data['status_sos'];
           });
         }
       }
@@ -108,9 +112,17 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
+      final url = widget.item.type == HistoryType.sos
+          ? ApiConstants.sosStatusUpdate(widget.item.id)
+          : ApiConstants.laporanStatus(widget.item.id);
+
+      final payload = widget.item.type == HistoryType.sos
+          ? {'status_sos': newStatus}
+          : {'status': newStatus};
+
       final response = await sl<Dio>().put(
-        ApiConstants.laporanStatus(widget.item.id),
-        data: {'status': newStatus},
+        url,
+        data: payload,
         options: Options(headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -256,6 +268,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     status = status.toLowerCase();
     if (status == 'selesai') return Colors.green;
     if (status == 'ditangani') return Colors.orange;
+    if (status == 'dibatalkan' || status == 'batal') return Colors.grey;
     return Colors.red;
   }
 
@@ -263,6 +276,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     status = status.toLowerCase();
     if (status == 'selesai') return CupertinoIcons.checkmark_circle_fill;
     if (status == 'ditangani') return CupertinoIcons.wrench_fill;
+    if (status == 'dibatalkan' || status == 'batal') return CupertinoIcons.xmark_circle_fill;
     return CupertinoIcons.exclamationmark_triangle_fill;
   }
 
@@ -342,10 +356,10 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         titleSpacing: 16,
         iconTheme: const IconThemeData(color: Color(0xFF00695C)),
         title: Row(
-          children: const [
-            Icon(CupertinoIcons.heart_circle_fill, color: Color(0xFF00695C), size: 22),
-            SizedBox(width: 8),
-            Text(
+          children: [
+            Image.asset('assets/images/logo.png', width: 22, height: 22),
+            const SizedBox(width: 8),
+            const Text(
               'Detail Laporan',
               style: TextStyle(
                 color: Color(0xFF00695C),
@@ -357,6 +371,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         ),
       ),
       body: Container(
+        height: double.infinity,
+        width: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -426,8 +442,9 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                       ),
                       const Spacer(),
                       DropdownButton<String>(
-                        value: ['aktif', 'proses', 'selesai'].contains(statusString) ? statusString : 'aktif',
-                        items: ['aktif', 'proses', 'selesai']
+                        value: ['aktif', 'proses', 'selesai', 'dibatalkan', 'batal'].contains(statusString) ? statusString : 'aktif',
+                        items: ['aktif', 'proses', 'selesai', 'dibatalkan', 'batal']
+                            .toSet()
                             .map((e) => DropdownMenuItem(value: e, child: Text(e.toUpperCase())))
                             .toList(),
                         onChanged: (val) {

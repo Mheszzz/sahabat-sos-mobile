@@ -8,7 +8,7 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../routing/routes.dart';
 import 'package:get_it/get_it.dart';
 
-import '../../data/datasources/profile_remote_data_source.dart';
+import '../../../volunteer_task/data/datasources/volunteer_remote_data_source.dart';
 
 class VolunteerProfileScreen extends StatefulWidget {
   const VolunteerProfileScreen({super.key});
@@ -43,8 +43,8 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
 
   Future<void> _fetchProfile() async {
     try {
-      final profileDataSource = GetIt.instance<ProfileRemoteDataSource>();
-      final response = await profileDataSource.getMe();
+      final volunteerDataSource = GetIt.instance<VolunteerRemoteDataSource>();
+      final response = await volunteerDataSource.getRelawanProfile();
 
       final userData = response['user'];
       if (userData != null) {
@@ -58,6 +58,10 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           _reason = userData['alasan_relawan'] ?? 'Belum diatur';
           _verificationStatus = userData['status_verifikasi'] ?? 'pending';
           
+          if (userData['email'] != null) {
+             _email = userData['email'];
+          }
+
           if (userData['foto_profile'] != null && userData['foto_profile'].toString().isNotEmpty) {
             String foto = userData['foto_profile'];
             if (foto.startsWith('http://') || foto.startsWith('https://')) {
@@ -69,19 +73,6 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           
           _isLoading = false;
         });
-        
-        // Coba panggil profile endpoint jika email nggak dapet dari /user/me
-        if (_email == '-') {
-           try {
-             final profileResp = await profileDataSource.getProfile();
-             final pData = profileResp['data'];
-             if (pData != null && pData['email'] != null) {
-                setState(() {
-                  _email = pData['email'];
-                });
-             }
-           } catch (_) {}
-        }
       }
     } catch (e) {
       debugPrint("Error fetching volunteer profile: $e");
@@ -181,11 +172,11 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
       scrolledUnderElevation: 0,
               centerTitle: false,
         titleSpacing: 16,
-        title: const Row(
+        title: Row(
           children: [
-            Icon(CupertinoIcons.heart_circle_fill, color: primaryTeal, size: 24),
-            SizedBox(width: 8),
-            Text(
+            Image.asset('assets/images/logo.png', width: 24, height: 24),
+            const SizedBox(width: 8),
+            const Text(
               'Sahabat SOS',
               style: TextStyle(
                 color: primaryTeal,
