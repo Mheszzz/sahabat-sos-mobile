@@ -366,7 +366,20 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
                    isPrimary: isPrimary,
                    primaryColor: primaryColor,
                    terimaNotif: terimaNotif,
-                   onEdit: () => _showContactForm(contact: contact),
+                   onEdit: () async {
+                     setState(() => _isLoading = true);
+                     try {
+                       final latestContact = await _dataSource.getContactById(contact['id']);
+                       setState(() => _isLoading = false);
+                       _showContactForm(contact: latestContact);
+                     } catch (e) {
+                       setState(() => _isLoading = false);
+                       if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Mengambil dari cache. (Error: $e)')));
+                          _showContactForm(contact: contact);
+                       }
+                     }
+                   },
                  );
                }),
                

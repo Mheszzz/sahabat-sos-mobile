@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/services/location_service.dart';
+import '../../../../core/utils/device_info_helper.dart';
 import '../models/tuya_dp_event_model.dart';
 
 /// Service responsible for sending emergency trigger events to the Laravel backend.
@@ -65,6 +66,8 @@ class EmergencyTriggerService {
       // Continue without location if GPS fails (it will use 0.0 fallback)
     }
 
+    final telemetryData = await DeviceInfoHelper.getSosTelemetryData();
+
     final payload = {
       'device_id': event.deviceId,
       'timestamp': event.timestamp.toIso8601String(),
@@ -74,6 +77,7 @@ class EmergencyTriggerService {
       'latitude': latitude ?? 0.0,
       'longitude': longitude ?? 0.0,
       'lokasi_user': _locationService.lastGeocodedAddress,
+      ...telemetryData,
     };
 
     // Attempt to send with retries

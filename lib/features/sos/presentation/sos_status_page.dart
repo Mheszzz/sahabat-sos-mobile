@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
+import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
 
 class SosStatusPage extends StatefulWidget {
   const SosStatusPage({super.key});
@@ -27,6 +28,7 @@ class _SosStatusPageState extends State<SosStatusPage> {
   double _cancelProgress = 0.0;
   String _sosStatus = 'aktif';
   int? _sosId;
+  double? _relawanDistance;
 
   final LocationService _locationService = sl<LocationService>();
   StreamSubscription<ServiceStatus>? _serviceStatusStream;
@@ -61,6 +63,7 @@ class _SosStatusPageState extends State<SosStatusPage> {
   }
 
   int _emptyPollCount = 0;
+  bool _isListeningRelawan = false;
 
   Future<void> _fetchSosStatus() async {
     try {
@@ -84,6 +87,19 @@ class _SosStatusPageState extends State<SosStatusPage> {
             _sosStatus = data['status_sos'] ?? 'aktif';
             _emptyPollCount = 0; // reset
           });
+
+          if (_sosStatus == 'proses' && _sosId != null && !_isListeningRelawan) {
+            _isListeningRelawan = true;
+            WebsocketService.listenToRelawanLocation(_sosId!, (payload) {
+              if (mounted && payload != null) {
+                setState(() {
+                  if (payload['distance'] != null) {
+                    _relawanDistance = (payload['distance'] as num).toDouble();
+                  }
+                });
+              }
+            });
+          }
         } else {
           // Give it a 15-second grace period (3 polls) to allow background API to finish
           _emptyPollCount++;
@@ -178,6 +194,9 @@ class _SosStatusPageState extends State<SosStatusPage> {
     _statusTimer?.cancel();
     _serviceStatusStream?.cancel();
     _locationService.stopTracking();
+    if (_sosId != null) {
+      WebsocketService.stopListeningRelawanLocation(_sosId!);
+    }
     super.dispose();
   }
 
@@ -199,12 +218,16 @@ class _SosStatusPageState extends State<SosStatusPage> {
           ),
         ),
         child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 48),
+        child: CustomScrollView(
+          slivers: [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 48),
               
               // Icon
               Center(
@@ -212,18 +235,18 @@ class _SosStatusPageState extends State<SosStatusPage> {
                   width: 120,
                   height: 120,
                   decoration: BoxDecoration(
-                    color: sosRed,
+                    color: _sosStatus == 'selesai' ? primaryTeal : (_sosStatus == 'proses' ? const Color(0xFFF57F17) : sosRed),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: sosRed.withValues(alpha: 0.3),
+                        color: (_sosStatus == 'selesai' ? primaryTeal : (_sosStatus == 'proses' ? const Color(0xFFF57F17) : sosRed)).withValues(alpha: 0.3),
                         blurRadius: 20,
                         spreadRadius: 5,
                       ),
                     ],
                   ),
-                  child: const Icon(
-                    Icons.campaign,
+                  child: Icon(
+                    _sosStatus == 'selesai' ? Icons.check_circle : (_sosStatus == 'proses' ? Icons.directions_car : Icons.campaign),
                     color: Colors.white,
                     size: 60,
                   ),
@@ -232,10 +255,10 @@ class _SosStatusPageState extends State<SosStatusPage> {
               const SizedBox(height: 24),
               
               Text(
-                _sosStatus == 'selesai' ? 'BANTUAN SELESAI' : 'SOS SEDANG DIKIRIM',
+                _sosStatus == 'selesai' ? 'BANTUAN SELESAI' : (_sosStatus == 'proses' ? 'RELAWAN DALAM PERJALANAN' : 'SOS SEDANG DIKIRIM'),
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: _sosStatus == 'selesai' ? const Color(0xFF00695C) : sosRed,
+                  color: _sosStatus == 'selesai' ? primaryTeal : (_sosStatus == 'proses' ? const Color(0xFFF57F17) : sosRed),
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
@@ -299,7 +322,9 @@ class _SosStatusPageState extends State<SosStatusPage> {
                             iconColor: _sosStatus == 'proses' || _sosStatus == 'selesai' ? const Color(0xFF00695C) : const Color(0xFFF57F17),
                             iconBgColor: _sosStatus == 'proses' || _sosStatus == 'selesai' ? const Color(0xFFE0F2F1) : const Color(0xFFFFF9C4),
                             title: _sosStatus == 'proses' || _sosStatus == 'selesai' ? 'Relawan Menuju Lokasi' : 'Mencari Relawan',
-                            description: _sosStatus == 'proses' || _sosStatus == 'selesai' ? 'Relawan telah menerima panggilan dan sedang dalam perjalanan.' : 'Sistem sedang mencari relawan terdekat.',
+                            description: _sosStatus == 'proses' 
+                                ? (_relawanDistance != null ? 'Relawan berjarak ${_relawanDistance!.toStringAsFixed(0)} meter dari Anda.' : 'Relawan telah menerima panggilan dan sedang dalam perjalanan.') 
+                                : (_sosStatus == 'selesai' ? 'Relawan telah tiba.' : 'Sistem sedang mencari relawan terdekat.'),
                           ),
                           const SizedBox(height: 20),
                           _buildStatusItem(
@@ -397,6 +422,9 @@ class _SosStatusPageState extends State<SosStatusPage> {
               const SizedBox(height: 24),
             ],
           ),
+        ),
+            ),
+          ],
         ),
       ),
       ),

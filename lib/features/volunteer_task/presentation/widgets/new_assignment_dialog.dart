@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/widgets/glass_container.dart';
 
 class NewAssignmentDialog extends StatefulWidget {
   final Map<String, dynamic> sosData;
@@ -75,7 +76,7 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
       child: Container(
         constraints: const BoxConstraints(maxWidth: 400),
         decoration: BoxDecoration(
-          color: const Color(0xFFF5F6F8),
+          color: Colors.white.withOpacity(0.4),
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
@@ -85,7 +86,9 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
             ),
           ],
         ),
-        child: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: ClipRRect(
           borderRadius: BorderRadius.circular(28),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -142,10 +145,10 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
                             ],
                           ),
                           const SizedBox(height: 4),
-                          const Text(
+                          Text(
                             'PENUGASAN DARURAT BARU',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: Colors.white.withOpacity(0.6),
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 0.2,
@@ -200,7 +203,7 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.6),
+                          color: Colors.white.withOpacity(0.3),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: Colors.white.withOpacity(0.8)),
                         ),
@@ -366,6 +369,7 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

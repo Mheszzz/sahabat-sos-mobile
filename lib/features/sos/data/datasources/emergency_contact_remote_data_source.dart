@@ -4,6 +4,7 @@ import '../../../../core/constants/api_constants.dart';
 
 abstract class EmergencyContactRemoteDataSource {
   Future<List<dynamic>> getContacts();
+  Future<Map<String, dynamic>> getContactById(int id);
   Future<Map<String, dynamic>> addContact(Map<String, dynamic> data);
   Future<Map<String, dynamic>> updateContact(int id, Map<String, dynamic> data);
   Future<void> deleteContact(int id);
@@ -38,6 +39,23 @@ class EmergencyContactRemoteDataSourceImpl implements EmergencyContactRemoteData
       }
     } on DioException catch (e) {
       throw Exception(e.response?.data?['message'] ?? 'Gagal mengambil kontak darurat');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> getContactById(int id) async {
+    try {
+      final response = await dio.get(
+        ApiConstants.kontakDaruratDetail(id),
+        options: Options(headers: _getHeaders()),
+      );
+      if (response.statusCode == 200) {
+        return response.data['data'];
+      } else {
+        throw Exception(response.data['message'] ?? 'Gagal mengambil detail kontak darurat');
+      }
+    } on DioException catch (e) {
+      throw Exception(e.response?.data?['message'] ?? 'Gagal mengambil detail kontak darurat');
     }
   }
 

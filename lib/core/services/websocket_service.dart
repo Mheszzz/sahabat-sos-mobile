@@ -98,6 +98,46 @@ class WebsocketService {
       });
   }
 
+  /// Korban mendengarkan pergerakan lokasi relawan secara realtime
+  static void listenToRelawanLocation(int sosId, Function(dynamic) onDataReceived) {
+    if (_pusher == null) {
+      debugPrint("❌ listenToRelawanLocation: pusher belum init");
+      return;
+    }
+    
+    final channelName = 'private-sos.$sosId';
+    debugPrint("👂 Listening private channel: $channelName");
+    
+    final channel = _pusher!.subscribe(channelName);
+    channel.bind('RelawanLocationUpdate', (event) {
+      debugPrint("📍 RelawanLocationUpdate diterima di $channelName");
+      
+      try {
+        dynamic payload;
+        if (event != null) {
+          if (event is Map) {
+            final dataStr = event['data'];
+            if (dataStr is String) {
+              payload = jsonDecode(dataStr);
+            } else {
+              payload = dataStr ?? event;
+            }
+          } else {
+            payload = event;
+          }
+        }
+        onDataReceived(payload);
+      } catch (e) {
+        debugPrint("❌ Gagal parsing RelawanLocationUpdate event: $e\nData Asli: $event");
+      }
+    });
+  }
+
+  /// Berhenti mendengarkan lokasi relawan
+  static void stopListeningRelawanLocation(int sosId) {
+    _pusher?.unsubscribe('private-sos.$sosId');
+  }
+
   /// Berhenti mendengarkan ketika darurat selesai
   static void stopListeningEmergencyLocation(int sosId) {
     echo?.leave('emergency.tracking.$sosId');

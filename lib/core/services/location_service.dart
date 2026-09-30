@@ -130,22 +130,43 @@ class LocationService {
         // Abaikan jika geocoding gagal, tetap kirim koordinat
       }
 
-      // API Call ke Laravel
-      await dio.post(
-        ApiConstants.updateLocation,
-        data: {
-          'latitude': position.latitude,
-          'longitude': position.longitude,
-          'lokasi_user': _lastGeocodedAddress,
-        },
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Accept': 'application/json',
+      final userRole = prefs.getString('user_role');
+
+      if (userRole == 'relawan') {
+        // Relawan: Send directly to specific endpoint for Reverb broadcast
+        await dio.post(
+          ApiConstants.relawanLocationUpdate,
+          data: {
+            'latitude': position.latitude,
+            'longitude': position.longitude,
+            'heading': position.heading, // Heading provided by position
           },
-        ),
-      );
-      debugPrint('✅ Lokasi berhasil diupdate: Lat ${position.latitude}, Lng ${position.longitude}');
+          options: Options(
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+          ),
+        );
+        debugPrint('✅ Lokasi Relawan berhasil diupdate: Lat ${position.latitude}, Lng ${position.longitude}');
+      } else {
+        // Pengguna biasa
+        await dio.post(
+          ApiConstants.updateLocation,
+          data: {
+            'latitude': position.latitude,
+            'longitude': position.longitude,
+            'lokasi_user': _lastGeocodedAddress,
+          },
+          options: Options(
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+          ),
+        );
+        debugPrint('✅ Lokasi User berhasil diupdate: Lat ${position.latitude}, Lng ${position.longitude}');
+      }
     } catch (e) {
       debugPrint('❌ Gagal mengupdate lokasi ke server: $e');
     }

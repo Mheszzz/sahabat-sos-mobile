@@ -10,8 +10,10 @@ import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
+import 'package:sahabat_sos_mobile/core/utils/device_info_helper.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/data/services/tuya_channel_service.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/data/models/tuya_device_model.dart';
+import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/widgets/glass_container.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -120,19 +122,50 @@ class _DashboardPageState extends State<DashboardPage>
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.transparent,
       appBar: _buildAppBar(context),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F7FA), // Light blue/teal
-              Color(0xFFF5F6F8), // Greyish white
-              Color(0xFFE0F2F1), // Light teal
-            ],
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFE0F7FA), Color(0xFFF1F8E9), Color(0xFFE3F2FD)],
+                ),
+              ),
+            ),
           ),
-        ),
-        child: SafeArea(
+          Positioned(
+            top: -50,
+            left: -50,
+            child: Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.tealAccent.withValues(alpha: 0.3),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -100,
+            right: -50,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.blueAccent.withValues(alpha: 0.2),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+              child: Container(color: Colors.transparent),
+            ),
+          ),
+          SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
@@ -159,14 +192,21 @@ class _DashboardPageState extends State<DashboardPage>
             ),
           ),
         ),
+        ],
       ),
     );
   }
 
   PreferredSizeWidget _buildAppBar(BuildContext context) {
     return AppBar(
-      backgroundColor: Colors.transparent, // Glassy look for app bar
+      backgroundColor: Colors.white.withValues(alpha: 0.15),
       elevation: 0,
+      flexibleSpace: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(color: Colors.transparent),
+        ),
+      ),
       centerTitle: false,
       titleSpacing: 16,
       title: Row(
@@ -290,6 +330,8 @@ class _DashboardPageState extends State<DashboardPage>
                 final prefs = sl<SharedPreferences>();
                 final token = prefs.getString('auth_token');
                 
+                final telemetryData = await DeviceInfoHelper.getSosTelemetryData();
+                
                 // Call API
                 final response = await sl<Dio>().post(
                   ApiConstants.emergencyTrigger,
@@ -297,6 +339,7 @@ class _DashboardPageState extends State<DashboardPage>
                     'latitude': latitude,
                     'longitude': longitude,
                     'lokasi_user': locationService.lastGeocodedAddress,
+                    ...telemetryData,
                   },
                   options: Options(headers: {
                     'Authorization': 'Bearer $token',

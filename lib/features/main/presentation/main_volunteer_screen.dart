@@ -2,12 +2,14 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/volunteer_dashboard_page.dart';
+import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/volunteer_active_task_page.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/volunteer_map_page.dart';
 import 'package:sahabat_sos_mobile/features/profile/presentation/screens/volunteer_profile_screen.dart';
 
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart' as event_bus;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MainVolunteerScreen extends StatefulWidget {
@@ -22,11 +24,42 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
   late int _selectedIndex;
   final LocationService _locationService = sl<LocationService>();
 
+  // Key untuk akses langsung ke VolunteerMapPage state
+  final GlobalKey<VolunteerMapPageState> _mapPageKey =
+      GlobalKey<VolunteerMapPageState>();
+
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
     _initVolunteerServices();
+    event_bus.GlobalEventBus.navigateToMapWithSos
+        .addListener(_onNavigateToMap);
+  }
+
+  /// Dipanggil saat relawan menerima tugas → pindah ke tab Peta & tampilkan rute
+  void _onNavigateToMap() {
+    final sosData = event_bus.GlobalEventBus.navigateToMapWithSos.value;
+    if (sosData == null) return;
+
+    setState(() {
+      _selectedIndex = 2; // Tab Peta
+    });
+
+    // Beri sedikit jeda agar tab Peta sudah ter-render
+    Future.delayed(const Duration(milliseconds: 400), () {
+      _mapPageKey.currentState?.acceptSosAndRoute(sosData);
+      // Reset event agar tidak trigger ulang
+      event_bus.GlobalEventBus.navigateToMapWithSos.value = null;
+    });
+  }
+
+  @override
+  void dispose() {
+    event_bus.GlobalEventBus.navigateToMapWithSos
+        .removeListener(_onNavigateToMap);
+    _locationService.stopTracking();
+    super.dispose();
   }
 
   Future<void> _initVolunteerServices() async {
@@ -52,37 +85,50 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
   void didUpdateWidget(MainVolunteerScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.initialIndex != oldWidget.initialIndex) {
-      _selectedIndex = widget.initialIndex;
+      setState(() {
+        _selectedIndex = widget.initialIndex;
+      });
     }
   }
 
   static const Color primaryTeal = Color(0xFF006D77);
-
-  final List<Widget> _pages = [
-    const VolunteerDashboardPage(),
-    const Scaffold(body: Center(child: Text('Tugas Aktif (Segera Hadir)'))),
-    const VolunteerMapPage(),
-    const VolunteerProfileScreen(),
-  ];
-
   static const Color _unselectedColor = Colors.grey;
 
   final List<_NavItem> _navItems = const [
-    _NavItem(icon: CupertinoIcons.house, selectedIcon: CupertinoIcons.house_fill, label: 'Beranda'),
-    _NavItem(icon: CupertinoIcons.doc_text, selectedIcon: CupertinoIcons.doc_text_fill, label: 'Tugas'),
-    _NavItem(icon: CupertinoIcons.map, selectedIcon: CupertinoIcons.map_fill, label: 'Peta'),
-    _NavItem(icon: CupertinoIcons.person, selectedIcon: CupertinoIcons.person_solid, label: 'Profil'),
+    _NavItem(
+        icon: CupertinoIcons.house,
+        selectedIcon: CupertinoIcons.house_fill,
+        label: 'Beranda'),
+    _NavItem(
+        icon: CupertinoIcons.doc_text,
+        selectedIcon: CupertinoIcons.doc_text_fill,
+        label: 'Tugas'),
+    _NavItem(
+        icon: CupertinoIcons.map,
+        selectedIcon: CupertinoIcons.map_fill,
+        label: 'Peta'),
+    _NavItem(
+        icon: CupertinoIcons.person,
+        selectedIcon: CupertinoIcons.person_solid,
+        label: 'Profil'),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final pages = [
+      const VolunteerDashboardPage(),
+      const VolunteerActiveTaskPage(),
+      VolunteerMapPage(key: _mapPageKey),
+      const VolunteerProfileScreen(),
+    ];
+
     return Scaffold(
       extendBody: true,
       body: Stack(
         children: [
           IndexedStack(
             index: _selectedIndex,
-            children: _pages,
+            children: pages,
           ),
           Align(
             alignment: Alignment.bottomCenter,
@@ -112,7 +158,8 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: List.generate(_navItems.length, (index) {
@@ -141,16 +188,22 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
                               children: [
                                 Icon(
                                   isSelected ? item.selectedIcon : item.icon,
-                                  color: isSelected ? primaryTeal : _unselectedColor,
+                                  color: isSelected
+                                      ? primaryTeal
+                                      : _unselectedColor,
                                   size: 24,
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   item.label,
                                   style: TextStyle(
-                                    color: isSelected ? primaryTeal : _unselectedColor,
+                                    color: isSelected
+                                        ? primaryTeal
+                                        : _unselectedColor,
                                     fontSize: 11,
-                                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
                                   ),
                                 ),
                               ],
