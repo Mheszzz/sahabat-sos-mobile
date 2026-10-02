@@ -1,4 +1,4 @@
-﻿import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart' as import_event_bus;
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart' as import_event_bus;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'dart:ui';
@@ -26,6 +26,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
 
   Map<String, dynamic>? _berandaData;
   Map<String, dynamic>? _activeTask;
+  List<dynamic> _riwayatList = [];
   bool _isLoading = true;
 
   @override
@@ -54,6 +55,30 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
         }
       } catch (e) {
         _activeTask = null;
+      }
+      
+      // Get volunteer history
+      try {
+        final riwayatData = await _volunteerDataSource.getRelawanBerandaRiwayat();
+        final List<dynamic> combinedHistory = [];
+        if (riwayatData['laporan'] != null) {
+          combinedHistory.addAll(riwayatData['laporan']);
+        }
+        if (riwayatData['sos'] != null) {
+          combinedHistory.addAll(riwayatData['sos']);
+        }
+        
+        // Sort newest first
+        combinedHistory.sort((a, b) {
+          final timeA = DateTime.tryParse(a['waktu'] ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final timeB = DateTime.tryParse(b['waktu'] ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return timeB.compareTo(timeA);
+        });
+        
+        _riwayatList = combinedHistory;
+      } catch (e) {
+        _riwayatList = [];
+        debugPrint("Gagal load riwayat: $e");
       }
 
       final userData = beranda['user'];
@@ -311,15 +336,19 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                                     _isReady = val;
                                   });
                                 },
-                                activeThumbColor: primaryTeal,
-                                activeColor: primaryTeal.withValues(alpha: 0.5),
+                                activeThumbColor: Colors.white,
+                                activeTrackColor: primaryTeal,
+                                inactiveThumbColor: Colors.white,
+                                inactiveTrackColor: Colors.grey.shade400,
+                                trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
                               ),
-                              const Text(
-                                'Siap\nBertugas',
+                              Text(
+                                _isReady ? 'Siap\nBertugas' : 'Tidak\nAktif',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
+                                  color: _isReady ? primaryTeal : Colors.grey.shade600,
                                 ),
                               ),
                             ],
@@ -568,6 +597,78 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                         ],
                       ),
                     ),
+                    const SizedBox(height: 24),
+                    
+                    // Riwayat Tugas Terselesaikan
+                    const Text(
+                      'Riwayat Tugas Terselesaikan',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_riwayatList.isEmpty)
+                      Center(
+                        child: Text(
+                          'Belum ada riwayat tugas',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                      )
+                    else
+                      ..._riwayatList.map((item) {
+                        final isSos = item['tipe'] == 'sos';
+                        final title = isSos ? 'Keadaan Darurat (SOS)' : (item['kategori'] ?? 'Laporan');
+                        final desc = isSos ? (item['lokasi'] ?? '') : (item['deskripsi'] ?? '');
+                        
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              )
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: isSos ? Colors.red[100] : Colors.blue[100],
+                                child: Icon(
+                                  isSos ? CupertinoIcons.exclamationmark_triangle_fill : CupertinoIcons.doc_text_fill,
+                                  color: isSos ? Colors.red[700] : Colors.blue[700],
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      title,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      desc,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    
                     const SizedBox(height: 80), 
                   ],
                 ),

@@ -9,6 +9,7 @@ abstract class VolunteerRemoteDataSource {
   Future<Map<String, dynamic>> updateSosStatus(int id, String status);
   Future<Map<String, dynamic>> rejectSos(int id);
   Future<Map<String, dynamic>> getBeranda();
+  Future<Map<String, dynamic>> getRelawanBerandaRiwayat();
 }
 
 class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
@@ -125,6 +126,23 @@ class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
       }
     } on DioException catch (e) {
       throw Exception(e.response?.data?['message'] ?? e.message ?? 'Gagal mengambil data beranda');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> getRelawanBerandaRiwayat() async {
+    try {
+      final response = await dio.get(
+        ApiConstants.relawanBeranda,
+        options: Options(headers: _getHeaders()),
+      );
+      if (response.statusCode == 200) {
+        return response.data;
+      } else {
+        throw Exception(response.data['message'] ?? 'Gagal mengambil riwayat beranda relawan');
+      }
+    } on DioException catch (e) {
+      throw Exception(e.response?.data?['message'] ?? e.message ?? 'Gagal mengambil riwayat beranda relawan');
     }
   }
 }
