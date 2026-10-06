@@ -36,18 +36,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void initState() {
     super.initState();
     nameController = TextEditingController(text: widget.userData['name'] ?? '');
-    emailController = TextEditingController(text: widget.userData['email'] ?? '');
-    phoneController = TextEditingController(text: widget.userData['no_telp'] ?? '');
-    addressController = TextEditingController(text: widget.userData['alamat'] ?? '');
+    emailController = TextEditingController(
+      text: widget.userData['email'] ?? '',
+    );
+    phoneController = TextEditingController(
+      text: widget.userData['no_telp'] ?? '',
+    );
+    addressController = TextEditingController(
+      text: widget.userData['alamat'] ?? '',
+    );
 
-    selectedCategory = widget.userData['kategori_user']?.toString().toLowerCase() ?? 'umum';
-    if (!['umum', 'tunanetra', 'tunarungu', 'tunawicara'].contains(selectedCategory)) {
+    selectedCategory =
+        widget.userData['kategori_user']?.toString().toLowerCase() ?? 'umum';
+    if (![
+      'umum',
+      'tunanetra',
+      'tunarungu',
+      'tunawicara',
+    ].contains(selectedCategory)) {
       selectedCategory = 'umum';
     }
 
     final foto = widget.userData['foto_profile'];
     if (foto != null && foto.toString().isNotEmpty) {
-      if (foto.toString().startsWith('http://') || foto.toString().startsWith('https://')) {
+      if (foto.toString().startsWith('http://') ||
+          foto.toString().startsWith('https://')) {
         _currentAvatarUrl = foto;
       } else {
         _currentAvatarUrl = '${ApiConstants.baseUrl}/storage-file/$foto';
@@ -88,35 +101,48 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token');
       if (token != null) {
-        
         bool haptic = true;
         bool voiceGuide = true;
         bool largeText = true;
 
         if (widget.userData['aksesibilitas'] != null) {
-          voiceGuide = widget.userData['aksesibilitas']['panduan_suara'] == true;
+          voiceGuide =
+              widget.userData['aksesibilitas']['panduan_suara'] == true;
           haptic = widget.userData['aksesibilitas']['getaran'] == true;
           largeText = widget.userData['aksesibilitas']['text_besar'] == true;
         } else {
-          voiceGuide = (widget.userData['panduan_suara'] == 1 || widget.userData['panduan_suara'] == true);
-          haptic = (widget.userData['getaran'] == 1 || widget.userData['getaran'] == true);
-          largeText = (widget.userData['text_besar'] == 1 || widget.userData['text_besar'] == true);
+          voiceGuide =
+              (widget.userData['panduan_suara'] == 1 ||
+              widget.userData['panduan_suara'] == true);
+          haptic =
+              (widget.userData['getaran'] == 1 ||
+              widget.userData['getaran'] == true);
+          largeText =
+              (widget.userData['text_besar'] == 1 ||
+              widget.userData['text_besar'] == true);
         }
 
         Map<String, dynamic> dataToUpdate = {
           'name': nameController.text.isNotEmpty ? nameController.text : '-',
           'kategori_user': selectedCategory,
-          'alamat': addressController.text.trim().isNotEmpty ? addressController.text.trim() : '-',
-          'no_telp': phoneController.text.isNotEmpty ? phoneController.text : '-',
+          'alamat': addressController.text.trim().isNotEmpty
+              ? addressController.text.trim()
+              : '-',
+          'no_telp': phoneController.text.isNotEmpty
+              ? phoneController.text
+              : '-',
           'getaran': haptic ? 1 : 0,
           'panduan_suara': voiceGuide ? 1 : 0,
           'text_besar': largeText ? 1 : 0,
         };
 
         final profileDataSource = GetIt.instance<ProfileRemoteDataSource>();
-        
+
         if (_pickedImage != null) {
-          await profileDataSource.updateProfileWithFoto(dataToUpdate, _pickedImage!);
+          await profileDataSource.updateProfileWithFoto(
+            dataToUpdate,
+            _pickedImage!,
+          );
         } else {
           await profileDataSource.updateProfile(dataToUpdate);
         }
@@ -131,9 +157,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     } catch (e) {
       debugPrint("Error updating profile: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal mengupdate profil: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal mengupdate profil: $e')));
       }
     } finally {
       if (mounted) {
@@ -144,7 +170,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  Widget _buildGlassContainer({required Widget child, BorderRadius? borderRadius}) {
+  Widget _buildGlassContainer({
+    required Widget child,
+    BorderRadius? borderRadius,
+  }) {
     final radius = borderRadius ?? BorderRadius.circular(16);
     return Container(
       decoration: BoxDecoration(
@@ -165,7 +194,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.4),
               borderRadius: radius,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
             ),
             child: child,
           ),
@@ -174,21 +206,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Widget _buildModernTextField(TextEditingController controller, String hint, IconData icon, {TextInputType? keyboardType, bool readOnly = false}) {
+  Widget _buildModernTextField(
+    TextEditingController controller,
+    String hint,
+    IconData icon, {
+    TextInputType? keyboardType,
+    bool readOnly = false,
+  }) {
     return _buildGlassContainer(
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
         readOnly: readOnly,
         style: TextStyle(
-          fontSize: 14, 
-          color: readOnly ? Colors.black54 : Colors.black87
+          fontSize: 14,
+          color: readOnly ? Colors.black54 : Colors.black87,
         ),
         decoration: InputDecoration(
           border: InputBorder.none,
           hintText: hint,
-          hintStyle: TextStyle(fontSize: 13, color: Colors.black.withValues(alpha: 0.4)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+          hintStyle: TextStyle(
+            fontSize: 13,
+            color: Colors.black.withValues(alpha: 0.4),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 16,
+          ),
           prefixIcon: Icon(icon, color: primaryTeal.withValues(alpha: 0.7)),
         ),
       ),
@@ -230,7 +274,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
         child: SafeArea(
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator(color: primaryTeal))
+              ? const Center(
+                  child: CircularProgressIndicator(color: primaryTeal),
+                )
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
                   child: Column(
@@ -245,13 +291,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 padding: const EdgeInsets.all(4),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: primaryTeal.withValues(alpha: 0.3), width: 3),
+                                  border: Border.all(
+                                    color: primaryTeal.withValues(alpha: 0.3),
+                                    width: 3,
+                                  ),
                                 ),
                                 child: CircleAvatar(
                                   radius: 46,
                                   backgroundColor: Colors.grey.shade200,
                                   backgroundImage: _pickedImage != null
-                                      ? FileImage(File(_pickedImage!.path)) as ImageProvider
+                                      ? FileImage(File(_pickedImage!.path))
+                                            as ImageProvider
                                       : NetworkImage(_currentAvatarUrl),
                                   onBackgroundImageError: (_, _) {},
                                 ),
@@ -264,9 +314,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   decoration: BoxDecoration(
                                     color: primaryTeal,
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 2),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
                                   ),
-                                  child: const Icon(CupertinoIcons.camera_fill, color: Colors.white, size: 18),
+                                  child: const Icon(
+                                    CupertinoIcons.camera_fill,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
                                 ),
                               ),
                             ],
@@ -274,36 +331,81 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      _buildModernTextField(nameController, 'Nama Lengkap', CupertinoIcons.person),
+                      _buildModernTextField(
+                        nameController,
+                        'Nama Lengkap',
+                        CupertinoIcons.person,
+                      ),
                       const SizedBox(height: 16),
-                      _buildModernTextField(emailController, 'Email', CupertinoIcons.mail, keyboardType: TextInputType.emailAddress, readOnly: true),
+                      _buildModernTextField(
+                        emailController,
+                        'Email',
+                        CupertinoIcons.mail,
+                        keyboardType: TextInputType.emailAddress,
+                        readOnly: true,
+                      ),
                       const SizedBox(height: 16),
-                      
+
                       _buildGlassContainer(
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
                             value: selectedCategory,
                             isExpanded: true,
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                            icon: Icon(CupertinoIcons.chevron_down, color: primaryTeal.withValues(alpha: 0.7)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 4,
+                            ),
+                            icon: Icon(
+                              CupertinoIcons.chevron_down,
+                              color: primaryTeal.withValues(alpha: 0.7),
+                            ),
                             dropdownColor: const Color(0xFFF5F6F8),
-                            items: [
-                              {'value': 'umum', 'label': 'Umum', 'icon': CupertinoIcons.person},
-                              {'value': 'tunanetra', 'label': 'Tunanetra', 'icon': CupertinoIcons.eye_slash},
-                              {'value': 'tunarungu', 'label': 'Tunarungu', 'icon': Icons.hearing_disabled_outlined},
-                              {'value': 'tunawicara', 'label': 'Tunawicara', 'icon': CupertinoIcons.mic_slash},
-                            ].map((item) {
-                              return DropdownMenuItem<String>(
-                                value: item['value'] as String,
-                                child: Row(
-                                  children: [
-                                    Icon(item['icon'] as IconData, color: primaryTeal.withValues(alpha: 0.7), size: 20),
-                                    const SizedBox(width: 12),
-                                    Text(item['label'] as String, style: const TextStyle(fontSize: 14, color: Colors.black87)),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
+                            items:
+                                [
+                                  {
+                                    'value': 'umum',
+                                    'label': 'Umum',
+                                    'icon': CupertinoIcons.person,
+                                  },
+                                  {
+                                    'value': 'tunanetra',
+                                    'label': 'Tunanetra',
+                                    'icon': CupertinoIcons.eye_slash,
+                                  },
+                                  {
+                                    'value': 'tunarungu',
+                                    'label': 'Tunarungu',
+                                    'icon': Icons.hearing_disabled_outlined,
+                                  },
+                                  {
+                                    'value': 'tunawicara',
+                                    'label': 'Tunawicara',
+                                    'icon': CupertinoIcons.mic_slash,
+                                  },
+                                ].map((item) {
+                                  return DropdownMenuItem<String>(
+                                    value: item['value'] as String,
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          item['icon'] as IconData,
+                                          color: primaryTeal.withValues(
+                                            alpha: 0.7,
+                                          ),
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          item['label'] as String,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
                             onChanged: (String? newValue) {
                               if (newValue != null) {
                                 setState(() {
@@ -314,11 +416,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ),
                         ),
                       ),
-                      
+
                       const SizedBox(height: 16),
-                      _buildModernTextField(phoneController, 'Nomor Telepon', CupertinoIcons.phone, keyboardType: TextInputType.phone),
+                      _buildModernTextField(
+                        phoneController,
+                        'Nomor Telepon',
+                        CupertinoIcons.phone,
+                        keyboardType: TextInputType.phone,
+                      ),
                       const SizedBox(height: 16),
-                      _buildModernTextField(addressController, 'Alamat Tempat Tinggal', CupertinoIcons.house),
+                      _buildModernTextField(
+                        addressController,
+                        'Alamat Tempat Tinggal',
+                        CupertinoIcons.house,
+                      ),
                       const SizedBox(height: 32),
                       ElevatedButton(
                         onPressed: _saveProfile,
@@ -334,7 +445,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ),
                         child: const Text(
                           'Simpan Perubahan',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
@@ -345,8 +459,3 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 }
-
-
-
-
-

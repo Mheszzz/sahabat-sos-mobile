@@ -30,7 +30,7 @@ class _DevicePageState extends State<DevicePage> {
       if (token.isNotEmpty) {
         await _tuyaService.loginAnonymous(token);
       }
-      
+
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -46,7 +46,9 @@ class _DevicePageState extends State<DevicePage> {
     if (_isLoading) {
       return const Scaffold(
         backgroundColor: Colors.transparent,
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF00695C))),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF00695C)),
+        ),
       );
     }
 

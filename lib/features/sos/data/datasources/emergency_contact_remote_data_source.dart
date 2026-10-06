@@ -11,18 +11,19 @@ abstract class EmergencyContactRemoteDataSource {
   Future<Map<String, dynamic>> toggleNotif(int id, bool terimaNotif);
 }
 
-class EmergencyContactRemoteDataSourceImpl implements EmergencyContactRemoteDataSource {
+class EmergencyContactRemoteDataSourceImpl
+    implements EmergencyContactRemoteDataSource {
   final Dio dio;
   final SharedPreferences prefs;
 
-  EmergencyContactRemoteDataSourceImpl({required this.dio, required this.prefs});
+  EmergencyContactRemoteDataSourceImpl({
+    required this.dio,
+    required this.prefs,
+  });
 
   Map<String, dynamic> _getHeaders() {
     final token = prefs.getString('auth_token');
-    return {
-      'Authorization': 'Bearer $token',
-      'Accept': 'application/json',
-    };
+    return {'Authorization': 'Bearer $token', 'Accept': 'application/json'};
   }
 
   @override
@@ -35,10 +36,14 @@ class EmergencyContactRemoteDataSourceImpl implements EmergencyContactRemoteData
       if (response.statusCode == 200) {
         return response.data['data'] ?? [];
       } else {
-        throw Exception(response.data['message'] ?? 'Gagal mengambil daftar kontak darurat');
+        throw Exception(
+          response.data['message'] ?? 'Gagal mengambil daftar kontak darurat',
+        );
       }
     } on DioException catch (e) {
-      throw Exception(e.response?.data?['message'] ?? 'Gagal mengambil kontak darurat');
+      throw Exception(
+        e.response?.data?['message'] ?? 'Gagal mengambil kontak darurat',
+      );
     }
   }
 
@@ -52,10 +57,14 @@ class EmergencyContactRemoteDataSourceImpl implements EmergencyContactRemoteData
       if (response.statusCode == 200) {
         return response.data['data'];
       } else {
-        throw Exception(response.data['message'] ?? 'Gagal mengambil detail kontak darurat');
+        throw Exception(
+          response.data['message'] ?? 'Gagal mengambil detail kontak darurat',
+        );
       }
     } on DioException catch (e) {
-      throw Exception(e.response?.data?['message'] ?? 'Gagal mengambil detail kontak darurat');
+      throw Exception(
+        e.response?.data?['message'] ?? 'Gagal mengambil detail kontak darurat',
+      );
     }
   }
 
@@ -70,15 +79,22 @@ class EmergencyContactRemoteDataSourceImpl implements EmergencyContactRemoteData
       if (response.statusCode == 201 || response.statusCode == 200) {
         return response.data['data'];
       } else {
-        throw Exception(response.data['message'] ?? 'Gagal menambahkan kontak darurat');
+        throw Exception(
+          response.data['message'] ?? 'Gagal menambahkan kontak darurat',
+        );
       }
     } on DioException catch (e) {
-      throw Exception(e.response?.data?['message'] ?? 'Gagal menambahkan kontak darurat');
+      throw Exception(
+        e.response?.data?['message'] ?? 'Gagal menambahkan kontak darurat',
+      );
     }
   }
 
   @override
-  Future<Map<String, dynamic>> updateContact(int id, Map<String, dynamic> data) async {
+  Future<Map<String, dynamic>> updateContact(
+    int id,
+    Map<String, dynamic> data,
+  ) async {
     try {
       final response = await dio.put(
         ApiConstants.kontakDaruratDetail(id),
@@ -88,10 +104,14 @@ class EmergencyContactRemoteDataSourceImpl implements EmergencyContactRemoteData
       if (response.statusCode == 200) {
         return response.data['data'];
       } else {
-        throw Exception(response.data['message'] ?? 'Gagal memperbarui kontak darurat');
+        throw Exception(
+          response.data['message'] ?? 'Gagal memperbarui kontak darurat',
+        );
       }
     } on DioException catch (e) {
-      throw Exception(e.response?.data?['message'] ?? 'Gagal memperbarui kontak darurat');
+      throw Exception(
+        e.response?.data?['message'] ?? 'Gagal memperbarui kontak darurat',
+      );
     }
   }
 
@@ -103,10 +123,14 @@ class EmergencyContactRemoteDataSourceImpl implements EmergencyContactRemoteData
         options: Options(headers: _getHeaders()),
       );
       if (response.statusCode != 200) {
-        throw Exception(response.data['message'] ?? 'Gagal menghapus kontak darurat');
+        throw Exception(
+          response.data['message'] ?? 'Gagal menghapus kontak darurat',
+        );
       }
     } on DioException catch (e) {
-      throw Exception(e.response?.data?['message'] ?? 'Gagal menghapus kontak darurat');
+      throw Exception(
+        e.response?.data?['message'] ?? 'Gagal menghapus kontak darurat',
+      );
     }
   }
 
@@ -121,10 +145,14 @@ class EmergencyContactRemoteDataSourceImpl implements EmergencyContactRemoteData
       if (response.statusCode == 200) {
         return response.data['data'];
       } else {
-        throw Exception(response.data['message'] ?? 'Gagal mengubah status notifikasi');
+        throw Exception(
+          response.data['message'] ?? 'Gagal mengubah status notifikasi',
+        );
       }
     } on DioException catch (e) {
-      throw Exception(e.response?.data?['message'] ?? 'Gagal mengubah status notifikasi');
+      throw Exception(
+        e.response?.data?['message'] ?? 'Gagal mengubah status notifikasi',
+      );
     }
   }
 }

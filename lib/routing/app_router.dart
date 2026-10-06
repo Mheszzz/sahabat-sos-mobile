@@ -27,11 +27,13 @@ class AppRouter {
       final prefs = GetIt.instance<SharedPreferences>();
       final token = prefs.getString('auth_token');
       final isProfileComplete = prefs.getBool('is_profile_complete') ?? false;
-      
+
       final isLoggingIn = state.matchedLocation == AppRoutes.login;
       final isRegisteringStep1 = state.matchedLocation == AppRoutes.register;
-      final isRegisteringStep2 = state.matchedLocation == AppRoutes.registerStep2;
-      final isAuthPage = isLoggingIn || isRegisteringStep1 || isRegisteringStep2;
+      final isRegisteringStep2 =
+          state.matchedLocation == AppRoutes.registerStep2;
+      final isAuthPage =
+          isLoggingIn || isRegisteringStep1 || isRegisteringStep2;
 
       if (token != null && token.isNotEmpty) {
         if (isProfileComplete) {
@@ -55,7 +57,7 @@ class AppRouter {
           return AppRoutes.login;
         }
       }
-      
+
       return null;
     },
     routes: [
@@ -96,10 +98,7 @@ class AppRouter {
           return MainVolunteerScreen(initialIndex: tabIndex);
         },
       ),
-      GoRoute(
-        path: '/map',
-        builder: (context, state) => const MapPage(),
-      ),
+      GoRoute(path: '/map', builder: (context, state) => const MapPage()),
       GoRoute(
         path: AppRoutes.quickReport,
         builder: (context, state) => const QuickReportScreen(),

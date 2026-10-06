@@ -7,21 +7,36 @@ import '../../../../core/constants/api_constants.dart';
 abstract class AuthRemoteDataSource {
   /// Mengembalikan Map berisi token JWT dan status is_profile_complete, atau null jika dibatalkan
   Future<Map<String, dynamic>?> signInWithGoogle();
-  Future<Map<String, dynamic>> registerWithEmail({required String name, required String email, required String password, required String role});
-  Future<Map<String, dynamic>> loginWithEmail({required String email, required String password});
+  Future<Map<String, dynamic>> registerWithEmail({
+    required String name,
+    required String email,
+    required String password,
+    required String role,
+  });
+  Future<Map<String, dynamic>> loginWithEmail({
+    required String email,
+    required String password,
+  });
   Future<Map<String, dynamic>> sendOtp({required String email});
-  Future<Map<String, dynamic>> verifyOtp({required String email, required String otp});
+  Future<Map<String, dynamic>> verifyOtp({
+    required String email,
+    required String otp,
+  });
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   final Dio dio;
   final SharedPreferences prefs;
-  
+
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     // Web Client ID untuk Web, Android Client ID untuk Mobile
-    clientId: kIsWeb ? '757209543690-bpjk959q2se7oq0eos1olm6urg35oicp.apps.googleusercontent.com' : '757209543690-jpg1blpas12drdam7leck0ha4pk7sluo.apps.googleusercontent.com',
+    clientId: kIsWeb
+        ? '757209543690-bpjk959q2se7oq0eos1olm6urg35oicp.apps.googleusercontent.com'
+        : '757209543690-jpg1blpas12drdam7leck0ha4pk7sluo.apps.googleusercontent.com',
     // Server Client ID (WAJIB Web Client ID) agar Android bisa minta Token/ServerAuthCode ke Laravel
-    serverClientId: kIsWeb ? null : '757209543690-bpjk959q2se7oq0eos1olm6urg35oicp.apps.googleusercontent.com',
+    serverClientId: kIsWeb
+        ? null
+        : '757209543690-bpjk959q2se7oq0eos1olm6urg35oicp.apps.googleusercontent.com',
     scopes: ['email', 'profile'],
   );
 
@@ -37,51 +52,54 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
       // 1. Munculkan dialog Google Sign In (di v6 ini cuma 1x dialog)
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      
+
       if (googleUser == null) {
-        throw Exception('User membatalkan dialog Google Sign-In atau konfigurasi salah.');
+        throw Exception(
+          'User membatalkan dialog Google Sign-In atau konfigurasi salah.',
+        );
       }
 
       // 2. Ambil token (accessToken)
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
       final String? tokenToSend = googleAuth.accessToken ?? googleAuth.idToken;
 
       if (tokenToSend != null) {
         // 3. Kirim token ke Backend (API Laravel)
         final response = await dio.post(
           ApiConstants.authGoogle,
-          data: {
-            'token': tokenToSend,
-          },
-          options: Options(
-            headers: {
-              'Accept': 'application/json',
-            },
-          ),
+          data: {'token': tokenToSend},
+          options: Options(headers: {'Accept': 'application/json'}),
         );
 
         if (response.statusCode == 200 || response.statusCode == 201) {
           final String backendToken = response.data['access_token'];
-          final bool isProfileComplete = response.data['is_profile_complete'] ?? false;
-          
+          final bool isProfileComplete =
+              response.data['is_profile_complete'] ?? false;
+
           await prefs.setString('auth_token', backendToken);
           await prefs.setBool('is_profile_complete', isProfileComplete);
-          
+
           return {
             'token': backendToken,
             'is_profile_complete': isProfileComplete,
           };
         } else {
-          throw Exception('Gagal memverifikasi token di Backend: ${response.data}');
+          throw Exception(
+            'Gagal memverifikasi token di Backend: ${response.data}',
+          );
         }
       } else {
-        throw Exception('Google Auth tidak memberikan accessToken maupun idToken.');
+        throw Exception(
+          'Google Auth tidak memberikan accessToken maupun idToken.',
+        );
       }
     } catch (e) {
       debugPrint("Error Google Sign-In: $e");
       rethrow;
     }
   }
+
   @override
   Future<Map<String, dynamic>> registerWithEmail({
     required String name,
@@ -90,8 +108,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required String role,
   }) async {
     try {
-      final endpoint = role == 'relawan' 
-          ? ApiConstants.authRegisterRelawan 
+      final endpoint = role == 'relawan'
+          ? ApiConstants.authRegisterRelawan
           : ApiConstants.authRegisterPengguna;
 
       final response = await dio.post(
@@ -112,7 +130,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw Exception(response.data['message'] ?? 'Registrasi gagal');
       }
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message ?? 'Registrasi gagal';
+      final msg =
+          e.response?.data?['message'] ?? e.message ?? 'Registrasi gagal';
       throw Exception(msg);
     }
   }
@@ -125,16 +144,14 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     try {
       final response = await dio.post(
         ApiConstants.authLogin,
-        data: {
-          'email': email,
-          'password': password,
-        },
+        data: {'email': email, 'password': password},
         options: Options(headers: {'Accept': 'application/json'}),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final String backendToken = response.data['access_token'];
-        final bool isProfileComplete = response.data['is_profile_complete'] ?? false;
+        final bool isProfileComplete =
+            response.data['is_profile_complete'] ?? false;
 
         await prefs.setString('auth_token', backendToken);
         await prefs.setBool('is_profile_complete', isProfileComplete);
@@ -167,7 +184,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw Exception(response.data['message'] ?? 'Gagal mengirim OTP');
       }
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message ?? 'Gagal mengirim OTP';
+      final msg =
+          e.response?.data?['message'] ?? e.message ?? 'Gagal mengirim OTP';
       throw Exception(msg);
     }
   }
@@ -180,10 +198,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     try {
       final response = await dio.post(
         ApiConstants.verifyOtp,
-        data: {
-          'email': email,
-          'otp': otp,
-        },
+        data: {'email': email, 'otp': otp},
         options: Options(headers: {'Accept': 'application/json'}),
       );
 
@@ -191,7 +206,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         // Jika backend mengembalikan token setelah verifikasi
         if (response.data['access_token'] != null) {
           final String backendToken = response.data['access_token'];
-          final bool isProfileComplete = response.data['is_profile_complete'] ?? false;
+          final bool isProfileComplete =
+              response.data['is_profile_complete'] ?? false;
 
           await prefs.setString('auth_token', backendToken);
           await prefs.setBool('is_profile_complete', isProfileComplete);
@@ -201,7 +217,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw Exception(response.data['message'] ?? 'Verifikasi OTP gagal');
       }
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message ?? 'Verifikasi OTP gagal';
+      final msg =
+          e.response?.data?['message'] ?? e.message ?? 'Verifikasi OTP gagal';
       throw Exception(msg);
     }
   }

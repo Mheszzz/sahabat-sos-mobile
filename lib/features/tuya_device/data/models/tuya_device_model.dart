@@ -11,12 +11,18 @@ class TuyaDeviceModel {
   String get signalStrengthFormatted {
     if (signalStrength == null) return 'N/A';
     switch (signalStrength!.toLowerCase()) {
-      case 'strong': return 'Kuat';
-      case 'weak': return 'Lemah';
-      case 'fair': return 'Sedang';
-      case 'good': return 'Bagus';
-      case 'poor': return 'Buruk';
-      default: return signalStrength!;
+      case 'strong':
+        return 'Kuat';
+      case 'weak':
+        return 'Lemah';
+      case 'fair':
+        return 'Sedang';
+      case 'good':
+        return 'Bagus';
+      case 'poor':
+        return 'Buruk';
+      default:
+        return signalStrength!;
     }
   }
 
@@ -32,25 +38,31 @@ class TuyaDeviceModel {
   });
 
   factory TuyaDeviceModel.fromJson(Map<String, dynamic> json) {
-    final dpsMap = json['dps'] is Map ? Map<String, dynamic>.from(json['dps'] as Map) : <String, dynamic>{};
-    
+    final dpsMap = json['dps'] is Map
+        ? Map<String, dynamic>.from(json['dps'] as Map)
+        : <String, dynamic>{};
+
     // Parse battery from common Tuya DPs if missing from root
     int? parsedBattery = json['battery'] as int?;
     if (parsedBattery == null || parsedBattery < 0) {
       if (dpsMap.containsKey('battery_percentage')) {
         parsedBattery = (dpsMap['battery_percentage'] as num).toInt();
       } else if (dpsMap.containsKey('3')) {
-        parsedBattery = (dpsMap['3'] as num).toInt(); // Common for some BLE/Wi-Fi devices
+        parsedBattery = (dpsMap['3'] as num)
+            .toInt(); // Common for some BLE/Wi-Fi devices
       } else if (dpsMap.containsKey('104')) {
         parsedBattery = (dpsMap['104'] as num).toInt();
       }
     }
 
     return TuyaDeviceModel(
-      deviceId: json['device_id'] as String? ?? json['deviceId'] as String? ?? '',
+      deviceId:
+          json['device_id'] as String? ?? json['deviceId'] as String? ?? '',
       name: json['name'] as String? ?? 'Unknown Device',
-      productId: json['product_id'] as String? ?? json['productId'] as String? ?? '',
-      isOnline: json['is_online'] as bool? ?? json['isOnline'] as bool? ?? false,
+      productId:
+          json['product_id'] as String? ?? json['productId'] as String? ?? '',
+      isOnline:
+          json['is_online'] as bool? ?? json['isOnline'] as bool? ?? false,
       batteryLevel: parsedBattery,
       signalStrength: json['signal_strength'] as String?,
       dps: dpsMap,
@@ -96,5 +108,6 @@ class TuyaDeviceModel {
   }
 
   @override
-  String toString() => 'TuyaDeviceModel(id: $deviceId, name: $name, online: $isOnline)';
+  String toString() =>
+      'TuyaDeviceModel(id: $deviceId, name: $name, online: $isOnline)';
 }

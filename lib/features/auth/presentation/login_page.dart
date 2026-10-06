@@ -38,56 +38,62 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
         child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                  child: IntrinsicHeight(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildTopBar(),
-                        const SizedBox(height: 24),
-                        Center(
-                          child: Image.asset('assets/images/logo_full.png', height: 80),
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'Selamat Datang Kembali',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1B1B2F),
-                          ),
-                        ),
-                        const SizedBox(height: 60),
-                        _buildGoogleButton(),
-                        const Spacer(),
-                        const SizedBox(height: 20),
-                        _buildFooter(),
-                        const SizedBox(height: 12),
-                        const Center(
-                          child: Text(
-                            'versi 1.0 Beta',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF6B7080),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 20,
+                    ),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildTopBar(),
+                          const SizedBox(height: 24),
+                          Center(
+                            child: Image.asset(
+                              'assets/images/logo_full.png',
+                              height: 80,
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Selamat Datang Kembali',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1B1B2F),
+                            ),
+                          ),
+                          const SizedBox(height: 60),
+                          _buildGoogleButton(),
+                          const Spacer(),
+                          const SizedBox(height: 20),
+                          _buildFooter(),
+                          const SizedBox(height: 12),
+                          const Center(
+                            child: Text(
+                              'versi 1.0 Beta',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF6B7080),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
-      ),
       ),
     );
   }
@@ -145,74 +151,94 @@ class _LoginPageState extends State<LoginPage> {
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: _isLoading ? null : () async {
-            setState(() {
-              _isLoading = true;
-            });
-            try {
-              // Panggil remote data source dari GetIt
-              final authDataSource = get_it.GetIt.instance<AuthRemoteDataSource>();
-              final result = await authDataSource.signInWithGoogle();
-              if (!mounted) return;
-
-              setState(() {
-                _isLoading = false;
-              });
-
-              if (result != null) {
-                final bool isProfileComplete = result['is_profile_complete'] ?? false;
-                
-                if (isProfileComplete) {
+          onTap: _isLoading
+              ? null
+              : () async {
+                  setState(() {
+                    _isLoading = true;
+                  });
                   try {
-                    final prefs = get_it.GetIt.instance<SharedPreferences>();
-                    final token = result['token'];
-                    final dio = get_it.GetIt.instance<Dio>();
-                    final profileRes = await dio.get(
-                      ApiConstants.me,
-                      options: Options(headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'}),
-                    );
-                    if (profileRes.statusCode == 200) {
-                      final userData = profileRes.data['user'];
-                      if (userData != null && userData['role'] != null) {
-                        await prefs.setString('user_role', userData['role']);
+                    // Panggil remote data source dari GetIt
+                    final authDataSource =
+                        get_it.GetIt.instance<AuthRemoteDataSource>();
+                    final result = await authDataSource.signInWithGoogle();
+                    if (!mounted) return;
+
+                    setState(() {
+                      _isLoading = false;
+                    });
+
+                    if (result != null) {
+                      final bool isProfileComplete =
+                          result['is_profile_complete'] ?? false;
+
+                      if (isProfileComplete) {
+                        try {
+                          final prefs =
+                              get_it.GetIt.instance<SharedPreferences>();
+                          final token = result['token'];
+                          final dio = get_it.GetIt.instance<Dio>();
+                          final profileRes = await dio.get(
+                            ApiConstants.me,
+                            options: Options(
+                              headers: {
+                                'Authorization': 'Bearer $token',
+                                'Accept': 'application/json',
+                              },
+                            ),
+                          );
+                          if (profileRes.statusCode == 200) {
+                            final userData = profileRes.data['user'];
+                            if (userData != null && userData['role'] != null) {
+                              await prefs.setString(
+                                'user_role',
+                                userData['role'],
+                              );
+                            }
+                          }
+                        } catch (_) {}
+                        if (!mounted) return;
+
+                        final userRole =
+                            get_it.GetIt.instance<SharedPreferences>()
+                                .getString('user_role');
+                        if (userRole == 'relawan') {
+                          context.go(AppRoutes.homeVolunteer);
+                        } else {
+                          context.go(AppRoutes.dashboard);
+                        }
+                      } else {
+                        if (!mounted) return;
+                        context.push(AppRoutes.registerStep2);
                       }
+                    } else {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Login dibatalkan oleh user.'),
+                        ),
+                      );
                     }
-                  } catch (_) {}
-                  if (!mounted) return;
-                  
-                  final userRole = get_it.GetIt.instance<SharedPreferences>().getString('user_role');
-                  if (userRole == 'relawan') {
-                    context.go(AppRoutes.homeVolunteer);
-                  } else {
-                    context.go(AppRoutes.dashboard);
+                  } catch (e) {
+                    if (!mounted) return;
+                    setState(() {
+                      _isLoading = false;
+                    });
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text('Gagal Login: $e')));
                   }
-                } else {
-                  if (!mounted) return;
-                  context.push(AppRoutes.registerStep2);
-                }
-              } else {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Login dibatalkan oleh user.')),
-                );
-              }
-            } catch (e) {
-              if (!mounted) return;
-              setState(() {
-                _isLoading = false;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Gagal Login: $e')),
-              );
-            }
-          },
+                },
           child: Container(
             width: double.infinity,
             height: 60,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
             ),
             child: _isLoading
                 ? const Center(

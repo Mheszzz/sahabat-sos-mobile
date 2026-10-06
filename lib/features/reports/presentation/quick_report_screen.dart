@@ -198,7 +198,9 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       if (permission == LocationPermission.deniedForever) return;
 
       _cachedPosition = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       final placemarks = await geo.Geocoding().placemarkFromCoordinates(
@@ -350,10 +352,9 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         }
 
         try {
-          final placemarks = await geo.Geocoding().placemarkFromCoordinates(
-            position.latitude,
-            position.longitude,
-          ).timeout(const Duration(seconds: 5));
+          final placemarks = await geo.Geocoding()
+              .placemarkFromCoordinates(position.latitude, position.longitude)
+              .timeout(const Duration(seconds: 5));
           if (placemarks.isNotEmpty) {
             final place = placemarks.first;
             address =
@@ -439,7 +440,10 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.5), width: 1.5),
+                  side: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
                 ),
                 title: const Icon(
                   CupertinoIcons.checkmark_circle_fill,
@@ -449,7 +453,11 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                 content: const Text(
                   'Laporan berhasil dikirim!\nRelawan terdekat sedang menuju lokasi Anda.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w500, height: 1.4),
+                  style: TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w500,
+                    height: 1.4,
+                  ),
                 ),
                 actions: [
                   Center(
@@ -462,7 +470,10 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                         backgroundColor: primaryTeal,
                         foregroundColor: Colors.white,
                         elevation: 2,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -620,7 +631,9 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                       _buildSendButton(),
                       const SizedBox(height: 10),
                       _buildFooterNote(),
-                      const SizedBox(height: 85), // Memberi ruang secukupnya agar pas di atas navbar
+                      const SizedBox(
+                        height: 85,
+                      ), // Memberi ruang secukupnya agar pas di atas navbar
                     ],
                   ),
                 ),
@@ -652,7 +665,6 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       ),
     );
   }
-
 
   Widget _buildSectionHeader(String title, {String? trailing}) {
     return Row(
@@ -720,11 +732,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                         color: category.iconColor.withValues(alpha: 0.8),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(
-                        category.icon,
-                        size: 22,
-                        color: Colors.white,
-                      ),
+                      child: Icon(category.icon, size: 22, color: Colors.white),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -1287,7 +1295,3 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     );
   }
 }
-
-
-
-

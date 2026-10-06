@@ -53,10 +53,12 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       if (token == null) return;
       final response = await sl<Dio>().get(
         ApiConstants.me,
-        options: Options(headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        }),
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
       );
       if (response.statusCode == 200 && mounted) {
         setState(() {
@@ -81,10 +83,12 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
       final response = await sl<Dio>().get(
         url,
-        options: Options(headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        }),
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
       );
 
       if (response.statusCode == 200 && mounted) {
@@ -123,10 +127,12 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       final response = await sl<Dio>().put(
         url,
         data: payload,
-        options: Options(headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        }),
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
       );
 
       if (mounted) Navigator.pop(context); // close loading
@@ -141,9 +147,9 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       if (mounted) Navigator.pop(context);
       debugPrint('Gagal update status: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memperbarui status: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal memperbarui status: $e')));
       }
     }
   }
@@ -156,7 +162,9 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         if (mounted) {
           setState(() {
             _isPlaying = state == PlayerState.playing;
-            if (state == PlayerState.playing || state == PlayerState.paused || state == PlayerState.completed) {
+            if (state == PlayerState.playing ||
+                state == PlayerState.paused ||
+                state == PlayerState.completed) {
               _isLoadingAudio = false;
             }
           });
@@ -179,7 +187,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           });
         }
       });
-      
+
       _completeSub = _audioPlayer.onPlayerComplete.listen((event) {
         if (mounted) {
           setState(() {
@@ -220,7 +228,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           if (_localAudioPath == null) {
             final tempDir = await getTemporaryDirectory();
             final filePath = '${tempDir.path}/temp_audio_${widget.item.id}.wav';
-            
+
             if (await File(filePath).exists()) {
               _localAudioPath = filePath;
             } else {
@@ -228,7 +236,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               _localAudioPath = filePath;
             }
           }
-          
+
           _isCompleted = false;
           await _audioPlayer.play(DeviceFileSource(_localAudioPath!));
           _isPlayerInitialized = true;
@@ -276,39 +284,48 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     status = status.toLowerCase();
     if (status == 'selesai') return CupertinoIcons.checkmark_circle_fill;
     if (status == 'ditangani') return CupertinoIcons.wrench_fill;
-    if (status == 'dibatalkan' || status == 'batal') return CupertinoIcons.xmark_circle_fill;
+    if (status == 'dibatalkan' || status == 'batal')
+      return CupertinoIcons.xmark_circle_fill;
     return CupertinoIcons.exclamationmark_triangle_fill;
   }
 
   void _showFullScreenImage(BuildContext context, String imageUrl) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (context) => Scaffold(
-        backgroundColor: Colors.black,
-        appBar: AppBar(
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
           backgroundColor: Colors.black,
-          iconTheme: const IconThemeData(color: Colors.white),
-          elevation: 0,
-        ),
-        body: Center(
-          child: InteractiveViewer(
-            panEnabled: true,
-            minScale: 0.5,
-            maxScale: 4,
-            child: Image.network(
-              imageUrl,
-              fit: BoxFit.contain,
-              width: double.infinity,
-              height: double.infinity,
-              errorBuilder: (context, error, stackTrace) => 
-                  const Icon(CupertinoIcons.xmark_rectangle, size: 50, color: Colors.grey),
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            iconTheme: const IconThemeData(color: Colors.white),
+            elevation: 0,
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              panEnabled: true,
+              minScale: 0.5,
+              maxScale: 4,
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.contain,
+                width: double.infinity,
+                height: double.infinity,
+                errorBuilder: (context, error, stackTrace) => const Icon(
+                  CupertinoIcons.xmark_rectangle,
+                  size: 50,
+                  color: Colors.grey,
+                ),
+              ),
             ),
           ),
         ),
       ),
-    ));
+    );
   }
 
-  Widget _buildGlassContainer({required Widget child, BorderRadius? borderRadius}) {
+  Widget _buildGlassContainer({
+    required Widget child,
+    BorderRadius? borderRadius,
+  }) {
     final radius = borderRadius ?? BorderRadius.circular(16);
     return Container(
       decoration: BoxDecoration(
@@ -329,7 +346,10 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.4),
               borderRadius: radius,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
             ),
             child: child,
           ),
@@ -340,7 +360,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final statusString = _freshStatus ?? widget.item.status.toString().split('.').last;
+    final statusString =
+        _freshStatus ?? widget.item.status.toString().split('.').last;
     final statusColor = _getStatusColor(statusString);
     final statusIcon = _getStatusIcon(statusString);
     final hasImage = widget.item.imageUrl != null;
@@ -388,267 +409,193 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title and Status
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.item.title,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                        height: 1.2,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title and Status
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.item.title,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: statusColor.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(statusIcon, color: statusColor, size: 14),
+                          const SizedBox(width: 6),
+                          Text(
+                            statusString.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: statusColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                if (_userRole == 'relawan' || _userRole == 'admin') ...[
+                  _buildGlassContainer(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          const Text(
+                            'Update Status Laporan:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF00695C),
+                            ),
+                          ),
+                          const Spacer(),
+                          DropdownButton<String>(
+                            value:
+                                [
+                                  'aktif',
+                                  'proses',
+                                  'selesai',
+                                  'dibatalkan',
+                                  'batal',
+                                ].contains(statusString)
+                                ? statusString
+                                : 'aktif',
+                            items:
+                                [
+                                      'aktif',
+                                      'proses',
+                                      'selesai',
+                                      'dibatalkan',
+                                      'batal',
+                                    ]
+                                    .toSet()
+                                    .map(
+                                      (e) => DropdownMenuItem(
+                                        value: e,
+                                        child: Text(e.toUpperCase()),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged: (val) {
+                              if (val != null && val != statusString) {
+                                _updateStatus(val);
+                              }
+                            },
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(statusIcon, color: statusColor, size: 14),
-                        const SizedBox(width: 6),
-                        Text(
-                          statusString.toUpperCase(),
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusColor),
-                        ),
-                      ],
-                    ),
-                  ),
+                  const SizedBox(height: 20),
                 ],
-              ),
-              const SizedBox(height: 20),
 
-              if (_userRole == 'relawan' || _userRole == 'admin') ...[
-                _buildGlassContainer(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    child: Row(
-                    children: [
-                      const Text(
-                        'Update Status Laporan:',
-                        style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF00695C)),
-                      ),
-                      const Spacer(),
-                      DropdownButton<String>(
-                        value: ['aktif', 'proses', 'selesai', 'dibatalkan', 'batal'].contains(statusString) ? statusString : 'aktif',
-                        items: ['aktif', 'proses', 'selesai', 'dibatalkan', 'batal']
-                            .toSet()
-                            .map((e) => DropdownMenuItem(value: e, child: Text(e.toUpperCase())))
-                            .toList(),
-                        onChanged: (val) {
-                          if (val != null && val != statusString) {
-                            _updateStatus(val);
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-              ],
-
-              // Image Card
-              if (hasImage) ...[
-                Container(
-                  width: double.infinity,
-                  height: 220,
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 4)),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Image.network(
-                          widget.item.imageUrl!,
-                          fit: BoxFit.contain, // Prevent cropping
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            color: Colors.grey[200],
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(CupertinoIcons.xmark_rectangle, size: 40, color: Colors.grey[400]),
-                                const SizedBox(height: 8),
-                                Text('Gambar tidak tersedia', style: TextStyle(color: Colors.grey[500], fontSize: 13)),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 12,
-                          right: 12,
-                          child: Material(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(30),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(30),
-                              onTap: () => _showFullScreenImage(context, widget.item.imageUrl!),
-                              child: const Padding(
-                                padding: EdgeInsets.all(8.0),
-                                child: Icon(
-                                  CupertinoIcons.arrow_up_left_arrow_down_right,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                            ),
-                          ),
+                // Image Card
+                if (hasImage) ...[
+                  Container(
+                    width: double.infinity,
+                    height: 220,
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-              ],
-
-              // Info Section (Waktu & Lokasi & Map)
-              _buildGlassContainer(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Stack(
+                        fit: StackFit.expand,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE0F2F1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(CupertinoIcons.calendar, color: Color(0xFF00695C), size: 20),
+                          Image.network(
+                            widget.item.imageUrl!,
+                            fit: BoxFit.contain, // Prevent cropping
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                                  color: Colors.grey[200],
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        CupertinoIcons.xmark_rectangle,
+                                        size: 40,
+                                        color: Colors.grey[400],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Gambar tidak tersedia',
+                                        style: TextStyle(
+                                          color: Colors.grey[500],
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('Waktu Laporan', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                                const SizedBox(height: 2),
-                                Text(widget.item.dateTime, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Divider(height: 1),
-                      ),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFBE9E7),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(CupertinoIcons.location_solid, color: Color(0xFFD84315), size: 20),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('Lokasi', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                                const SizedBox(height: 2),
-                                Text(widget.item.location, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.3)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (widget.item.latitude != null && widget.item.longitude != null) ...[
-                        const SizedBox(height: 16),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: SizedBox(
-                            height: 180,
-                            width: double.infinity,
-                            child: FlutterMap(
-                              options: MapOptions(
-                                initialCenter: LatLng(widget.item.latitude!, widget.item.longitude!),
-                                initialZoom: 16.0,
-                                interactionOptions: const InteractionOptions(
-                                  flags: InteractiveFlag.none, // Prevent map scrolling inside scrollview
+                          Positioned(
+                            bottom: 12,
+                            right: 12,
+                            child: Material(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(30),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(30),
+                                onTap: () => _showFullScreenImage(
+                                  context,
+                                  widget.item.imageUrl!,
+                                ),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: Icon(
+                                    CupertinoIcons
+                                        .arrow_up_left_arrow_down_right,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
                                 ),
                               ),
-                              children: [
-                                TileLayer(
-                                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                  userAgentPackageName: 'com.example.sahabat_sos_mobile',
-                                ),
-                                MarkerLayer(
-                                  markers: [
-                                    Marker(
-                                      point: LatLng(widget.item.latitude!, widget.item.longitude!),
-                                      width: 40,
-                                      height: 40,
-                                      child: const Icon(CupertinoIcons.location_solid, color: Colors.red, size: 40),
-                                    ),
-                                  ],
-                                ),
-                              ],
                             ),
                           ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-
-              // Officer Info Card
-              if (widget.item.officerInfo != null) ...[
-                const SizedBox(height: 16),
-                _buildGlassContainer(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                    children: [
-                      const CircleAvatar(
-                        backgroundColor: Color(0xFF00695C),
-                        child: Icon(CupertinoIcons.person_fill, color: Colors.white),
+                        ],
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Petugas Pendamping', style: TextStyle(fontSize: 12, color: Color(0xFF004D40))),
-                            const SizedBox(height: 4),
-                            Text(widget.item.officerInfo!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF004D40))),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-                ),
-              ],
+                  const SizedBox(height: 20),
+                ],
 
-              // Description Card
-              if (widget.item.description != null && widget.item.description!.isNotEmpty) ...[
-                const SizedBox(height: 16),
+                // Info Section (Waktu & Lokasi & Map)
                 _buildGlassContainer(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -656,119 +603,360 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          children: const [
-                            Icon(CupertinoIcons.doc_text, color: Colors.black54, size: 20),
-                            SizedBox(width: 8),
-                            Text('Keterangan Tambahan', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.black87)),
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE0F2F1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                CupertinoIcons.calendar,
+                                color: Color(0xFF00695C),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Waktu Laporan',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    widget.item.dateTime,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        Text(widget.item.description!, style: const TextStyle(fontSize: 14, height: 1.5, color: Colors.black87)),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Divider(height: 1),
+                        ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFBE9E7),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                CupertinoIcons.location_solid,
+                                color: Color(0xFFD84315),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Lokasi',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    widget.item.location,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (widget.item.latitude != null &&
+                            widget.item.longitude != null) ...[
+                          const SizedBox(height: 16),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: SizedBox(
+                              height: 180,
+                              width: double.infinity,
+                              child: FlutterMap(
+                                options: MapOptions(
+                                  initialCenter: LatLng(
+                                    widget.item.latitude!,
+                                    widget.item.longitude!,
+                                  ),
+                                  initialZoom: 16.0,
+                                  interactionOptions: const InteractionOptions(
+                                    flags: InteractiveFlag
+                                        .none, // Prevent map scrolling inside scrollview
+                                  ),
+                                ),
+                                children: [
+                                  TileLayer(
+                                    urlTemplate:
+                                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                    userAgentPackageName:
+                                        'com.example.sahabat_sos_mobile',
+                                  ),
+                                  MarkerLayer(
+                                    markers: [
+                                      Marker(
+                                        point: LatLng(
+                                          widget.item.latitude!,
+                                          widget.item.longitude!,
+                                        ),
+                                        width: 40,
+                                        height: 40,
+                                        child: const Icon(
+                                          CupertinoIcons.location_solid,
+                                          color: Colors.red,
+                                          size: 40,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
                 ),
-              ],
 
-              // Audio Section
-              if (widget.item.audioUrl != null) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFFB74D), Color(0xFFFF9800)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(color: Colors.orange.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4)),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      InkWell(
-                        onTap: _isLoadingAudio ? null : _togglePlayPause,
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: const BoxDecoration(
-                            color: Colors.white24,
-                            shape: BoxShape.circle,
+                // Officer Info Card
+                if (widget.item.officerInfo != null) ...[
+                  const SizedBox(height: 16),
+                  _buildGlassContainer(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          const CircleAvatar(
+                            backgroundColor: Color(0xFF00695C),
+                            child: Icon(
+                              CupertinoIcons.person_fill,
+                              color: Colors.white,
+                            ),
                           ),
-                          child: _isLoadingAudio 
-                            ? const SizedBox(
-                                width: 32, 
-                                height: 32, 
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)
-                              )
-                            : Icon(
-                                _isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill, 
-                                color: Colors.white, 
-                                size: 32,
-                              ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Pesan Suara Terlampir', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-                            const SizedBox(height: 6),
-                            // Real Progress Slider
-                            Row(
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  _formatDuration(_position),
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                                ),
-                                Expanded(
-                                  child: SliderTheme(
-                                    data: SliderTheme.of(context).copyWith(
-                                      trackHeight: 3,
-                                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-                                      activeTrackColor: Colors.white,
-                                      inactiveTrackColor: Colors.white30,
-                                      thumbColor: Colors.white,
-                                      overlayColor: Colors.white24,
-                                    ),
-                                    child: Slider(
-                                      min: 0.0,
-                                      max: _duration.inSeconds.toDouble() > 0 ? _duration.inSeconds.toDouble() : 1.0,
-                                      value: (_position.inSeconds.toDouble() <= _duration.inSeconds.toDouble()) 
-                                          ? _position.inSeconds.toDouble() 
-                                          : 0.0,
-                                      onChanged: (value) async {
-                                        final position = Duration(seconds: value.toInt());
-                                        await _audioPlayer.seek(position);
-                                      },
-                                    ),
+                                const Text(
+                                  'Petugas Pendamping',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF004D40),
                                   ),
                                 ),
+                                const SizedBox(height: 4),
                                 Text(
-                                  _formatDuration(_duration),
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                  widget.item.officerInfo!,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF004D40),
+                                  ),
                                 ),
                               ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                ],
 
-              const SizedBox(height: 24),
-            ],
+                // Description Card
+                if (widget.item.description != null &&
+                    widget.item.description!.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _buildGlassContainer(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(
+                                CupertinoIcons.doc_text,
+                                color: Colors.black54,
+                                size: 20,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Keterangan Tambahan',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            widget.item.description!,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              height: 1.5,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+
+                // Audio Section
+                if (widget.item.audioUrl != null) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFFB74D), Color(0xFFFF9800)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.orange.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        InkWell(
+                          onTap: _isLoadingAudio ? null : _togglePlayPause,
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: const BoxDecoration(
+                              color: Colors.white24,
+                              shape: BoxShape.circle,
+                            ),
+                            child: _isLoadingAudio
+                                ? const SizedBox(
+                                    width: 32,
+                                    height: 32,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 3,
+                                    ),
+                                  )
+                                : Icon(
+                                    _isPlaying
+                                        ? CupertinoIcons.pause_fill
+                                        : CupertinoIcons.play_fill,
+                                    color: Colors.white,
+                                    size: 32,
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Pesan Suara Terlampir',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              // Real Progress Slider
+                              Row(
+                                children: [
+                                  Text(
+                                    _formatDuration(_position),
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: SliderTheme(
+                                      data: SliderTheme.of(context).copyWith(
+                                        trackHeight: 3,
+                                        thumbShape: const RoundSliderThumbShape(
+                                          enabledThumbRadius: 6,
+                                        ),
+                                        overlayShape:
+                                            const RoundSliderOverlayShape(
+                                              overlayRadius: 12,
+                                            ),
+                                        activeTrackColor: Colors.white,
+                                        inactiveTrackColor: Colors.white30,
+                                        thumbColor: Colors.white,
+                                        overlayColor: Colors.white24,
+                                      ),
+                                      child: Slider(
+                                        min: 0.0,
+                                        max: _duration.inSeconds.toDouble() > 0
+                                            ? _duration.inSeconds.toDouble()
+                                            : 1.0,
+                                        value:
+                                            (_position.inSeconds.toDouble() <=
+                                                _duration.inSeconds.toDouble())
+                                            ? _position.inSeconds.toDouble()
+                                            : 0.0,
+                                        onChanged: (value) async {
+                                          final position = Duration(
+                                            seconds: value.toInt(),
+                                          );
+                                          await _audioPlayer.seek(position);
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    _formatDuration(_duration),
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
 }
-
-

@@ -18,7 +18,7 @@ class TuyaBackgroundListener {
 
   StreamSubscription<TuyaDpEvent>? _subscription;
   bool _isRunning = false;
-  
+
   // Debounce: prevent multiple triggers within 10 seconds
   DateTime? _lastTriggerTime;
   static const Duration _debounceDuration = Duration(seconds: 10);
@@ -28,8 +28,8 @@ class TuyaBackgroundListener {
 
   /// Callback invoked when an emergency trigger is sent to server
   void Function(bool success, TuyaDpEvent event)? onEmergencySent;
-  
-  /// Callback invoked with error message when trigger fails  
+
+  /// Callback invoked with error message when trigger fails
   void Function(String errorMsg)? onEmergencyError;
 
   TuyaBackgroundListener({
@@ -93,10 +93,10 @@ class TuyaBackgroundListener {
   /// Handle incoming DP events
   Future<void> _handleEvent(TuyaDpEvent event) async {
     if (!event.isSosTriggered) return;
-    
+
     // Debounce: ignore if triggered within last 30 seconds
     final now = DateTime.now();
-    if (_lastTriggerTime != null && 
+    if (_lastTriggerTime != null &&
         now.difference(_lastTriggerTime!) < _debounceDuration) {
       return;
     }

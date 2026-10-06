@@ -41,7 +41,7 @@ class LocationService {
       return false;
     }
 
-    return true; 
+    return true;
   }
 
   /// Memulai tracking lokasi secara live (Position Stream)
@@ -55,8 +55,11 @@ class LocationService {
       locationSettings = AndroidSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 15, // Update setiap bergeser 15 meter
-        forceLocationManager: false, // Gunakan Fused Location Provider (lebih hemat baterai)
-        intervalDuration: const Duration(seconds: 10), // Update max tiap 10 detik
+        forceLocationManager:
+            false, // Gunakan Fused Location Provider (lebih hemat baterai)
+        intervalDuration: const Duration(
+          seconds: 10,
+        ), // Update max tiap 10 detik
       );
     } else if (Platform.isIOS || Platform.isMacOS) {
       // Untuk iOS: Menggunakan akurasi khusus navigasi yang paling detail
@@ -74,20 +77,25 @@ class LocationService {
 
     // Dapatkan posisi saat ini secara langsung terlebih dahulu
     Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-    ).then((Position position) async {
-      currentPosition.value = position;
-      await _sendLocationToBackend(position);
-    }).catchError((e) {
-      debugPrint("Gagal mendapatkan posisi awal: $e");
-    });
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+          ),
+        )
+        .then((Position position) async {
+          currentPosition.value = position;
+          await _sendLocationToBackend(position);
+        })
+        .catchError((e) {
+          debugPrint("Gagal mendapatkan posisi awal: $e");
+        });
 
-    _positionStreamSubscription = Geolocator.getPositionStream(
-      locationSettings: locationSettings,
-    ).listen((Position position) async {
-      currentPosition.value = position;
-      await _sendLocationToBackend(position);
-    });
+    _positionStreamSubscription =
+        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+          (Position position) async {
+            currentPosition.value = position;
+            await _sendLocationToBackend(position);
+          },
+        );
   }
 
   /// Menghentikan tracking lokasi
@@ -107,22 +115,23 @@ class LocationService {
 
       // Throttle geocoding: hanya geocode jika bergerak > 50 meter dari posisi terakhir
       try {
-        bool shouldGeocode = _lastGeocodedPosition == null ||
+        bool shouldGeocode =
+            _lastGeocodedPosition == null ||
             Geolocator.distanceBetween(
-              _lastGeocodedPosition!.latitude,
-              _lastGeocodedPosition!.longitude,
-              position.latitude,
-              position.longitude,
-            ) > 50;
+                  _lastGeocodedPosition!.latitude,
+                  _lastGeocodedPosition!.longitude,
+                  position.latitude,
+                  position.longitude,
+                ) >
+                50;
 
         if (shouldGeocode) {
-          List<geo.Placemark> placemarks = await geo.Geocoding().placemarkFromCoordinates(
-            position.latitude,
-            position.longitude,
-          );
+          List<geo.Placemark> placemarks = await geo.Geocoding()
+              .placemarkFromCoordinates(position.latitude, position.longitude);
           if (placemarks.isNotEmpty) {
             geo.Placemark place = placemarks.first;
-            _lastGeocodedAddress = "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
+            _lastGeocodedAddress =
+                "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
           }
           _lastGeocodedPosition = position;
         }
@@ -148,7 +157,9 @@ class LocationService {
             },
           ),
         );
-        debugPrint('✅ Lokasi Relawan berhasil diupdate: Lat ${position.latitude}, Lng ${position.longitude}');
+        debugPrint(
+          '✅ Lokasi Relawan berhasil diupdate: Lat ${position.latitude}, Lng ${position.longitude}',
+        );
       } else {
         // Pengguna biasa
         await dio.post(
@@ -165,7 +176,9 @@ class LocationService {
             },
           ),
         );
-        debugPrint('✅ Lokasi User berhasil diupdate: Lat ${position.latitude}, Lng ${position.longitude}');
+        debugPrint(
+          '✅ Lokasi User berhasil diupdate: Lat ${position.latitude}, Lng ${position.longitude}',
+        );
       }
     } catch (e) {
       debugPrint('❌ Gagal mengupdate lokasi ke server: $e');

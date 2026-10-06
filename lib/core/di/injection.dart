@@ -16,11 +16,15 @@ Future<void> initInjection() async {
   // External
   final sharedPreferences = await SharedPreferences.getInstance();
   sl.registerLazySingleton(() => sharedPreferences);
-  sl.registerLazySingleton(() => Dio(BaseOptions(
-    connectTimeout: const Duration(seconds: 60),
-    receiveTimeout: const Duration(seconds: 60),
-    sendTimeout: const Duration(seconds: 60),
-  )));
+  sl.registerLazySingleton(
+    () => Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 60),
+        receiveTimeout: const Duration(seconds: 60),
+        sendTimeout: const Duration(seconds: 60),
+      ),
+    ),
+  );
 
   // Data sources
   sl.registerLazySingleton<AuthRemoteDataSource>(
@@ -42,15 +46,10 @@ Future<void> initInjection() async {
   );
 
   // Tuya Services
-  sl.registerLazySingleton<TuyaChannelService>(
-    () => TuyaChannelService(),
-  );
+  sl.registerLazySingleton<TuyaChannelService>(() => TuyaChannelService());
   sl.registerLazySingleton<EmergencyTriggerService>(
-    () => EmergencyTriggerService(
-      dio: sl(),
-      prefs: sl(),
-      locationService: sl(),
-    ),
+    () =>
+        EmergencyTriggerService(dio: sl(), prefs: sl(), locationService: sl()),
   );
   sl.registerLazySingleton<TuyaBackgroundListener>(
     () => TuyaBackgroundListener(

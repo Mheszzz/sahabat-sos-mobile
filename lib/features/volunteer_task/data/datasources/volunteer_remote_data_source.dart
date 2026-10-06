@@ -10,6 +10,7 @@ abstract class VolunteerRemoteDataSource {
   Future<Map<String, dynamic>> rejectSos(int id);
   Future<Map<String, dynamic>> getBeranda();
   Future<Map<String, dynamic>> getRelawanBerandaRiwayat();
+  Future<Map<String, dynamic>> updateStatusKetersediaan(String status);
 }
 
 class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
@@ -20,10 +21,7 @@ class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
 
   Map<String, dynamic> _getHeaders() {
     final token = prefs.getString('auth_token');
-    return {
-      'Authorization': 'Bearer $token',
-      'Accept': 'application/json',
-    };
+    return {'Authorization': 'Bearer $token', 'Accept': 'application/json'};
   }
 
   @override
@@ -36,10 +34,16 @@ class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
       if (response.statusCode == 200) {
         return response.data;
       } else {
-        throw Exception(response.data['message'] ?? 'Gagal mengambil profil relawan');
+        throw Exception(
+          response.data['message'] ?? 'Gagal mengambil profil relawan',
+        );
       }
     } on DioException catch (e) {
-      throw Exception(e.response?.data?['message'] ?? e.message ?? 'Gagal mengambil profil relawan');
+      throw Exception(
+        e.response?.data?['message'] ??
+            e.message ??
+            'Gagal mengambil profil relawan',
+      );
     }
   }
 
@@ -53,10 +57,16 @@ class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
       if (response.statusCode == 200) {
         return response.data;
       } else {
-        throw Exception(response.data['message'] ?? 'Gagal mengambil daftar SOS aktif');
+        throw Exception(
+          response.data['message'] ?? 'Gagal mengambil daftar SOS aktif',
+        );
       }
     } on DioException catch (e) {
-      throw Exception(e.response?.data?['message'] ?? e.message ?? 'Gagal mengambil daftar SOS aktif');
+      throw Exception(
+        e.response?.data?['message'] ??
+            e.message ??
+            'Gagal mengambil daftar SOS aktif',
+      );
     }
   }
 
@@ -70,10 +80,16 @@ class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
       if (response.statusCode == 200) {
         return response.data;
       } else {
-        throw Exception(response.data['message'] ?? 'Gagal mengambil tugas SOS');
+        throw Exception(
+          response.data['message'] ?? 'Gagal mengambil tugas SOS',
+        );
       }
     } on DioException catch (e) {
-      throw Exception(e.response?.data?['message'] ?? e.message ?? 'Gagal mengambil tugas SOS');
+      throw Exception(
+        e.response?.data?['message'] ??
+            e.message ??
+            'Gagal mengambil tugas SOS',
+      );
     }
   }
 
@@ -88,10 +104,16 @@ class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
       if (response.statusCode == 200) {
         return response.data;
       } else {
-        throw Exception(response.data['message'] ?? 'Gagal mengupdate status SOS');
+        throw Exception(
+          response.data['message'] ?? 'Gagal mengupdate status SOS',
+        );
       }
     } on DioException catch (e) {
-      throw Exception(e.response?.data?['message'] ?? e.message ?? 'Gagal mengupdate status SOS');
+      throw Exception(
+        e.response?.data?['message'] ??
+            e.message ??
+            'Gagal mengupdate status SOS',
+      );
     }
   }
 
@@ -108,7 +130,9 @@ class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
         throw Exception(response.data['message'] ?? 'Gagal menolak SOS');
       }
     } on DioException catch (e) {
-      throw Exception(e.response?.data?['message'] ?? e.message ?? 'Gagal menolak SOS');
+      throw Exception(
+        e.response?.data?['message'] ?? e.message ?? 'Gagal menolak SOS',
+      );
     }
   }
 
@@ -122,10 +146,16 @@ class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
       if (response.statusCode == 200) {
         return response.data;
       } else {
-        throw Exception(response.data['message'] ?? 'Gagal mengambil data beranda');
+        throw Exception(
+          response.data['message'] ?? 'Gagal mengambil data beranda',
+        );
       }
     } on DioException catch (e) {
-      throw Exception(e.response?.data?['message'] ?? e.message ?? 'Gagal mengambil data beranda');
+      throw Exception(
+        e.response?.data?['message'] ??
+            e.message ??
+            'Gagal mengambil data beranda',
+      );
     }
   }
 
@@ -139,10 +169,40 @@ class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
       if (response.statusCode == 200) {
         return response.data;
       } else {
-        throw Exception(response.data['message'] ?? 'Gagal mengambil riwayat beranda relawan');
+        throw Exception(
+          response.data['message'] ?? 'Gagal mengambil riwayat beranda relawan',
+        );
       }
     } on DioException catch (e) {
-      throw Exception(e.response?.data?['message'] ?? e.message ?? 'Gagal mengambil riwayat beranda relawan');
+      throw Exception(
+        e.response?.data?['message'] ??
+            e.message ??
+            'Gagal mengambil riwayat beranda relawan',
+      );
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> updateStatusKetersediaan(String status) async {
+    try {
+      final response = await dio.put(
+        ApiConstants.relawanStatusKetersediaan,
+        data: {'status_ketersediaan': status},
+        options: Options(headers: _getHeaders()),
+      );
+      if (response.statusCode == 200) {
+        return response.data;
+      } else {
+        throw Exception(
+          response.data['message'] ?? 'Gagal memperbarui status ketersediaan',
+        );
+      }
+    } on DioException catch (e) {
+      throw Exception(
+        e.response?.data?['message'] ??
+            e.message ??
+            'Gagal memperbarui status ketersediaan',
+      );
     }
   }
 }

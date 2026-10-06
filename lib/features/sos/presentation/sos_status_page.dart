@@ -21,10 +21,12 @@ class SosStatusPage extends StatefulWidget {
 class _SosStatusPageState extends State<SosStatusPage> {
   static const Color primaryTeal = Color(0xFF00695C);
   static const Color sosRed = Color(0xFFE50000);
-  
+
   Timer? _cancelTimer;
   Timer? _statusTimer;
+  Timer? _selesaiTimer;
   bool _isCancelling = false;
+  bool _isSelesaiTimerStarted = false;
   double _cancelProgress = 0.0;
   String _sosStatus = 'aktif';
   int? _sosId;
@@ -32,27 +34,32 @@ class _SosStatusPageState extends State<SosStatusPage> {
 
   final LocationService _locationService = sl<LocationService>();
   StreamSubscription<ServiceStatus>? _serviceStatusStream;
-  
+
   @override
   void initState() {
     super.initState();
     _fetchSosStatus();
     // Poll for status every 5 seconds
-    _statusTimer = Timer.periodic(const Duration(seconds: 5), (_) => _fetchSosStatus());
+    _statusTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _fetchSosStatus(),
+    );
     // Start real-time location tracking so volunteer can see user position
     _startLocationTracking();
   }
 
   /// Mulai tracking lokasi user secara real-time.
-  /// LocationService secara otomatis akan menembak endpoint /api/user/update-location 
+  /// LocationService secara otomatis akan menembak endpoint /api/user/update-location
   /// (yang akan dibroadcast oleh backend via Reverb).
   Future<void> _startLocationTracking() async {
     final hasPermission = await _locationService.requestPermission();
     if (hasPermission) {
       _locationService.startTracking();
-      
+
       // Listen GPS service changes agar jika user mematikan GPS, kita tangkap
-      _serviceStatusStream = Geolocator.getServiceStatusStream().listen((status) {
+      _serviceStatusStream = Geolocator.getServiceStatusStream().listen((
+        status,
+      ) {
         if (status == ServiceStatus.enabled) {
           _locationService.startTracking();
         } else {
@@ -73,10 +80,12 @@ class _SosStatusPageState extends State<SosStatusPage> {
 
       final response = await sl<Dio>().get(
         ApiConstants.emergencyActive,
-        options: Options(headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        }),
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
       );
 
       if (response.statusCode == 200 && mounted) {
@@ -88,7 +97,9 @@ class _SosStatusPageState extends State<SosStatusPage> {
             _emptyPollCount = 0; // reset
           });
 
-          if (_sosStatus == 'proses' && _sosId != null && !_isListeningRelawan) {
+          if (_sosStatus == 'proses' &&
+              _sosId != null &&
+              !_isListeningRelawan) {
             _isListeningRelawan = true;
             WebsocketService.listenToRelawanLocation(_sosId!, (payload) {
               if (mounted && payload != null) {
@@ -100,13 +111,18 @@ class _SosStatusPageState extends State<SosStatusPage> {
               }
             });
           }
+
+          if (_sosStatus == 'selesai') {
+            _startSelesaiTimer();
+          }
         } else {
           // Give it a 15-second grace period (3 polls) to allow background API to finish
           _emptyPollCount++;
           if (_emptyPollCount > 3) {
             setState(() {
-               _sosStatus = 'selesai';
+              _sosStatus = 'selesai';
             });
+            _startSelesaiTimer();
           }
         }
       }
@@ -115,29 +131,41 @@ class _SosStatusPageState extends State<SosStatusPage> {
     }
   }
 
+  void _startSelesaiTimer() {
+    if (_isSelesaiTimerStarted) return;
+    _isSelesaiTimerStarted = true;
+    _selesaiTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted) {
+        context.pop();
+      }
+    });
+  }
+
   void _startCancelTimer() {
     setState(() {
       _isCancelling = true;
       _cancelProgress = 0.0;
     });
-    
+
     const int durationMs = 5000;
     const int intervalMs = 50;
     int elapsedMs = 0;
-    
-    _cancelTimer = Timer.periodic(const Duration(milliseconds: intervalMs), (timer) {
+
+    _cancelTimer = Timer.periodic(const Duration(milliseconds: intervalMs), (
+      timer,
+    ) {
       elapsedMs += intervalMs;
       setState(() {
         _cancelProgress = elapsedMs / durationMs;
       });
-      
+
       if (elapsedMs >= durationMs) {
         timer.cancel();
         _cancelSos();
       }
     });
   }
-  
+
   void _stopCancelTimer() {
     _cancelTimer?.cancel();
     setState(() {
@@ -145,11 +173,13 @@ class _SosStatusPageState extends State<SosStatusPage> {
       _cancelProgress = 0.0;
     });
   }
-  
+
   Future<void> _cancelSos() async {
     if (_sosId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tidak dapat membatalkan: ID SOS tidak ditemukan')),
+        const SnackBar(
+          content: Text('Tidak dapat membatalkan: ID SOS tidak ditemukan'),
+        ),
       );
       context.pop();
       return;
@@ -162,13 +192,13 @@ class _SosStatusPageState extends State<SosStatusPage> {
 
       final response = await sl<Dio>().post(
         ApiConstants.emergencyCancel(_sosId),
-        data: {
-          'alasan_batal': 'Dibatalkan oleh pengguna',
-        },
-        options: Options(headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        }),
+        data: {'alasan_batal': 'Dibatalkan oleh pengguna'},
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
       );
 
       if (response.statusCode == 200 && mounted) {
@@ -180,9 +210,9 @@ class _SosStatusPageState extends State<SosStatusPage> {
     } catch (e) {
       debugPrint('Gagal membatalkan SOS: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gagal membatalkan SOS')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Gagal membatalkan SOS')));
         context.pop();
       }
     }
@@ -192,6 +222,7 @@ class _SosStatusPageState extends State<SosStatusPage> {
   void dispose() {
     _cancelTimer?.cancel();
     _statusTimer?.cancel();
+    _selesaiTimer?.cancel();
     _serviceStatusStream?.cancel();
     _locationService.stopTracking();
     if (_sosId != null) {
@@ -218,215 +249,301 @@ class _SosStatusPageState extends State<SosStatusPage> {
           ),
         ),
         child: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 48),
-              
-              // Icon
-              Center(
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: _sosStatus == 'selesai' ? primaryTeal : (_sosStatus == 'proses' ? const Color(0xFFF57F17) : sosRed),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: (_sosStatus == 'selesai' ? primaryTeal : (_sosStatus == 'proses' ? const Color(0xFFF57F17) : sosRed)).withValues(alpha: 0.3),
-                        blurRadius: 20,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    _sosStatus == 'selesai' ? Icons.check_circle : (_sosStatus == 'proses' ? Icons.directions_car : Icons.campaign),
-                    color: Colors.white,
-                    size: 60,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              Text(
-                _sosStatus == 'selesai' ? 'BANTUAN SELESAI' : (_sosStatus == 'proses' ? 'RELAWAN DALAM PERJALANAN' : 'SOS SEDANG DIKIRIM'),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: _sosStatus == 'selesai' ? primaryTeal : (_sosStatus == 'proses' ? const Color(0xFFF57F17) : sosRed),
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _sosStatus == 'selesai' ? 'Panggilan darurat telah ditangani.' : (_sosStatus == 'proses' ? 'Relawan sedang menuju ke lokasi Anda.' : 'Bantuan sedang dicari...'),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.black54,
-                  fontSize: 18,
-                ),
-              ),
-              const SizedBox(height: 32),
-              
-              // Card
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.4),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Status Laporan',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          _buildStatusItem(
-                            icon: Icons.check_circle_outline,
-                            iconColor: const Color(0xFF00695C),
-                            iconBgColor: const Color(0xFFE0F2F1),
-                            title: 'Lokasi terkirim',
-                            description: 'Koordinat GPS Anda telah diterima oleh sistem.',
-                          ),
-                          const SizedBox(height: 20),
-                          _buildStatusItem(
-                            icon: _sosStatus == 'proses' || _sosStatus == 'selesai' ? Icons.check_circle_outline : Icons.autorenew,
-                            iconColor: _sosStatus == 'proses' || _sosStatus == 'selesai' ? const Color(0xFF00695C) : const Color(0xFFF57F17),
-                            iconBgColor: _sosStatus == 'proses' || _sosStatus == 'selesai' ? const Color(0xFFE0F2F1) : const Color(0xFFFFF9C4),
-                            title: _sosStatus == 'proses' || _sosStatus == 'selesai' ? 'Relawan Menuju Lokasi' : 'Mencari Relawan',
-                            description: _sosStatus == 'proses' 
-                                ? (_relawanDistance != null ? 'Relawan berjarak ${_relawanDistance!.toStringAsFixed(0)} meter dari Anda.' : 'Relawan telah menerima panggilan dan sedang dalam perjalanan.') 
-                                : (_sosStatus == 'selesai' ? 'Relawan telah tiba.' : 'Sistem sedang mencari relawan terdekat.'),
-                          ),
-                          const SizedBox(height: 20),
-                          _buildStatusItem(
-                            icon: _sosStatus == 'selesai' ? Icons.check_circle_outline : Icons.more_horiz,
-                            iconColor: _sosStatus == 'selesai' ? const Color(0xFF00695C) : Colors.grey.shade700,
-                            iconBgColor: _sosStatus == 'selesai' ? const Color(0xFFE0F2F1) : Colors.grey.shade200,
-                            title: 'Bantuan Selesai',
-                            description: _sosStatus == 'selesai' ? 'Bantuan telah tiba dan selesai.' : 'Menunggu relawan tiba.',
-                            isFaded: _sosStatus != 'selesai',
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              
-              const Spacer(),
-              
-              // Hubungi Customer Services Button
-              ElevatedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.support_agent, color: Colors.white),
-                label: const Text(
-                  'Hubungi Customer Services',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryTeal,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Batalkan SOS Button
-              GestureDetector(
-                onTapDown: (_) => _startCancelTimer(),
-                onTapUp: (_) => _stopCancelTimer(),
-                onTapCancel: () => _stopCancelTimer(),
-                child: Container(
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade400),
-                  ),
-                  child: Stack(
+          child: CustomScrollView(
+            slivers: [
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Progress fill
-                      if (_isCancelling)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: FractionallySizedBox(
-                            alignment: Alignment.centerLeft,
-                            widthFactor: _cancelProgress,
-                            child: Container(
-                              color: Colors.grey.shade400,
-                            ),
+                      const SizedBox(height: 48),
+
+                      // Icon
+                      Center(
+                        child: Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            color: _sosStatus == 'selesai'
+                                ? primaryTeal
+                                : (_sosStatus == 'proses'
+                                      ? const Color(0xFFF57F17)
+                                      : sosRed),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    (_sosStatus == 'selesai'
+                                            ? primaryTeal
+                                            : (_sosStatus == 'proses'
+                                                  ? const Color(0xFFF57F17)
+                                                  : sosRed))
+                                        .withValues(alpha: 0.3),
+                                blurRadius: 20,
+                                spreadRadius: 5,
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            _sosStatus == 'selesai'
+                                ? Icons.check_circle
+                                : (_sosStatus == 'proses'
+                                      ? Icons.directions_car
+                                      : Icons.campaign),
+                            color: Colors.white,
+                            size: 60,
                           ),
                         ),
-                      // Content
-                      Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(Icons.cancel_outlined, color: Colors.black87),
-                            SizedBox(width: 8),
-                            Text(
-                              'Batalkan SOS (Tahan 5d)',
-                              style: TextStyle(
-                                color: Colors.black87,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      Text(
+                        _sosStatus == 'selesai'
+                            ? 'BANTUAN SELESAI'
+                            : (_sosStatus == 'proses'
+                                  ? 'RELAWAN DALAM PERJALANAN'
+                                  : 'SOS SEDANG DIKIRIM'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _sosStatus == 'selesai'
+                              ? primaryTeal
+                              : (_sosStatus == 'proses'
+                                    ? const Color(0xFFF57F17)
+                                    : sosRed),
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _sosStatus == 'selesai'
+                            ? 'Panggilan darurat telah ditangani.'
+                            : (_sosStatus == 'proses'
+                                  ? 'Relawan sedang menuju ke lokasi Anda.'
+                                  : 'Bantuan sedang dicari...'),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.black54,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+
+                      // Card
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.4),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.6),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Status Laporan',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  _buildStatusItem(
+                                    icon: Icons.check_circle_outline,
+                                    iconColor: const Color(0xFF00695C),
+                                    iconBgColor: const Color(0xFFE0F2F1),
+                                    title: 'Lokasi terkirim',
+                                    description:
+                                        'Koordinat GPS Anda telah diterima oleh sistem.',
+                                  ),
+                                  const SizedBox(height: 20),
+                                  _buildStatusItem(
+                                    icon:
+                                        _sosStatus == 'proses' ||
+                                            _sosStatus == 'selesai'
+                                        ? Icons.check_circle_outline
+                                        : Icons.autorenew,
+                                    iconColor:
+                                        _sosStatus == 'proses' ||
+                                            _sosStatus == 'selesai'
+                                        ? const Color(0xFF00695C)
+                                        : const Color(0xFFF57F17),
+                                    iconBgColor:
+                                        _sosStatus == 'proses' ||
+                                            _sosStatus == 'selesai'
+                                        ? const Color(0xFFE0F2F1)
+                                        : const Color(0xFFFFF9C4),
+                                    title:
+                                        _sosStatus == 'proses' ||
+                                            _sosStatus == 'selesai'
+                                        ? 'Relawan Menuju Lokasi'
+                                        : 'Mencari Relawan',
+                                    description: _sosStatus == 'proses'
+                                        ? (_relawanDistance != null
+                                              ? 'Relawan berjarak ${_relawanDistance!.toStringAsFixed(0)} meter dari Anda.'
+                                              : 'Relawan telah menerima panggilan dan sedang dalam perjalanan.')
+                                        : (_sosStatus == 'selesai'
+                                              ? 'Relawan telah tiba.'
+                                              : 'Sistem sedang mencari relawan terdekat.'),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  _buildStatusItem(
+                                    icon: _sosStatus == 'selesai'
+                                        ? Icons.check_circle_outline
+                                        : Icons.more_horiz,
+                                    iconColor: _sosStatus == 'selesai'
+                                        ? const Color(0xFF00695C)
+                                        : Colors.grey.shade700,
+                                    iconBgColor: _sosStatus == 'selesai'
+                                        ? const Color(0xFFE0F2F1)
+                                        : Colors.grey.shade200,
+                                    title: 'Bantuan Selesai',
+                                    description: _sosStatus == 'selesai'
+                                        ? 'Bantuan telah tiba dan selesai.'
+                                        : 'Menunggu relawan tiba.',
+                                    isFaded: _sosStatus != 'selesai',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
+
+                      const Spacer(),
+
+                      // Hubungi Customer Services Button
+                      ElevatedButton.icon(
+                        onPressed: () {},
+                        icon: const Icon(
+                          Icons.support_agent,
+                          color: Colors.white,
+                        ),
+                        label: const Text(
+                          'Hubungi Customer Services',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryTeal,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      if (_sosStatus == 'selesai')
+                        ElevatedButton(
+                          onPressed: () => context.pop(),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryTeal,
+                            minimumSize: const Size(double.infinity, 56),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Selesai',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        )
+                      else ...[
+                        // Batalkan SOS Button
+                        GestureDetector(
+                          onTapDown: (_) => _startCancelTimer(),
+                          onTapUp: (_) => _stopCancelTimer(),
+                          onTapCancel: () => _stopCancelTimer(),
+                          child: Container(
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade400),
+                            ),
+                            child: Stack(
+                              children: [
+                                // Progress fill
+                                if (_isCancelling)
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: FractionallySizedBox(
+                                      alignment: Alignment.centerLeft,
+                                      widthFactor: _cancelProgress,
+                                      child: Container(
+                                        color: Colors.grey.shade400,
+                                      ),
+                                    ),
+                                  ),
+                                // Content
+                                Center(
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: const [
+                                      Icon(
+                                        Icons.cancel_outlined,
+                                        color: Colors.black87,
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Batalkan SOS (Tahan 5d)',
+                                        style: TextStyle(
+                                          color: Colors.black87,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Tahan tombol batal selama 5 detik untuk membatalkan keadaan darurat.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.black45, fontSize: 12),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Tahan tombol batal selama 5 detik untuk membatalkan keadaan darurat.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.black45,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 24),
             ],
           ),
         ),
-            ),
-          ],
-        ),
-      ),
       ),
     );
   }
@@ -445,10 +562,7 @@ class _SosStatusPageState extends State<SosStatusPage> {
         Container(
           width: 40,
           height: 40,
-          decoration: BoxDecoration(
-            color: iconBgColor,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: iconBgColor, shape: BoxShape.circle),
           child: Icon(icon, color: iconColor, size: 24),
         ),
         const SizedBox(width: 16),

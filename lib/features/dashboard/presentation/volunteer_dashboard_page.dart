@@ -1,4 +1,5 @@
-import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart' as import_event_bus;
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
+    as import_event_bus;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'dart:ui';
@@ -19,7 +20,7 @@ class VolunteerDashboardPage extends StatefulWidget {
 class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
   static const Color bgColor = Color(0xFFF5F6F8);
   static const Color primaryTeal = Color(0xFF006D77);
-  
+
   bool _isReady = false;
   int? _volunteerId;
   final _volunteerDataSource = sl<VolunteerRemoteDataSource>();
@@ -44,6 +45,10 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
       // Get dashboard data (which includes user and summary)
       final beranda = await _volunteerDataSource.getBeranda();
       _berandaData = beranda;
+      if (beranda['data'] != null && beranda['data']['user'] != null) {
+        final statusKetersediaan = beranda['data']['user']['status_ketersediaan'];
+        _isReady = (statusKetersediaan == 'tersedia');
+      }
 
       // Get active tasks for this volunteer
       try {
@@ -56,25 +61,47 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
       } catch (e) {
         _activeTask = null;
       }
-      
+
+      // Get volunteer history
       // Get volunteer history
       try {
-        final riwayatData = await _volunteerDataSource.getRelawanBerandaRiwayat();
+        final riwayatData = await _volunteerDataSource
+            .getRelawanBerandaRiwayat();
         final List<dynamic> combinedHistory = [];
-        if (riwayatData['laporan'] != null) {
-          combinedHistory.addAll(riwayatData['laporan']);
-        }
-        if (riwayatData['sos'] != null) {
-          combinedHistory.addAll(riwayatData['sos']);
-        }
         
+        final rawData = riwayatData['data'];
+
+        if (rawData != null && rawData is List) {
+          for (var item in rawData) {
+            if (item is Map<String, dynamic>) {
+              // The backend already provides 'tipe', 'waktu', 'lokasi', 'kategori', 'deskripsi'
+              // but we map them to our display fields to ensure the UI renders them perfectly.
+              item['tipe'] = item['tipe'] ?? 'laporan';
+              item['waktu_display'] = item['waktu'] ?? item['waktu_laporan'] ?? item['waktu_sos'] ?? item['created_at'] ?? '';
+              item['lokasi_display'] = item['lokasi'] ?? item['lokasi_laporan'] ?? item['lokasi_user'] ?? 'Lokasi tidak diketahui';
+              item['deskripsi_display'] = item['deskripsi'] ?? '';
+              item['kategori_display'] = item['kategori'] ?? item['kategori_laporan'] ?? 'Laporan';
+              combinedHistory.add(item);
+            } else {
+              combinedHistory.add(item);
+            }
+          }
+        }
+
         // Sort newest first
         combinedHistory.sort((a, b) {
-          final timeA = DateTime.tryParse(a['waktu'] ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final timeB = DateTime.tryParse(b['waktu'] ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final String dateA = a is Map ? (a['waktu_display'] ?? '') : '';
+          final String dateB = b is Map ? (b['waktu_display'] ?? '') : '';
+          
+          final timeA =
+              DateTime.tryParse(dateA) ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          final timeB =
+              DateTime.tryParse(dateB) ??
+              DateTime.fromMillisecondsSinceEpoch(0);
           return timeB.compareTo(timeA);
         });
-        
+
         _riwayatList = combinedHistory;
       } catch (e) {
         _riwayatList = [];
@@ -82,19 +109,24 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
       }
 
       final userData = beranda['user'];
-      
+
       if (userData != null && userData['id'] != null) {
         _volunteerId = userData['id'];
-        
+
         final prefs = sl<SharedPreferences>();
         final token = prefs.getString('auth_token');
         if (token != null) {
           await WebsocketService.init(token);
         }
 
-        WebsocketService.listenToNewSosForVolunteer(_volunteerId!, _onNewSosReceived);
+        WebsocketService.listenToNewSosForVolunteer(
+          _volunteerId!,
+          _onNewSosReceived,
+        );
       } else {
-        debugPrint("⚠️ Gagal init websocket: Data user relawan kosong atau tidak memiliki ID.");
+        debugPrint(
+          "⚠️ Gagal init websocket: Data user relawan kosong atau tidak memiliki ID.",
+        );
       }
     } catch (e) {
       debugPrint("Gagal load data beranda relawan: $e");
@@ -126,11 +158,11 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
 
   void _showNewAssignmentDialog(Map<String, dynamic> sosData) {
     if (_isDialogShowing) return;
-    
+
     final sosId = sosData['id'] as int;
     if (_rejectedSosIds.contains(sosId)) {
       debugPrint('SOS #$sosId diabaikan karena sudah pernah ditolak.');
-      return; 
+      return;
     }
 
     _isDialogShowing = true;
@@ -147,7 +179,8 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
             await _volunteerDataSource.updateSosStatus(sosId, 'proses');
 
             // Trigger navigasi otomatis ke tab Peta dengan rute
-            import_event_bus.GlobalEventBus.navigateToMapWithSos.value = sosData;
+            import_event_bus.GlobalEventBus.navigateToMapWithSos.value =
+                sosData;
 
             // Juga refresh data map
             import_event_bus.GlobalEventBus.refreshMap.value =
@@ -172,17 +205,20 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
         },
         onReject: () async {
           _isDialogShowing = false;
-          _rejectedSosIds.add(sosId); 
+          _rejectedSosIds.add(sosId);
           Navigator.pop(ctx);
-          
+
           try {
             await _volunteerDataSource.rejectSos(sosId);
-            
-            import_event_bus.GlobalEventBus.refreshMap.value = !import_event_bus.GlobalEventBus.refreshMap.value;
+
+            import_event_bus.GlobalEventBus.refreshMap.value =
+                !import_event_bus.GlobalEventBus.refreshMap.value;
 
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Tugas dialihkan ke relawan lain.')),
+                const SnackBar(
+                  content: Text('Tugas dialihkan ke relawan lain.'),
+                ),
               );
             }
           } catch (e) {
@@ -209,7 +245,11 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Color(0xFFE0F7FA), Color(0xFFF1F8E9), Color(0xFFE3F2FD)],
+                    colors: [
+                      Color(0xFFE0F7FA),
+                      Color(0xFFF1F8E9),
+                      Color(0xFFE3F2FD),
+                    ],
                   ),
                 ),
               ),
@@ -235,7 +275,11 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFFE0F7FA), Color(0xFFF1F8E9), Color(0xFFE3F2FD)],
+                  colors: [
+                    Color(0xFFE0F7FA),
+                    Color(0xFFF1F8E9),
+                    Color(0xFFE3F2FD),
+                  ],
                 ),
               ),
             ),
@@ -275,14 +319,21 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
               onRefresh: _initVolunteerData,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 24.0,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Header Logo
                     Row(
                       children: [
-                        Image.asset('assets/images/logo.png', width: 24, height: 24),
+                        Image.asset(
+                          'assets/images/logo.png',
+                          width: 24,
+                          height: 24,
+                        ),
                         const SizedBox(width: 8),
                         const Text(
                           'Sahabat SOS',
@@ -315,8 +366,8 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  _isReady 
-                                      ? 'Anda saat ini sedang aktif menerima panggilan darurat.' 
+                                  _isReady
+                                      ? 'Anda saat ini sedang aktif menerima panggilan darurat.'
                                       : 'Anda saat ini sedang tidak aktif menerima panggilan darurat.',
                                   style: TextStyle(
                                     fontSize: 13,
@@ -331,16 +382,37 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                             children: [
                               Switch(
                                 value: _isReady,
-                                onChanged: (val) {
+                                onChanged: (val) async {
+                                  // Optimistic UI update
                                   setState(() {
                                     _isReady = val;
                                   });
+                                  
+                                  try {
+                                    final statusStr = val ? 'tersedia' : 'tidak_tersedia';
+                                    await _volunteerDataSource.updateStatusKetersediaan(statusStr);
+                                  } catch (e) {
+                                    // Revert on failure
+                                    setState(() {
+                                      _isReady = !val;
+                                    });
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Gagal memperbarui status'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  }
                                 },
                                 activeThumbColor: Colors.white,
                                 activeTrackColor: primaryTeal,
                                 inactiveThumbColor: Colors.white,
                                 inactiveTrackColor: Colors.grey.shade400,
-                                trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+                                trackOutlineColor: WidgetStateProperty.all(
+                                  Colors.transparent,
+                                ),
                               ),
                               Text(
                                 _isReady ? 'Siap\nBertugas' : 'Tidak\nAktif',
@@ -348,7 +420,9 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: _isReady ? primaryTeal : Colors.grey.shade600,
+                                  color: _isReady
+                                      ? primaryTeal
+                                      : Colors.grey.shade600,
                                 ),
                               ),
                             ],
@@ -357,7 +431,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Tugas Aktif (Dynamic)
                     if (_activeTask != null) ...[
                       const Text(
@@ -371,14 +445,21 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                       GlassContainer(
                         padding: const EdgeInsets.all(16),
                         color: const Color(0xFFC62828).withValues(alpha: 0.75),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.4),
+                          width: 1.5,
+                        ),
                         borderRadius: BorderRadius.circular(20),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: const [
-                                Icon(CupertinoIcons.exclamationmark_triangle_fill, color: Colors.white, size: 20),
+                                Icon(
+                                  CupertinoIcons.exclamationmark_triangle_fill,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                                 SizedBox(width: 8),
                                 Text(
                                   'Darurat SOS Sedang Diproses',
@@ -394,12 +475,21 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Icon(CupertinoIcons.person_fill, color: Colors.white, size: 16),
+                                const Icon(
+                                  CupertinoIcons.person_fill,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
-                                    _activeTask!['pengguna']?['nama_lengkap'] ?? 'Pengguna',
-                                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                                    _activeTask!['pengguna']?['nama_lengkap'] ??
+                                        'Pengguna',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -408,12 +498,19 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Icon(CupertinoIcons.location, color: Colors.white, size: 16),
+                                const Icon(
+                                  CupertinoIcons.location,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
                                     'Lat: ${_activeTask!['latitude']}, Lng: ${_activeTask!['longitude']}',
-                                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -424,29 +521,56 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                               child: ElevatedButton.icon(
                                 onPressed: () async {
                                   try {
-                                    await _volunteerDataSource.updateSosStatus(_activeTask!['id'], 'selesai');
-                                    import_event_bus.GlobalEventBus.refreshMap.value = !import_event_bus.GlobalEventBus.refreshMap.value;
+                                    await _volunteerDataSource.updateSosStatus(
+                                      _activeTask!['id'],
+                                      'selesai',
+                                    );
+                                    import_event_bus
+                                        .GlobalEventBus
+                                        .refreshMap
+                                        .value = !import_event_bus
+                                        .GlobalEventBus
+                                        .refreshMap
+                                        .value;
                                     if (mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(content: Text('Tugas diselesaikan!')),
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Tugas diselesaikan!'),
+                                        ),
                                       );
                                       _initVolunteerData();
                                     }
                                   } catch (e) {
                                     if (mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Gagal menyelesaikan tugas: $e')),
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Gagal menyelesaikan tugas: $e',
+                                          ),
+                                        ),
                                       );
                                     }
                                   }
                                 },
-                                icon: const Icon(CupertinoIcons.checkmark_circle, color: Color(0xFF8B0000)),
+                                icon: const Icon(
+                                  CupertinoIcons.checkmark_circle,
+                                  color: Color(0xFF8B0000),
+                                ),
                                 label: const Text(
                                   'Selesaikan Tugas',
-                                  style: TextStyle(color: Color(0xFF8B0000), fontWeight: FontWeight.bold),
+                                  style: TextStyle(
+                                    color: Color(0xFF8B0000),
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFFFCDD2).withValues(alpha: 0.9),
+                                  backgroundColor: const Color(
+                                    0xFFFFCDD2,
+                                  ).withValues(alpha: 0.9),
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -488,7 +612,11 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                    Icon(CupertinoIcons.arrow_right, color: primaryTeal, size: 14),
+                                    Icon(
+                                      CupertinoIcons.arrow_right,
+                                      color: primaryTeal,
+                                      size: 14,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -500,15 +628,28 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.4),
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 1.5),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.8),
+                                width: 1.5,
+                              ),
                             ),
                             child: Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(CupertinoIcons.map, size: 32, color: Colors.teal[700]),
+                                  Icon(
+                                    CupertinoIcons.map,
+                                    size: 32,
+                                    color: Colors.teal[700],
+                                  ),
                                   const SizedBox(height: 8),
-                                  Text('Gunakan tab Peta untuk melihat laporan.', style: TextStyle(color: Colors.teal[800], fontSize: 12)),
+                                  Text(
+                                    'Gunakan tab Peta untuk melihat laporan.',
+                                    style: TextStyle(
+                                      color: Colors.teal[800],
+                                      fontSize: 12,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -517,7 +658,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Statistik Sistem
                     GlassContainer(
                       padding: const EdgeInsets.all(16),
@@ -543,8 +684,14 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                             child: Row(
                               children: [
                                 CircleAvatar(
-                                  backgroundColor: Colors.red.withValues(alpha: 0.8),
-                                  child: const Icon(CupertinoIcons.exclamationmark_triangle_fill, color: Colors.white),
+                                  backgroundColor: Colors.red.withValues(
+                                    alpha: 0.8,
+                                  ),
+                                  child: const Icon(
+                                    CupertinoIcons
+                                        .exclamationmark_triangle_fill,
+                                    color: Colors.white,
+                                  ),
                                 ),
                                 const SizedBox(width: 16),
                                 Column(
@@ -552,11 +699,18 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                                   children: [
                                     const Text(
                                       'SOS AKTIF',
-                                      style: TextStyle(fontSize: 10, color: Colors.black54, fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.black54,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                     Text(
                                       '$activeSosCount Kasus',
-                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -574,8 +728,13 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                             child: Row(
                               children: [
                                 CircleAvatar(
-                                  backgroundColor: primaryTeal.withValues(alpha: 0.8),
-                                  child: const Icon(CupertinoIcons.doc_text, color: Colors.white),
+                                  backgroundColor: primaryTeal.withValues(
+                                    alpha: 0.8,
+                                  ),
+                                  child: const Icon(
+                                    CupertinoIcons.doc_text,
+                                    color: Colors.white,
+                                  ),
                                 ),
                                 const SizedBox(width: 16),
                                 Column(
@@ -583,11 +742,18 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                                   children: [
                                     const Text(
                                       'TOTAL LAPORAN',
-                                      style: TextStyle(fontSize: 10, color: Colors.black54, fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.black54,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                     Text(
                                       '$totalLaporan Laporan',
-                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -598,7 +764,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Riwayat Tugas Terselesaikan
                     const Text(
                       'Riwayat Tugas Terselesaikan',
@@ -618,9 +784,39 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                     else
                       ..._riwayatList.map((item) {
                         final isSos = item['tipe'] == 'sos';
-                        final title = isSos ? 'Keadaan Darurat (SOS)' : (item['kategori'] ?? 'Laporan');
-                        final desc = isSos ? (item['lokasi'] ?? '') : (item['deskripsi'] ?? '');
+                        final title = item['kategori_display'] ?? (isSos ? 'Keadaan Darurat (SOS)' : 'Laporan');
                         
+                        String desc = item['lokasi_display'] ?? '';
+                        if (isSos && (desc.isEmpty || desc == 'Lokasi tidak diketahui' || desc == 'null')) {
+                          desc = item['deskripsi_display'] ?? 'Permintaan bantuan darurat SOS';
+                        }
+                        
+                        final timeStr = item['waktu_display'] ?? '';
+
+                        String displayDate = timeStr;
+                        try {
+                           if (timeStr.isNotEmpty) {
+                             String parseableDate = timeStr.replaceAll(' ', 'T');
+                             if (!parseableDate.endsWith('Z') &&
+                                 !parseableDate.contains('+') &&
+                                 (parseableDate.indexOf('T') == -1 ||
+                                     parseableDate.indexOf('-', parseableDate.indexOf('T')) == -1)) {
+                               parseableDate += 'Z';
+                             }
+                             DateTime parsedDate = DateTime.parse(parseableDate).toLocal();
+                             String year = parsedDate.year.toString().padLeft(4, '0');
+                             String month = parsedDate.month.toString().padLeft(2, '0');
+                             String day = parsedDate.day.toString().padLeft(2, '0');
+                             String hour = parsedDate.hour.toString().padLeft(2, '0');
+                             String minute = parsedDate.minute.toString().padLeft(2, '0');
+                             displayDate = '$year-$month-$day $hour:$minute';
+                           }
+                        } catch (e) {
+                           if (timeStr.length >= 16) {
+                             displayDate = timeStr.replaceAll('T', ' ').substring(0, 16);
+                           }
+                        }
+
                         return Container(
                           margin: const EdgeInsets.only(bottom: 12),
                           padding: const EdgeInsets.all(12),
@@ -632,16 +828,23 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                                 color: Colors.black.withValues(alpha: 0.05),
                                 blurRadius: 4,
                                 offset: const Offset(0, 2),
-                              )
+                              ),
                             ],
                           ),
                           child: Row(
                             children: [
                               CircleAvatar(
-                                backgroundColor: isSos ? Colors.red[100] : Colors.blue[100],
+                                backgroundColor: isSos
+                                    ? Colors.red[100]
+                                    : Colors.blue[100],
                                 child: Icon(
-                                  isSos ? CupertinoIcons.exclamationmark_triangle_fill : CupertinoIcons.doc_text_fill,
-                                  color: isSos ? Colors.red[700] : Colors.blue[700],
+                                  isSos
+                                      ? CupertinoIcons
+                                            .exclamationmark_triangle_fill
+                                      : CupertinoIcons.doc_text_fill,
+                                  color: isSos
+                                      ? Colors.red[700]
+                                      : Colors.blue[700],
                                   size: 20,
                                 ),
                               ),
@@ -652,15 +855,31 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                                   children: [
                                     Text(
                                       title,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       desc,
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[700],
+                                      ),
                                     ),
+                                    if (displayDate.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        displayDate,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey[500],
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
@@ -668,8 +887,8 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                           ),
                         );
                       }),
-                    
-                    const SizedBox(height: 80), 
+
+                    const SizedBox(height: 80),
                   ],
                 ),
               ),

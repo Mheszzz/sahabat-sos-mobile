@@ -9,6 +9,7 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../routing/routes.dart';
 
 enum _NeedType { tunanetra, tunarungu, tunawicara, umum }
+
 enum _RoleType { pengguna, relawan }
 
 class RegisterStep2Page extends StatefulWidget {
@@ -98,73 +99,87 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
           ),
         ),
         child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: IntrinsicHeight(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildProgressSection(),
-                        const SizedBox(height: 18),
-                        _buildBrandRow(),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'Personalisasi Perlindungan\nDarurat',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1A1A2E),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildProgressSection(),
+                          const SizedBox(height: 18),
+                          _buildBrandRow(),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Personalisasi Perlindungan\nDarurat',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1A1A2E),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Penentuan profil disabilitas, sensor SOS &\nkontak darurat untuk ketepatan bantuan.',
-                          style: TextStyle(fontSize: 13.5, color: mutedText, height: 1.4),
-                        ),
-                        const SizedBox(height: 22),
-                        _buildSectionHeader(CupertinoIcons.person_crop_circle_badge_checkmark, 'Pilih Peran'),
-                        const SizedBox(height: 12),
-                        _buildRoleSelection(),
-                        const SizedBox(height: 22),
-                        _buildSectionHeader(CupertinoIcons.person, 'Informasi Pribadi'),
-                        const SizedBox(height: 12),
-                        _buildPersonalInfoCard(),
-                        if (_selectedRole == _RoleType.pengguna) ...[
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Penentuan profil disabilitas, sensor SOS &\nkontak darurat untuk ketepatan bantuan.',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              color: mutedText,
+                              height: 1.4,
+                            ),
+                          ),
                           const SizedBox(height: 22),
-                          _buildSectionHeader(CupertinoIcons.person_2, 'Kebutuhan Utama'),
+                          _buildSectionHeader(
+                            CupertinoIcons.person_crop_circle_badge_checkmark,
+                            'Pilih Peran',
+                          ),
                           const SizedBox(height: 12),
-                          _buildNeedGrid(),
+                          _buildRoleSelection(),
                           const SizedBox(height: 22),
-                          _buildSensorCard(),
+                          _buildSectionHeader(
+                            CupertinoIcons.person,
+                            'Informasi Pribadi',
+                          ),
+                          const SizedBox(height: 12),
+                          _buildPersonalInfoCard(),
+                          if (_selectedRole == _RoleType.pengguna) ...[
+                            const SizedBox(height: 22),
+                            _buildSectionHeader(
+                              CupertinoIcons.person_2,
+                              'Kebutuhan Utama',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildNeedGrid(),
+                            const SizedBox(height: 22),
+                            _buildSensorCard(),
+                          ],
+                          const Spacer(),
+                          const SizedBox(height: 22),
+                          _buildSubmitButton(),
+                          const SizedBox(height: 12),
+                          _buildLogoutButton(),
                         ],
-                        const Spacer(),
-                        const SizedBox(height: 22),
-                        _buildSubmitButton(),
-                        const SizedBox(height: 12),
-                        _buildLogoutButton(),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
-      ),
       ),
     );
   }
 
   Widget _buildBrandRow() {
     return Row(
-      children: [
-        Image.asset('assets/images/logo_full.png', height: 40),
-      ],
+      children: [Image.asset('assets/images/logo_full.png', height: 40)],
     );
   }
 
@@ -234,152 +249,209 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.6),
+              width: 1.5,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-          const Text(
-            'Nama Lengkap',
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1A1A2E),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: fieldFill,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: TextField(
-              controller: _nameController,
-              keyboardType: TextInputType.name,
-              style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                hintText: 'Contoh: Budi Santoso',
-                hintStyle: TextStyle(fontSize: 13, color: Color(0xFFB0B4C4)),
-                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                prefixIcon: Icon(CupertinoIcons.person, color: Color(0xFF8A8FA3)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Nomor Telepon Pribadi',
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1A1A2E),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: fieldFill,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: TextField(
-              controller: _userPhoneController,
-              keyboardType: TextInputType.phone,
-              style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                hintText: 'Contoh: 081234567890',
-                hintStyle: TextStyle(fontSize: 13, color: Color(0xFFB0B4C4)),
-                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                prefixIcon: Icon(CupertinoIcons.phone, color: Color(0xFF8A8FA3)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Alamat Lengkap',
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1A1A2E),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: fieldFill,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: TextField(
-              controller: _addressController,
-              maxLines: 3,
-              style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                hintText: 'Masukkan alamat tempat tinggal...',
-                hintStyle: TextStyle(fontSize: 13, color: Color(0xFFB0B4C4)),
-                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              ),
-            ),
-          ),
-          if (_selectedRole == _RoleType.relawan) ...[
-            const SizedBox(height: 16),
-            const Text(
-              'Pekerjaan',
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1A1A2E),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              decoration: BoxDecoration(
-                color: fieldFill,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: TextField(
-                controller: _jobController,
-                keyboardType: TextInputType.text,
-                style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)),
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  hintText: 'Contoh: Mahasiswa, Pegawai Swasta',
-                  hintStyle: TextStyle(fontSize: 13, color: Color(0xFFB0B4C4)),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  prefixIcon: Icon(CupertinoIcons.briefcase, color: Color(0xFF8A8FA3)),
+              const Text(
+                'Nama Lengkap',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A1A2E),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Alasan Menjadi Relawan',
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1A1A2E),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              decoration: BoxDecoration(
-                color: fieldFill,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: TextField(
-                controller: _reasonController,
-                maxLines: 3,
-                style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)),
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  hintText: 'Berikan alasan singkat Anda...',
-                  hintStyle: TextStyle(fontSize: 13, color: Color(0xFFB0B4C4)),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: fieldFill,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: TextField(
+                  controller: _nameController,
+                  keyboardType: TextInputType.name,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF1A1A2E),
+                  ),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    hintText: 'Contoh: Budi Santoso',
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFFB0B4C4),
+                    ),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    prefixIcon: Icon(
+                      CupertinoIcons.person,
+                      color: Color(0xFF8A8FA3),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ],
-        ],
-      ),
+              const SizedBox(height: 16),
+              const Text(
+                'Nomor Telepon Pribadi',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A1A2E),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: fieldFill,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: TextField(
+                  controller: _userPhoneController,
+                  keyboardType: TextInputType.phone,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF1A1A2E),
+                  ),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    hintText: 'Contoh: 081234567890',
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFFB0B4C4),
+                    ),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    prefixIcon: Icon(
+                      CupertinoIcons.phone,
+                      color: Color(0xFF8A8FA3),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Alamat Lengkap',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A1A2E),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: fieldFill,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: TextField(
+                  controller: _addressController,
+                  maxLines: 3,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF1A1A2E),
+                  ),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    hintText: 'Masukkan alamat tempat tinggal...',
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFFB0B4C4),
+                    ),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ),
+              if (_selectedRole == _RoleType.relawan) ...[
+                const SizedBox(height: 16),
+                const Text(
+                  'Pekerjaan',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A2E),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: fieldFill,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: TextField(
+                    controller: _jobController,
+                    keyboardType: TextInputType.text,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF1A1A2E),
+                    ),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'Contoh: Mahasiswa, Pegawai Swasta',
+                      hintStyle: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFFB0B4C4),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      prefixIcon: Icon(
+                        CupertinoIcons.briefcase,
+                        color: Color(0xFF8A8FA3),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Alasan Menjadi Relawan',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A2E),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: fieldFill,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: TextField(
+                    controller: _reasonController,
+                    maxLines: 3,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF1A1A2E),
+                    ),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'Berikan alasan singkat Anda...',
+                      hintStyle: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFFB0B4C4),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -423,10 +495,14 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
             decoration: BoxDecoration(
-              color: selected ? primaryDark : Colors.white.withValues(alpha: 0.4),
+              color: selected
+                  ? primaryDark
+                  : Colors.white.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: selected ? primaryDark : Colors.white.withValues(alpha: 0.6),
+                color: selected
+                    ? primaryDark
+                    : Colors.white.withValues(alpha: 0.6),
                 width: 1.5,
               ),
             ),
@@ -522,10 +598,14 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
             decoration: BoxDecoration(
-              color: selected ? primaryDark : Colors.white.withValues(alpha: 0.4),
+              color: selected
+                  ? primaryDark
+                  : Colors.white.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: selected ? primaryDark : Colors.white.withValues(alpha: 0.6),
+                color: selected
+                    ? primaryDark
+                    : Colors.white.withValues(alpha: 0.6),
                 width: 1.5,
               ),
             ),
@@ -544,7 +624,11 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                       const CircleAvatar(
                         radius: 9,
                         backgroundColor: Colors.white,
-                        child: Icon(CupertinoIcons.checkmark_alt, size: 12, color: primaryDark),
+                        child: Icon(
+                          CupertinoIcons.checkmark_alt,
+                          size: 12,
+                          color: primaryDark,
+                        ),
                       ),
                     ] else ...[
                       const Spacer(),
@@ -584,7 +668,10 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader(CupertinoIcons.slider_horizontal_3, 'Sensor & Aksesibilitas'),
+        _buildSectionHeader(
+          CupertinoIcons.slider_horizontal_3,
+          'Sensor & Aksesibilitas',
+        ),
         const SizedBox(height: 16),
         _buildSensorToggleRow(
           icon: CupertinoIcons.speaker_2,
@@ -661,18 +748,32 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
     final token = prefs.getString('auth_token');
 
     if (token == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sesi tidak ditemukan, silakan login ulang.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sesi tidak ditemukan, silakan login ulang.'),
+        ),
+      );
       return;
     }
 
-    if (_nameController.text.isEmpty || _addressController.text.trim().isEmpty || _userPhoneController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nama, Nomor Telepon & Alamat wajib diisi!')));
+    if (_nameController.text.isEmpty ||
+        _addressController.text.trim().isEmpty ||
+        _userPhoneController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nama, Nomor Telepon & Alamat wajib diisi!'),
+        ),
+      );
       return;
     }
 
     if (_selectedRole == _RoleType.relawan) {
       if (_jobController.text.isEmpty || _reasonController.text.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pekerjaan dan Alasan wajib diisi untuk Relawan!')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pekerjaan dan Alasan wajib diisi untuk Relawan!'),
+          ),
+        );
         return;
       }
     }
@@ -738,9 +839,14 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
         } catch (_) {}
 
         await prefs.setBool('is_profile_complete', true);
-        await prefs.setString('user_role', _selectedRole == _RoleType.relawan ? 'relawan' : 'pengguna');
+        await prefs.setString(
+          'user_role',
+          _selectedRole == _RoleType.relawan ? 'relawan' : 'pengguna',
+        );
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profil berhasil disimpan!')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profil berhasil disimpan!')),
+        );
         if (_selectedRole == _RoleType.relawan) {
           context.go(AppRoutes.homeVolunteer);
         } else {
@@ -748,12 +854,16 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
         }
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menyimpan profil: ${response.data}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menyimpan profil: ${response.data}')),
+        );
       }
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context); // Tutup Loading
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi kesalahan: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Terjadi kesalahan: $e')));
     }
   }
 
@@ -767,7 +877,9 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
           backgroundColor: primaryDark,
           foregroundColor: Colors.white,
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -783,6 +895,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
       ),
     );
   }
+
   Widget _buildLogoutButton() {
     return SizedBox(
       width: double.infinity,
@@ -796,10 +909,12 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
             final dio = get_it.GetIt.instance<Dio>();
             await dio.post(
               ApiConstants.logout,
-              options: Options(headers: {
-                'Authorization': 'Bearer $token',
-                'Accept': 'application/json',
-              }),
+              options: Options(
+                headers: {
+                  'Authorization': 'Bearer $token',
+                  'Accept': 'application/json',
+                },
+              ),
             );
           } catch (_) {}
           await prefs.remove('auth_token');
@@ -810,7 +925,9 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
         style: OutlinedButton.styleFrom(
           foregroundColor: const Color(0xFF1A1A2E),
           side: const BorderSide(color: Color(0xFFE1E4EE)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
         child: const Text(
           'Batalkan & Kembali',
@@ -820,10 +937,3 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
     );
   }
 }
-
-
-
-
-
-
-

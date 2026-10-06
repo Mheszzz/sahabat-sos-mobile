@@ -1,4 +1,4 @@
-﻿import 'dart:ui';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class GlassContainer extends StatelessWidget {
@@ -36,7 +36,9 @@ class GlassContainer extends StatelessWidget {
             decoration: BoxDecoration(
               color: color ?? Colors.white.withOpacity(opacity),
               borderRadius: borderRadius ?? BorderRadius.circular(20),
-              border: border ?? Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
+              border:
+                  border ??
+                  Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
             ),
             child: child,
           ),

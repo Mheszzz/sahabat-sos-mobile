@@ -44,7 +44,7 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
       Permission.bluetoothScan,
       Permission.bluetoothConnect,
     ];
-    
+
     for (final p in permissionsToRequest) {
       final status = await p.status;
       if (!status.isGranted) {
@@ -54,7 +54,7 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
 
     // If running on Android 12+, bluetoothScan is required. On older devices, location is required.
     // It's safe to proceed if they aren't explicitly permanently denied.
-    
+
     setState(() {
       _isScanning = true;
       _foundDevices.clear();
@@ -236,7 +236,8 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
                 if (_foundDevices.isNotEmpty) _buildFoundDevicesCard(),
 
                 // Empty state during scan
-                if (_isScanning && _foundDevices.isEmpty) _buildScanningIndicator(),
+                if (_isScanning && _foundDevices.isEmpty)
+                  _buildScanningIndicator(),
               ],
             ),
           ),
@@ -245,7 +246,10 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
     );
   }
 
-  Widget _buildGlassContainer({required Widget child, EdgeInsetsGeometry? padding}) {
+  Widget _buildGlassContainer({
+    required Widget child,
+    EdgeInsetsGeometry? padding,
+  }) {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
@@ -266,7 +270,10 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
             ),
             child: child,
           ),
@@ -295,9 +302,13 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    _isScanning ? CupertinoIcons.bluetooth : CupertinoIcons.bluetooth,
+                    _isScanning
+                        ? CupertinoIcons.bluetooth
+                        : CupertinoIcons.bluetooth,
                     size: 48,
-                    color: _isScanning ? const Color(0xFF007AFF) : Colors.black54,
+                    color: _isScanning
+                        ? const Color(0xFF007AFF)
+                        : Colors.black54,
                   ),
                 ),
               );
@@ -328,17 +339,24 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
             child: ElevatedButton.icon(
               onPressed: _isScanning ? _stopScan : _startScan,
               icon: Icon(
-                _isScanning ? CupertinoIcons.stop_fill : CupertinoIcons.bluetooth,
+                _isScanning
+                    ? CupertinoIcons.stop_fill
+                    : CupertinoIcons.bluetooth,
                 color: Colors.white,
                 size: 18,
               ),
               label: Text(
                 _isScanning ? 'Berhenti Scan' : 'Mulai Scan BLE',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    _isScanning ? const Color(0xFFFF3B30) : const Color(0xFF007AFF),
+                backgroundColor: _isScanning
+                    ? const Color(0xFFFF3B30)
+                    : const Color(0xFF007AFF),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -365,7 +383,11 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
                   color: const Color(0xFF34C759).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(CupertinoIcons.info_circle_fill, color: Color(0xFF34C759), size: 18),
+                child: const Icon(
+                  CupertinoIcons.info_circle_fill,
+                  color: Color(0xFF34C759),
+                  size: 18,
+                ),
               ),
               const SizedBox(width: 12),
               const Text(
@@ -398,7 +420,11 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
         children: [
           Text(
             'Perangkat Ditemukan (${_foundDevices.length})',
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: Colors.black87),
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
+              color: Colors.black87,
+            ),
           ),
           const SizedBox(height: 16),
           ...List.generate(_foundDevices.length, (index) {
@@ -419,7 +445,11 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(CupertinoIcons.antenna_radiowaves_left_right, color: Colors.black87, size: 20),
+                    child: const Icon(
+                      CupertinoIcons.antenna_radiowaves_left_right,
+                      color: Colors.black87,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -437,12 +467,18 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
                         const SizedBox(height: 2),
                         Text(
                           'ID: ${device['id'] ?? '-'}',
-                          style: const TextStyle(fontSize: 12, color: Colors.black54),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
                         ),
                         if (device['rssi'] != null)
                           Text(
                             'Signal: ${device['rssi']} dBm',
-                            style: const TextStyle(fontSize: 11, color: Colors.black54),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.black54,
+                            ),
                           ),
                       ],
                     ),
@@ -472,7 +508,10 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
                           )
                         : const Text(
                             'Hubungkan',
-                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
                           ),
                   ),
                 ],
@@ -493,7 +532,11 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
           SizedBox(height: 20),
           Text(
             'Mencari perangkat BLE terdekat...',
-            style: TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.w500),
+            style: TextStyle(
+              color: Colors.black87,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           SizedBox(height: 6),
           Text(
@@ -505,7 +548,3 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
     );
   }
 }
-
-
-
-

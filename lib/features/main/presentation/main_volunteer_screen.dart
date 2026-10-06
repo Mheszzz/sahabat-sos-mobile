@@ -9,7 +9,8 @@ import 'package:sahabat_sos_mobile/features/profile/presentation/screens/volunte
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
-import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart' as event_bus;
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
+    as event_bus;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MainVolunteerScreen extends StatefulWidget {
@@ -33,8 +34,7 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
     super.initState();
     _selectedIndex = widget.initialIndex;
     _initVolunteerServices();
-    event_bus.GlobalEventBus.navigateToMapWithSos
-        .addListener(_onNavigateToMap);
+    event_bus.GlobalEventBus.navigateToMapWithSos.addListener(_onNavigateToMap);
   }
 
   /// Dipanggil saat relawan menerima tugas → pindah ke tab Peta & tampilkan rute
@@ -56,8 +56,9 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
 
   @override
   void dispose() {
-    event_bus.GlobalEventBus.navigateToMapWithSos
-        .removeListener(_onNavigateToMap);
+    event_bus.GlobalEventBus.navigateToMapWithSos.removeListener(
+      _onNavigateToMap,
+    );
     _locationService.stopTracking();
     super.dispose();
   }
@@ -96,21 +97,25 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
 
   final List<_NavItem> _navItems = const [
     _NavItem(
-        icon: CupertinoIcons.house,
-        selectedIcon: CupertinoIcons.house_fill,
-        label: 'Beranda'),
+      icon: CupertinoIcons.house,
+      selectedIcon: CupertinoIcons.house_fill,
+      label: 'Beranda',
+    ),
     _NavItem(
-        icon: CupertinoIcons.doc_text,
-        selectedIcon: CupertinoIcons.doc_text_fill,
-        label: 'Tugas'),
+      icon: CupertinoIcons.doc_text,
+      selectedIcon: CupertinoIcons.doc_text_fill,
+      label: 'Tugas',
+    ),
     _NavItem(
-        icon: CupertinoIcons.map,
-        selectedIcon: CupertinoIcons.map_fill,
-        label: 'Peta'),
+      icon: CupertinoIcons.map,
+      selectedIcon: CupertinoIcons.map_fill,
+      label: 'Peta',
+    ),
     _NavItem(
-        icon: CupertinoIcons.person,
-        selectedIcon: CupertinoIcons.person_solid,
-        label: 'Profil'),
+      icon: CupertinoIcons.person,
+      selectedIcon: CupertinoIcons.person_solid,
+      label: 'Profil',
+    ),
   ];
 
   @override
@@ -126,10 +131,7 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
       extendBody: true,
       body: Stack(
         children: [
-          IndexedStack(
-            index: _selectedIndex,
-            children: pages,
-          ),
+          IndexedStack(index: _selectedIndex, children: pages),
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
@@ -158,8 +160,10 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: List.generate(_navItems.length, (index) {

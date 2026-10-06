@@ -77,7 +77,7 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
       if (_selectedMode == 'ap') {
         final tokenResult = await _tuyaService.getWifiToken();
         final token = tokenResult['token'] as String;
-        
+
         setState(() {
           _apToken = token;
           _waitingForSmartLife = true;
@@ -92,7 +92,8 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
       } else {
         await _tuyaService.startWifiPairing(ssid, password);
         setState(() {
-          _pairingStatus = 'Mengirimkan sandi ke alat SOS...\nPastikan alat berkedip cepat!';
+          _pairingStatus =
+              'Mengirimkan sandi ke alat SOS...\nPastikan alat berkedip cepat!';
         });
       }
     } catch (e) {
@@ -115,7 +116,8 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
 
     setState(() {
       _waitingForSmartLife = false;
-      _pairingStatus = 'Mengirimkan info Wi-Fi ke alat SOS...\nTunggu 1-2 menit...';
+      _pairingStatus =
+          'Mengirimkan info Wi-Fi ke alat SOS...\nTunggu 1-2 menit...';
     });
 
     try {
@@ -150,20 +152,17 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
 
   void _listenForWifiEvents() {
     _eventSubscription?.cancel();
-    _eventSubscription = _tuyaService.dpEventStream.listen(
-      (event) {
-        if (!mounted) return;
-        
-        if (event.eventType == TuyaEventType.wifiPairingSuccess) {
-          _onPairingSuccess();
-        } else if (event.eventType == TuyaEventType.wifiPairingError) {
-          final code = event.dps['error_code']?.toString() ?? 'N/A';
-          final msg = event.dps['error_msg']?.toString() ?? 'Unknown error';
-          _onPairingError('$msg (code: $code)');
-        }
-      },
-      onError: (_) {},
-    );
+    _eventSubscription = _tuyaService.dpEventStream.listen((event) {
+      if (!mounted) return;
+
+      if (event.eventType == TuyaEventType.wifiPairingSuccess) {
+        _onPairingSuccess();
+      } else if (event.eventType == TuyaEventType.wifiPairingError) {
+        final code = event.dps['error_code']?.toString() ?? 'N/A';
+        final msg = event.dps['error_msg']?.toString() ?? 'Unknown error';
+        _onPairingError('$msg (code: $code)');
+      }
+    }, onError: (_) {});
   }
 
   void _onPairingSuccess() {
@@ -172,17 +171,15 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
       _isPairing = false;
       _pairingStatus = '';
     });
-    
+
     _eventSubscription?.cancel();
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => Dialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -224,7 +221,10 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
                   },
                   child: const Text(
                     'Tutup',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -243,9 +243,9 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
       _waitingForSmartLife = false;
       _apToken = null;
     });
-    
+
     _eventSubscription?.cancel();
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Gagal: $errorMsg'),
@@ -255,7 +255,10 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
     );
   }
 
-  Widget _buildGlassContainer({required Widget child, EdgeInsetsGeometry? padding}) {
+  Widget _buildGlassContainer({
+    required Widget child,
+    EdgeInsetsGeometry? padding,
+  }) {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
@@ -276,7 +279,10 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
             ),
             child: child,
           ),
@@ -362,14 +368,20 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
         children: [
           const Text(
             'Pilih Mode Pairing',
-            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: Colors.black87),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
+              color: Colors.black87,
+            ),
           ),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: GestureDetector(
-                  onTap: _isPairing ? null : () => setState(() => _selectedMode = 'ap'),
+                  onTap: _isPairing
+                      ? null
+                      : () => setState(() => _selectedMode = 'ap'),
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -388,7 +400,9 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
                       children: [
                         Icon(
                           CupertinoIcons.wifi,
-                          color: _selectedMode == 'ap' ? const Color(0xFF007AFF) : Colors.black54,
+                          color: _selectedMode == 'ap'
+                              ? const Color(0xFF007AFF)
+                              : Colors.black54,
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -396,7 +410,9 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
-                            color: _selectedMode == 'ap' ? const Color(0xFF007AFF) : Colors.black54,
+                            color: _selectedMode == 'ap'
+                                ? const Color(0xFF007AFF)
+                                : Colors.black54,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -404,7 +420,9 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
                           '(Disarankan)',
                           style: TextStyle(
                             fontSize: 11,
-                            color: _selectedMode == 'ap' ? const Color(0xFF34C759) : Colors.black54,
+                            color: _selectedMode == 'ap'
+                                ? const Color(0xFF34C759)
+                                : Colors.black54,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -416,7 +434,9 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: GestureDetector(
-                  onTap: _isPairing ? null : () => setState(() => _selectedMode = 'ez'),
+                  onTap: _isPairing
+                      ? null
+                      : () => setState(() => _selectedMode = 'ez'),
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -435,7 +455,9 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
                       children: [
                         Icon(
                           CupertinoIcons.wifi,
-                          color: _selectedMode == 'ez' ? const Color(0xFF007AFF) : Colors.black54,
+                          color: _selectedMode == 'ez'
+                              ? const Color(0xFF007AFF)
+                              : Colors.black54,
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -443,7 +465,9 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
-                            color: _selectedMode == 'ez' ? const Color(0xFF007AFF) : Colors.black54,
+                            color: _selectedMode == 'ez'
+                                ? const Color(0xFF007AFF)
+                                : Colors.black54,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -471,7 +495,11 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
         children: [
           const Text(
             'Informasi Wi-Fi Rumah',
-            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: Colors.black87),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
+              color: Colors.black87,
+            ),
           ),
           const SizedBox(height: 16),
           TextField(
@@ -483,7 +511,10 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
               labelStyle: const TextStyle(color: Colors.black54),
               hintText: 'Contoh: Indihome_Rumah',
               hintStyle: const TextStyle(color: Colors.black38),
-              prefixIcon: const Icon(CupertinoIcons.wifi, color: Colors.black54),
+              prefixIcon: const Icon(
+                CupertinoIcons.wifi,
+                color: Colors.black54,
+              ),
               filled: true,
               fillColor: const Color(0xFFF2F2F7),
               border: OutlineInputBorder(
@@ -505,12 +536,17 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
             decoration: InputDecoration(
               labelText: 'Password Wi-Fi',
               labelStyle: const TextStyle(color: Colors.black54),
-              prefixIcon: const Icon(CupertinoIcons.lock_fill, color: Colors.black54),
+              prefixIcon: const Icon(
+                CupertinoIcons.lock_fill,
+                color: Colors.black54,
+              ),
               filled: true,
               fillColor: const Color(0xFFF2F2F7),
               suffixIcon: IconButton(
                 icon: Icon(
-                  _obscurePassword ? CupertinoIcons.eye_slash : CupertinoIcons.eye,
+                  _obscurePassword
+                      ? CupertinoIcons.eye_slash
+                      : CupertinoIcons.eye,
                   color: Colors.black54,
                 ),
                 onPressed: () {
@@ -540,7 +576,10 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
                 Text(
                   _pairingStatus,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 if (!_waitingForSmartLife) ...[
                   const SizedBox(height: 8),
@@ -553,15 +592,28 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
                   const SizedBox(height: 20),
                   ElevatedButton.icon(
                     onPressed: _startApStep2,
-                    icon: const Icon(CupertinoIcons.play_arrow_solid, color: Colors.white, size: 18),
+                    icon: const Icon(
+                      CupertinoIcons.play_arrow_solid,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                     label: const Text(
                       'Lanjutkan Pairing',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF007AFF),
-                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                        horizontal: 24,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                       elevation: 0,
                     ),
                   ),
@@ -573,9 +625,14 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
                     foregroundColor: const Color(0xFFFF3B30),
                     side: const BorderSide(color: Color(0xFFFF3B30)),
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
-                  child: const Text('Batalkan', style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Batalkan',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ],
             )
@@ -586,12 +643,19 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
                 backgroundColor: const Color(0xFF007AFF),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 elevation: 0,
               ),
               child: Text(
-                _selectedMode == 'ap' ? 'Mulai Pairing (AP Mode)' : 'Mulai Pairing (EZ Mode)',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                _selectedMode == 'ap'
+                    ? 'Mulai Pairing (AP Mode)'
+                    : 'Mulai Pairing (EZ Mode)',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
         ],
@@ -610,12 +674,18 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: isAP ? const Color(0xFF007AFF).withValues(alpha: 0.1) : const Color(0xFFFF9500).withValues(alpha: 0.1),
+                  color: isAP
+                      ? const Color(0xFF007AFF).withValues(alpha: 0.1)
+                      : const Color(0xFFFF9500).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
-                  isAP ? CupertinoIcons.info_circle_fill : CupertinoIcons.exclamationmark_triangle_fill,
-                  color: isAP ? const Color(0xFF007AFF) : const Color(0xFFFF9500),
+                  isAP
+                      ? CupertinoIcons.info_circle_fill
+                      : CupertinoIcons.exclamationmark_triangle_fill,
+                  color: isAP
+                      ? const Color(0xFF007AFF)
+                      : const Color(0xFFFF9500),
                   size: 18,
                 ),
               ),
@@ -634,22 +704,22 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
           Text(
             isAP
                 ? '1. Tekan & tahan tombol alat SOS sampai lampunya berkedip LAMBAT (mode AP).\n'
-                  '2. Masukkan nama Wi-Fi rumah dan password di bawah.\n'
-                  '3. Tekan "Mulai Pairing".\n'
-                  '4. Buka pengaturan Wi-Fi HP → Sambung ke jaringan "SmartLife-XXXX".\n'
-                  '5. Kembali ke aplikasi ini dan tunggu hingga selesai.'
+                      '2. Masukkan nama Wi-Fi rumah dan password di bawah.\n'
+                      '3. Tekan "Mulai Pairing".\n'
+                      '4. Buka pengaturan Wi-Fi HP → Sambung ke jaringan "SmartLife-XXXX".\n'
+                      '5. Kembali ke aplikasi ini dan tunggu hingga selesai.'
                 : '1. Hubungkan HP Anda ke Wi-Fi 2.4GHz.\n'
-                  '2. Tekan & tahan tombol alat SOS sampai lampunya berkedip SANGAT CEPAT (mode EZ).\n'
-                  '3. Jika berkedip lambat, tekan & tahan lagi sampai berkedip cepat.\n'
-                  '4. Masukkan nama Wi-Fi dan password dengan teliti (huruf besar/kecil berpengaruh).',
-            style: const TextStyle(fontSize: 14, color: Colors.black87, height: 1.5),
+                      '2. Tekan & tahan tombol alat SOS sampai lampunya berkedip SANGAT CEPAT (mode EZ).\n'
+                      '3. Jika berkedip lambat, tekan & tahan lagi sampai berkedip cepat.\n'
+                      '4. Masukkan nama Wi-Fi dan password dengan teliti (huruf besar/kecil berpengaruh).',
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.black87,
+              height: 1.5,
+            ),
           ),
         ],
       ),
     );
   }
 }
-
-
-
-

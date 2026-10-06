@@ -9,7 +9,10 @@ abstract class ProfileRemoteDataSource {
   Future<Map<String, dynamic>> getProfile();
   Future<Map<String, dynamic>> getMe();
   Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data);
-  Future<Map<String, dynamic>> updateProfileWithFoto(Map<String, dynamic> data, XFile imageFile);
+  Future<Map<String, dynamic>> updateProfileWithFoto(
+    Map<String, dynamic> data,
+    XFile imageFile,
+  );
   Future<Map<String, dynamic>> uploadFoto(XFile imageFile);
   Future<Map<String, dynamic>> deleteFoto();
 }
@@ -67,7 +70,9 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
-      throw Exception('Gagal mengambil profil user. Status: ${response.statusCode}');
+      throw Exception(
+        'Gagal mengambil profil user. Status: ${response.statusCode}',
+      );
     }
   }
 
@@ -82,14 +87,22 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
-      throw Exception('Gagal memperbarui profil. Status: ${response.statusCode}');
+      throw Exception(
+        'Gagal memperbarui profil. Status: ${response.statusCode}',
+      );
     }
   }
 
   @override
-  Future<Map<String, dynamic>> updateProfileWithFoto(Map<String, dynamic> data, XFile imageFile) async {
-    var request = http.MultipartRequest('POST', Uri.parse(ApiConstants.profile));
-    
+  Future<Map<String, dynamic>> updateProfileWithFoto(
+    Map<String, dynamic> data,
+    XFile imageFile,
+  ) async {
+    var request = http.MultipartRequest(
+      'POST',
+      Uri.parse(ApiConstants.profile),
+    );
+
     // Add headers
     request.headers.addAll({
       'Authorization': 'Bearer ${prefs.getString('auth_token')}',
@@ -104,12 +117,14 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
     // Add file with correct field name and MIME type
     final bytes = await imageFile.readAsBytes();
     final mimeType = _getMimeType(imageFile.name);
-    request.files.add(http.MultipartFile.fromBytes(
-      'foto_profile', 
-      bytes,
-      filename: imageFile.name,
-      contentType: mimeType,
-    ));
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'foto_profile',
+        bytes,
+        filename: imageFile.name,
+        contentType: mimeType,
+      ),
+    );
 
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
@@ -117,14 +132,19 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
-      throw Exception('Gagal memperbarui profil dan foto. Status: ${response.statusCode}');
+      throw Exception(
+        'Gagal memperbarui profil dan foto. Status: ${response.statusCode}',
+      );
     }
   }
 
   @override
   Future<Map<String, dynamic>> uploadFoto(XFile imageFile) async {
-    var request = http.MultipartRequest('POST', Uri.parse(ApiConstants.profileFoto));
-    
+    var request = http.MultipartRequest(
+      'POST',
+      Uri.parse(ApiConstants.profileFoto),
+    );
+
     // Add headers
     request.headers.addAll({
       'Authorization': 'Bearer ${prefs.getString('auth_token')}',
@@ -134,12 +154,14 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
     // Add file with correct field name and MIME type
     final bytes = await imageFile.readAsBytes();
     final mimeType = _getMimeType(imageFile.name);
-    request.files.add(http.MultipartFile.fromBytes(
-      'foto_profile', 
-      bytes,
-      filename: imageFile.name,
-      contentType: mimeType,
-    ));
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'foto_profile',
+        bytes,
+        filename: imageFile.name,
+        contentType: mimeType,
+      ),
+    );
 
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);

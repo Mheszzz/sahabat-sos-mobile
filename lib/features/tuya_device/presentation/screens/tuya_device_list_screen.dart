@@ -88,20 +88,21 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
       // Prevent spamming identical events in the list within a short time window
       if (_recentEvents.isNotEmpty) {
         final lastEvent = _recentEvents.first;
-        if (event.eventType == lastEvent.eventType && 
+        if (event.eventType == lastEvent.eventType &&
             event.isSosTriggered == lastEvent.isSosTriggered &&
             DateTime.now().difference(lastEvent.timestamp).inSeconds < 2) {
           return; // Skip inserting duplicate event
         }
       }
-      
+
       _recentEvents.insert(0, event);
       if (_recentEvents.length > 20) _recentEvents.removeLast();
     });
 
     if (event.isSosTriggered) {
       final now = DateTime.now();
-      if (_lastSnackbarTime == null || now.difference(_lastSnackbarTime!) > const Duration(seconds: 10)) {
+      if (_lastSnackbarTime == null ||
+          now.difference(_lastSnackbarTime!) > const Duration(seconds: 10)) {
         _lastSnackbarTime = now;
         _onSosDetected(event);
       }
@@ -120,7 +121,10 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal simulasi: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Gagal simulasi: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -134,7 +138,11 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
     super.dispose();
   }
 
-  Widget _buildGlassContainer({required Widget child, EdgeInsetsGeometry? padding, Color? color}) {
+  Widget _buildGlassContainer({
+    required Widget child,
+    EdgeInsetsGeometry? padding,
+    Color? color,
+  }) {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
@@ -155,7 +163,10 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
             decoration: BoxDecoration(
               color: color ?? Colors.white.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
             ),
             child: child,
           ),
@@ -206,50 +217,52 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
         ),
         child: SafeArea(
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF00695C)))
+              ? const Center(
+                  child: CircularProgressIndicator(color: Color(0xFF00695C)),
+                )
               : RefreshIndicator(
                   onRefresh: _loadDevices,
                   color: const Color(0xFF00695C),
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Text(
-                        'Perangkat',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                          letterSpacing: -0.5,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'Perangkat',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                            letterSpacing: -0.5,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      // Status Card
-                      _buildStatusCard(),
-                      const SizedBox(height: 16),
+                        const SizedBox(height: 20),
+                        // Status Card
+                        _buildStatusCard(),
+                        const SizedBox(height: 16),
 
-                      // Simulation Test Card
-                      _buildSimulationCard(),
-                      const SizedBox(height: 16),
+                        // Simulation Test Card
+                        _buildSimulationCard(),
+                        const SizedBox(height: 16),
 
-                      // Action Buttons for Adding Devices
-                      _buildActionButtons(),
-                      const SizedBox(height: 24),
+                        // Action Buttons for Adding Devices
+                        _buildActionButtons(),
+                        const SizedBox(height: 24),
 
-                      // Device List
-                      _buildDeviceListSection(),
-                      const SizedBox(height: 24),
+                        // Device List
+                        _buildDeviceListSection(),
+                        const SizedBox(height: 24),
 
-                      // Recent Events Log
-                      if (_recentEvents.isNotEmpty) _buildEventLogCard(),
-                      
-                      const SizedBox(height: 80), // Padding for FAB
-                    ],
+                        // Recent Events Log
+                        if (_recentEvents.isNotEmpty) _buildEventLogCard(),
+
+                        const SizedBox(height: 80), // Padding for FAB
+                      ],
+                    ),
                   ),
                 ),
-              ),
         ),
       ),
     );
@@ -263,14 +276,18 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isConnected 
-                ? const Color(0xFF34C759).withValues(alpha: 0.1) 
-                : const Color(0xFFFF3B30).withValues(alpha: 0.1),
+              color: isConnected
+                  ? const Color(0xFF34C759).withValues(alpha: 0.1)
+                  : const Color(0xFFFF3B30).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              isConnected ? CupertinoIcons.checkmark_shield_fill : CupertinoIcons.xmark_shield_fill,
-              color: isConnected ? const Color(0xFF34C759) : const Color(0xFFFF3B30),
+              isConnected
+                  ? CupertinoIcons.checkmark_shield_fill
+                  : CupertinoIcons.xmark_shield_fill,
+              color: isConnected
+                  ? const Color(0xFF34C759)
+                  : const Color(0xFFFF3B30),
               size: 24,
             ),
           ),
@@ -281,7 +298,11 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
               children: [
                 Text(
                   isConnected ? 'Sistem Aktif' : 'Sistem Terputus',
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: Colors.black87),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                    color: Colors.black87,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -310,7 +331,11 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                   color: const Color(0xFFFF9500).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(CupertinoIcons.lab_flask_solid, color: Color(0xFFFF9500), size: 18),
+                child: const Icon(
+                  CupertinoIcons.lab_flask_solid,
+                  color: Color(0xFFFF9500),
+                  size: 18,
+                ),
               ),
               const SizedBox(width: 12),
               const Text(
@@ -353,7 +378,10 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                     )
                   : const Text(
                       'Simulasi SOS',
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
             ),
           ),
@@ -379,7 +407,10 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
               elevation: 0,
             ),
             icon: const Icon(CupertinoIcons.wifi, size: 20),
-            label: const Text('Pairing Wi-Fi', style: TextStyle(fontWeight: FontWeight.w600)),
+            label: const Text(
+              'Pairing Wi-Fi',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -397,7 +428,10 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
               elevation: 0,
             ),
             icon: const Icon(CupertinoIcons.bluetooth, size: 20),
-            label: const Text('Scan BLE', style: TextStyle(fontWeight: FontWeight.w600)),
+            label: const Text(
+              'Scan BLE',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ),
       ],
@@ -410,11 +444,19 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
         padding: const EdgeInsets.all(32),
         child: const Column(
           children: [
-            Icon(CupertinoIcons.device_desktop, size: 48, color: Colors.black26),
+            Icon(
+              CupertinoIcons.device_desktop,
+              size: 48,
+              color: Colors.black26,
+            ),
             SizedBox(height: 16),
             Text(
               'Belum Ada Perangkat',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: Colors.black87),
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+                color: Colors.black87,
+              ),
             ),
             SizedBox(height: 8),
             Text(
@@ -434,7 +476,11 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
           padding: EdgeInsets.only(left: 4, bottom: 12),
           child: Text(
             'Perangkat Saya',
-            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18, color: Colors.black87),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 18,
+              color: Colors.black87,
+            ),
           ),
         ),
         ...List.generate(_devices.length, (index) {
@@ -472,7 +518,11 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
               children: [
                 Text(
                   device.name,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: Colors.black87),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                    color: Colors.black87,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Row(
@@ -481,7 +531,9 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                       width: 6,
                       height: 6,
                       decoration: BoxDecoration(
-                        color: device.isOnline ? const Color(0xFF34C759) : const Color(0xFFFF3B30),
+                        color: device.isOnline
+                            ? const Color(0xFF34C759)
+                            : const Color(0xFFFF3B30),
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -490,7 +542,9 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                       device.isOnline ? 'Online' : 'Offline',
                       style: TextStyle(
                         fontSize: 13,
-                        color: device.isOnline ? const Color(0xFF34C759) : const Color(0xFFFF3B30),
+                        color: device.isOnline
+                            ? const Color(0xFF34C759)
+                            : const Color(0xFFFF3B30),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -506,7 +560,10 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                       const SizedBox(width: 4),
                       Text(
                         '${device.batteryLevel}%',
-                        style: const TextStyle(fontSize: 13, color: Colors.black54),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.black54,
+                        ),
                       ),
                     ],
                   ],
@@ -523,7 +580,11 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
             ),
             child: IconButton(
               padding: EdgeInsets.zero,
-              icon: const Icon(CupertinoIcons.chevron_right, color: Colors.black54, size: 16),
+              icon: const Icon(
+                CupertinoIcons.chevron_right,
+                color: Colors.black54,
+                size: 16,
+              ),
               onPressed: () => context.push('/tuya-devices/${device.deviceId}'),
             ),
           ),
@@ -543,11 +604,18 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
             children: [
               const Text(
                 'Aktivitas Terbaru',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18, color: Colors.black87),
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 18,
+                  color: Colors.black87,
+                ),
               ),
               GestureDetector(
                 onTap: () => setState(() => _recentEvents.clear()),
-                child: const Text('Bersihkan', style: TextStyle(fontSize: 14, color: Color(0xFF007AFF))),
+                child: const Text(
+                  'Bersihkan',
+                  style: TextStyle(fontSize: 14, color: Color(0xFF007AFF)),
+                ),
               ),
             ],
           ),
@@ -559,7 +627,9 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
               _recentEvents.length > 5 ? 5 : _recentEvents.length,
               (index) {
                 final event = _recentEvents[index];
-                final isLast = index == (_recentEvents.length > 5 ? 4 : _recentEvents.length - 1);
+                final isLast =
+                    index ==
+                    (_recentEvents.length > 5 ? 4 : _recentEvents.length - 1);
                 return Column(
                   children: [
                     Padding(
@@ -569,15 +639,23 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: event.isSosTriggered 
-                                ? const Color(0xFFFF3B30).withValues(alpha: 0.1)
-                                : const Color(0xFF007AFF).withValues(alpha: 0.1),
+                              color: event.isSosTriggered
+                                  ? const Color(
+                                      0xFFFF3B30,
+                                    ).withValues(alpha: 0.1)
+                                  : const Color(
+                                      0xFF007AFF,
+                                    ).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Icon(
-                              event.isSosTriggered ? CupertinoIcons.exclamationmark_triangle_fill : CupertinoIcons.info_circle_fill,
+                              event.isSosTriggered
+                                  ? CupertinoIcons.exclamationmark_triangle_fill
+                                  : CupertinoIcons.info_circle_fill,
                               size: 16,
-                              color: event.isSosTriggered ? const Color(0xFFFF3B30) : const Color(0xFF007AFF),
+                              color: event.isSosTriggered
+                                  ? const Color(0xFFFF3B30)
+                                  : const Color(0xFF007AFF),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -591,14 +669,21 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                                       : 'Pembaruan Sistem: ${event.eventType.name}',
                                   style: TextStyle(
                                     fontSize: 14,
-                                    fontWeight: event.isSosTriggered ? FontWeight.w600 : FontWeight.w500,
-                                    color: event.isSosTriggered ? const Color(0xFFFF3B30) : Colors.black87,
+                                    fontWeight: event.isSosTriggered
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
+                                    color: event.isSosTriggered
+                                        ? const Color(0xFFFF3B30)
+                                        : Colors.black87,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   '${event.timestamp.hour.toString().padLeft(2, '0')}:${event.timestamp.minute.toString().padLeft(2, '0')} • ${event.deviceId.length > 8 ? '${event.deviceId.substring(0, 8)}...' : event.deviceId}',
-                                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black54,
+                                  ),
                                 ),
                               ],
                             ),
@@ -607,7 +692,11 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                       ),
                     ),
                     if (!isLast)
-                      Divider(height: 1, color: Colors.black.withValues(alpha: 0.05), indent: 56),
+                      Divider(
+                        height: 1,
+                        color: Colors.black.withValues(alpha: 0.05),
+                        indent: 56,
+                      ),
                   ],
                 );
               },

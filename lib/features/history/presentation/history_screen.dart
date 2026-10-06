@@ -62,8 +62,14 @@ class _HistoryPageState extends State<HistoryPage> {
   List<HistoryItem> _allItems = [];
   String? _errorMessage;
 
-  int _selectedTimeFilter = 0; // 0: Semua Waktu, 1: 1 Minggu, 2: 1 Bulan, 3: Kustom
-  final List<String> _timeFilters = ['Semua Waktu', '1 Minggu', '1 Bulan', 'Kustom'];
+  int _selectedTimeFilter =
+      0; // 0: Semua Waktu, 1: 1 Minggu, 2: 1 Bulan, 3: Kustom
+  final List<String> _timeFilters = [
+    'Semua Waktu',
+    '1 Minggu',
+    '1 Bulan',
+    'Kustom',
+  ];
   DateTime? _customStartDate;
   DateTime? _customEndDate;
 
@@ -94,19 +100,25 @@ class _HistoryPageState extends State<HistoryPage> {
         ApiConstants.laporan,
         options: Options(headers: headers),
       );
-      
-      // Fetch SOS User History (safe catch for relawan who might not have access)
-      final sosResponseFuture = dio.get(
-        ApiConstants.sosUserHistory,
-        options: Options(headers: headers),
-      ).catchError((e) {
-        if (e is DioException && e.response?.statusCode == 403) {
-          return Response(requestOptions: e.requestOptions, statusCode: 403, data: {'data': []});
-        }
-        throw e;
-      });
 
-      final results = await Future.wait([laporanResponseFuture, sosResponseFuture]);
+      // Fetch SOS User History (safe catch for relawan who might not have access)
+      final sosResponseFuture = dio
+          .get(ApiConstants.sosUserHistory, options: Options(headers: headers))
+          .catchError((e) {
+            if (e is DioException && e.response?.statusCode == 403) {
+              return Response(
+                requestOptions: e.requestOptions,
+                statusCode: 403,
+                data: {'data': []},
+              );
+            }
+            throw e;
+          });
+
+      final results = await Future.wait([
+        laporanResponseFuture,
+        sosResponseFuture,
+      ]);
       final laporanResponse = results[0];
       final sosResponse = results[1];
 
@@ -118,12 +130,12 @@ class _HistoryPageState extends State<HistoryPage> {
             : (laporanResponse.data['data']['data'] ?? []);
         allData.addAll(laporanData as List);
       }
-      
+
       if (sosResponse.statusCode == 200) {
         final sosData = sosResponse.data['data'] is List
             ? sosResponse.data['data']
             : (sosResponse.data['data']['data'] ?? []);
-        
+
         // SOS might not have "kategori_laporan" field, let's inject it so it maps correctly
         final mappedSos = (sosData as List).map((e) {
           e['kategori_laporan'] = e['kategori_laporan'] ?? 'SOS';
@@ -134,10 +146,10 @@ class _HistoryPageState extends State<HistoryPage> {
 
       setState(() {
         _allItems = allData.map((item) => _mapToHistoryItem(item)).toList();
-        
+
         // Sort items by date descending
         _allItems.sort((a, b) => b.dateTime.compareTo(a.dateTime));
-        
+
         _isLoading = false;
       });
     } on DioException catch (e) {
@@ -185,14 +197,16 @@ class _HistoryPageState extends State<HistoryPage> {
     String? relawanName = data['relawan']?['name'];
     String? officerInfo = relawanName != null ? 'Relawan $relawanName' : null;
 
-    String rawDate = data['waktu_laporan'] ?? data['waktu_sos'] ?? data['created_at'] ?? '';
+    String rawDate =
+        data['waktu_laporan'] ?? data['waktu_sos'] ?? data['created_at'] ?? '';
     String displayDate = rawDate;
     try {
       if (rawDate.isNotEmpty) {
         String parseableDate = rawDate.replaceAll(' ', 'T');
-        if (!parseableDate.endsWith('Z') && 
-            !parseableDate.contains('+') && 
-            (parseableDate.indexOf('T') == -1 || parseableDate.indexOf('-', parseableDate.indexOf('T')) == -1)) {
+        if (!parseableDate.endsWith('Z') &&
+            !parseableDate.contains('+') &&
+            (parseableDate.indexOf('T') == -1 ||
+                parseableDate.indexOf('-', parseableDate.indexOf('T')) == -1)) {
           parseableDate += 'Z';
         }
         DateTime parsedDate = DateTime.parse(parseableDate).toLocal();
@@ -228,7 +242,10 @@ class _HistoryPageState extends State<HistoryPage> {
           ? 'SOS Darurat: $kategori'
           : 'Laporan: $kategori',
       dateTime: displayDate,
-      location: data['lokasi_laporan'] ?? data['lokasi_user'] ?? 'Lokasi tidak diketahui',
+      location:
+          data['lokasi_laporan'] ??
+          data['lokasi_user'] ??
+          'Lokasi tidak diketahui',
       description: data['deskripsi'],
       officerInfo: officerInfo,
       detailButtonLabel: type == HistoryType.sos
@@ -274,14 +291,21 @@ class _HistoryPageState extends State<HistoryPage> {
       items = items.where((item) {
         try {
           final itemDate = DateTime.parse(item.dateTime.replaceAll(' ', 'T'));
-          if (_selectedTimeFilter == 1) { // 1 Minggu
+          if (_selectedTimeFilter == 1) {
+            // 1 Minggu
             return now.difference(itemDate).inDays <= 7;
-          } else if (_selectedTimeFilter == 2) { // 1 Bulan
+          } else if (_selectedTimeFilter == 2) {
+            // 1 Bulan
             return now.difference(itemDate).inDays <= 30;
-          } else if (_selectedTimeFilter == 3) { // Kustom
+          } else if (_selectedTimeFilter == 3) {
+            // Kustom
             if (_customStartDate != null && _customEndDate != null) {
-              return itemDate.isAfter(_customStartDate!.subtract(const Duration(days: 1))) && 
-                     itemDate.isBefore(_customEndDate!.add(const Duration(days: 1)));
+              return itemDate.isAfter(
+                    _customStartDate!.subtract(const Duration(days: 1)),
+                  ) &&
+                  itemDate.isBefore(
+                    _customEndDate!.add(const Duration(days: 1)),
+                  );
             }
           }
         } catch (e) {
@@ -299,7 +323,9 @@ class _HistoryPageState extends State<HistoryPage> {
     if (_selectedFilter == 0) {
       final startIndex = (_currentPage - 1) * _itemsPerPage;
       if (startIndex >= items.length) return [];
-      final endIndex = (startIndex + _itemsPerPage < items.length) ? startIndex + _itemsPerPage : items.length;
+      final endIndex = (startIndex + _itemsPerPage < items.length)
+          ? startIndex + _itemsPerPage
+          : items.length;
       return items.sublist(startIndex, endIndex);
     }
     return items;
@@ -370,7 +396,11 @@ class _HistoryPageState extends State<HistoryPage> {
                   _buildEmptyState()
                 else
                   ..._paginatedItems.map((item) => _buildHistoryCard(item)),
-                if (!_isLoading && _errorMessage == null && _filteredItems.isNotEmpty && _selectedFilter == 0 && _totalPages > 1)
+                if (!_isLoading &&
+                    _errorMessage == null &&
+                    _filteredItems.isNotEmpty &&
+                    _selectedFilter == 0 &&
+                    _totalPages > 1)
                   _buildPagination(),
                 const SizedBox(height: 8),
                 _buildEncryptedFooter(),
@@ -555,14 +585,18 @@ class _HistoryPageState extends State<HistoryPage> {
                             primary: primaryTeal,
                             onPrimary: Colors.white,
                             onSurface: Colors.black87,
-                            surface: Colors.transparent, // Background of dialog/scaffold
+                            surface: Colors
+                                .transparent, // Background of dialog/scaffold
                             onSurfaceVariant: Colors.black54, // For header text
                           ),
                           datePickerTheme: const DatePickerThemeData(
                             backgroundColor: Colors.transparent,
                             surfaceTintColor: Colors.transparent,
                             headerBackgroundColor: Colors.transparent,
-                          ), dialogTheme: DialogThemeData(backgroundColor: Colors.transparent),
+                          ),
+                          dialogTheme: DialogThemeData(
+                            backgroundColor: Colors.transparent,
+                          ),
                         ),
                         child: BackdropFilter(
                           filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
@@ -599,9 +633,14 @@ class _HistoryPageState extends State<HistoryPage> {
                 }
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: isSelected ? primaryTeal.withValues(alpha: 0.1) : Colors.white,
+                  color: isSelected
+                      ? primaryTeal.withValues(alpha: 0.1)
+                      : Colors.white,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isSelected ? primaryTeal : Colors.grey.shade300,
@@ -610,9 +649,17 @@ class _HistoryPageState extends State<HistoryPage> {
                 child: Row(
                   children: [
                     if (index == 3 && isSelected && _customStartDate != null)
-                      const Icon(CupertinoIcons.calendar, size: 14, color: primaryTeal)
+                      const Icon(
+                        CupertinoIcons.calendar,
+                        size: 14,
+                        color: primaryTeal,
+                      )
                     else
-                      Icon(CupertinoIcons.time, size: 14, color: isSelected ? primaryTeal : Colors.grey.shade500),
+                      Icon(
+                        CupertinoIcons.time,
+                        size: 14,
+                        color: isSelected ? primaryTeal : Colors.grey.shade500,
+                      ),
                     const SizedBox(width: 6),
                     Text(
                       index == 3 && isSelected && _customStartDate != null
@@ -620,7 +667,9 @@ class _HistoryPageState extends State<HistoryPage> {
                           : _timeFilters[index],
                       style: TextStyle(
                         color: isSelected ? primaryTeal : Colors.grey.shade600,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                         fontSize: 13,
                       ),
                     ),
@@ -651,7 +700,9 @@ class _HistoryPageState extends State<HistoryPage> {
             final page = index + 1;
             // Basic pagination to not overflow screen if too many pages
             if (_totalPages > 5) {
-              if (page != 1 && page != _totalPages && (page < _currentPage - 1 || page > _currentPage + 1)) {
+              if (page != 1 &&
+                  page != _totalPages &&
+                  (page < _currentPage - 1 || page > _currentPage + 1)) {
                 if (page == 2 || page == _totalPages - 1) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 4),
@@ -661,13 +712,16 @@ class _HistoryPageState extends State<HistoryPage> {
                 return const SizedBox.shrink();
               }
             }
-            
+
             final isSelected = _currentPage == page;
             return GestureDetector(
               onTap: () => setState(() => _currentPage = page),
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected ? primaryTeal : Colors.white,
                   borderRadius: BorderRadius.circular(8),
@@ -679,7 +733,9 @@ class _HistoryPageState extends State<HistoryPage> {
                   '$page',
                   style: TextStyle(
                     color: isSelected ? Colors.white : Colors.black87,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                   ),
                 ),
               ),
@@ -709,7 +765,11 @@ class _HistoryPageState extends State<HistoryPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(CupertinoIcons.exclamationmark_circle, color: Colors.red.shade400, size: 48),
+          Icon(
+            CupertinoIcons.exclamationmark_circle,
+            color: Colors.red.shade400,
+            size: 48,
+          ),
           const SizedBox(height: 16),
           Text(
             'Oops! Terjadi Kesalahan',
@@ -788,7 +848,10 @@ class _HistoryPageState extends State<HistoryPage> {
   ) {
     final lowerTitle = title.toLowerCase();
     if (lowerTitle.contains('pendamping')) {
-      return (icon: CupertinoIcons.person_2_fill, color: const Color(0xFF1565C0));
+      return (
+        icon: CupertinoIcons.person_2_fill,
+        color: const Color(0xFF1565C0),
+      );
     } else if (lowerTitle.contains('medis') ||
         lowerTitle.contains('obat') ||
         lowerTitle.contains('ambulans')) {
@@ -798,18 +861,30 @@ class _HistoryPageState extends State<HistoryPage> {
       );
     } else if (lowerTitle.contains('ancaman') ||
         lowerTitle.contains('bahaya')) {
-      return (icon: CupertinoIcons.exclamationmark_triangle_fill, color: const Color(0xFFE65100));
+      return (
+        icon: CupertinoIcons.exclamationmark_triangle_fill,
+        color: const Color(0xFFE65100),
+      );
     } else if (lowerTitle.contains('tersesat')) {
-      return (icon: CupertinoIcons.compass_fill, color: const Color(0xFF00838F));
+      return (
+        icon: CupertinoIcons.compass_fill,
+        color: const Color(0xFF00838F),
+      );
     } else if (lowerTitle.contains('aksesibilitas')) {
       return (icon: Icons.accessible_rounded, color: const Color(0xFF6A1B9A));
     } else if (lowerTitle.contains('lainnya')) {
-      return (icon: CupertinoIcons.ellipsis_circle_fill, color: const Color(0xFF546E7A));
+      return (
+        icon: CupertinoIcons.ellipsis_circle_fill,
+        color: const Color(0xFF546E7A),
+      );
     }
 
     // Default fallback
     return isSos
-        ? (icon: CupertinoIcons.exclamationmark_triangle_fill, color: Colors.red.shade600)
+        ? (
+            icon: CupertinoIcons.exclamationmark_triangle_fill,
+            color: Colors.red.shade600,
+          )
         : (icon: CupertinoIcons.doc_text, color: primaryTeal);
   }
 
@@ -1109,4 +1184,3 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 }
-

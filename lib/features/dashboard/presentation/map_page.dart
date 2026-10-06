@@ -33,7 +33,7 @@ class _MapPageState extends State<MapPage> {
     super.initState();
     _checkLocation();
     _listenToLocationServiceChanges();
-    
+
     // Auto-center map hanya pada fix pertama, dan saat user belum panning
     _locationService.currentPosition.addListener(_onPositionUpdate);
   }
@@ -62,10 +62,12 @@ class _MapPageState extends State<MapPage> {
           'longitude': lng,
           'radius': 10, // 10 KM
         },
-        options: Options(headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        }),
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
       );
 
       if (response.statusCode == 200 && mounted) {
@@ -79,22 +81,22 @@ class _MapPageState extends State<MapPage> {
   }
 
   void _listenToLocationServiceChanges() {
-    _serviceStatusStream = Geolocator.getServiceStatusStream().listen(
-      (ServiceStatus status) {
-        if (status == ServiceStatus.disabled) {
-          _locationService.stopTracking();
-          if (!_isDialogShowing) {
-            _showLocationDeniedDialog();
-          }
-        } else if (status == ServiceStatus.enabled) {
-          if (_isDialogShowing) {
-            if (mounted) Navigator.pop(context); // Tutup dialog
-            _isDialogShowing = false;
-          }
-          _checkLocation(); 
+    _serviceStatusStream = Geolocator.getServiceStatusStream().listen((
+      ServiceStatus status,
+    ) {
+      if (status == ServiceStatus.disabled) {
+        _locationService.stopTracking();
+        if (!_isDialogShowing) {
+          _showLocationDeniedDialog();
         }
-      },
-    );
+      } else if (status == ServiceStatus.enabled) {
+        if (_isDialogShowing) {
+          if (mounted) Navigator.pop(context); // Tutup dialog
+          _isDialogShowing = false;
+        }
+        _checkLocation();
+      }
+    });
   }
 
   Future<void> _checkLocation() async {
@@ -116,7 +118,9 @@ class _MapPageState extends State<MapPage> {
       barrierDismissible: false, // Wajib menyalakan GPS
       builder: (context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: const Text('Akses Lokasi Dibutuhkan'),
           content: const Text(
             'Aplikasi ini membutuhkan akses GPS untuk mendeteksi lokasi keadaan darurat.\n\nHarap nyalakan GPS dan berikan izin lokasi di pengaturan HP Anda.',
@@ -127,7 +131,10 @@ class _MapPageState extends State<MapPage> {
                 _isDialogShowing = false;
                 context.go(AppRoutes.login);
               },
-              child: const Text('Batal & Keluar', style: TextStyle(color: Colors.grey)),
+              child: const Text(
+                'Batal & Keluar',
+                style: TextStyle(color: Colors.grey),
+              ),
             ),
             ElevatedButton(
               onPressed: () {
@@ -138,7 +145,9 @@ class _MapPageState extends State<MapPage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryTeal,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               child: const Text('Coba Lagi'),
             ),
@@ -159,7 +168,11 @@ class _MapPageState extends State<MapPage> {
     super.dispose();
   }
 
-  Widget _buildGlassContainer(BuildContext context, {required Widget child, EdgeInsetsGeometry? padding}) {
+  Widget _buildGlassContainer(
+    BuildContext context, {
+    required Widget child,
+    EdgeInsetsGeometry? padding,
+  }) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
@@ -168,7 +181,7 @@ class _MapPageState extends State<MapPage> {
         child: Container(
           padding: padding ?? const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDarkMode 
+            color: isDarkMode
                 ? Colors.black.withValues(alpha: 0.4)
                 : Colors.white.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(24),
@@ -210,7 +223,13 @@ class _MapPageState extends State<MapPage> {
                 children: [
                   CircularProgressIndicator(color: primaryColor),
                   const SizedBox(height: 16),
-                  Text('Menunggu Sinyal GPS...', style: TextStyle(color: primaryColor, fontWeight: FontWeight.w500)),
+                  Text(
+                    'Menunggu Sinyal GPS...',
+                    style: TextStyle(
+                      color: primaryColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ],
               ),
             );
@@ -222,22 +241,39 @@ class _MapPageState extends State<MapPage> {
             children: [
               FlutterMap(
                 mapController: _mapController,
-                options: MapOptions(
-                  initialCenter: latLng,
-                  initialZoom: 17.0,
-                ),
+                options: MapOptions(initialCenter: latLng, initialZoom: 17.0),
                 children: [
                   ColorFiltered(
                     colorFilter: isDarkMode
                         ? const ColorFilter.matrix([
-                            -1,  0,  0, 0, 255,
-                             0, -1,  0, 0, 255,
-                             0,  0, -1, 0, 255,
-                             0,  0,  0, 1,   0,
+                            -1,
+                            0,
+                            0,
+                            0,
+                            255,
+                            0,
+                            -1,
+                            0,
+                            0,
+                            255,
+                            0,
+                            0,
+                            -1,
+                            0,
+                            255,
+                            0,
+                            0,
+                            0,
+                            1,
+                            0,
                           ])
-                        : const ColorFilter.mode(Colors.transparent, BlendMode.multiply),
+                        : const ColorFilter.mode(
+                            Colors.transparent,
+                            BlendMode.multiply,
+                          ),
                     child: TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.sahabat_sos_mobile.app',
                     ),
                   ),
@@ -264,8 +300,12 @@ class _MapPageState extends State<MapPage> {
                       ),
                       // Marker Laporan Darurat
                       ..._nearbyReports.map((report) {
-                        final lat = double.tryParse(report['latitude'].toString()) ?? 0.0;
-                        final lng = double.tryParse(report['longitude'].toString()) ?? 0.0;
+                        final lat =
+                            double.tryParse(report['latitude'].toString()) ??
+                            0.0;
+                        final lng =
+                            double.tryParse(report['longitude'].toString()) ??
+                            0.0;
                         return Marker(
                           point: LatLng(lat, lng),
                           width: 50,
@@ -283,7 +323,7 @@ class _MapPageState extends State<MapPage> {
                                   blurRadius: 10,
                                   color: Colors.black26,
                                   offset: Offset(0, 4),
-                                )
+                                ),
                               ],
                             ),
                           ),
@@ -302,7 +342,10 @@ class _MapPageState extends State<MapPage> {
                   context,
                   padding: const EdgeInsets.all(4),
                   child: IconButton(
-                    icon: Icon(CupertinoIcons.back, color: isDarkMode ? Colors.white : Colors.black87),
+                    icon: Icon(
+                      CupertinoIcons.back,
+                      color: isDarkMode ? Colors.white : Colors.black87,
+                    ),
                     onPressed: () => context.pop(),
                   ),
                 ),
@@ -319,7 +362,10 @@ class _MapPageState extends State<MapPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        icon: const Icon(CupertinoIcons.info, color: Colors.blue),
+                        icon: const Icon(
+                          CupertinoIcons.info,
+                          color: Colors.blue,
+                        ),
                         onPressed: () {},
                       ),
                       Container(
@@ -328,7 +374,10 @@ class _MapPageState extends State<MapPage> {
                         color: isDarkMode ? Colors.white24 : Colors.black12,
                       ),
                       IconButton(
-                        icon: const Icon(CupertinoIcons.location, color: Colors.blue),
+                        icon: const Icon(
+                          CupertinoIcons.location,
+                          color: Colors.blue,
+                        ),
                         onPressed: () {
                           _mapController.move(latLng, 17.0);
                         },
@@ -344,13 +393,20 @@ class _MapPageState extends State<MapPage> {
                           padding: EdgeInsets.zero,
                           minimumSize: const Size(48, 48),
                         ),
-                        child: const Text('2D', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 16)),
+                        child: const Text(
+                          '2D',
+                          style: TextStyle(
+                            color: Colors.blue,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
-              
+
               // Kartu Lokasi Bawah (Glassmorphism)
               Positioned(
                 bottom: 100, // Diperbesar agar tidak tertimpa navbar
@@ -371,7 +427,11 @@ class _MapPageState extends State<MapPage> {
                                 color: primaryColor.withValues(alpha: 0.1),
                                 shape: BoxShape.circle,
                               ),
-                              child: Icon(Icons.gps_fixed, color: primaryColor, size: 20),
+                              child: Icon(
+                                Icons.gps_fixed,
+                                color: primaryColor,
+                                size: 20,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Text(
@@ -388,9 +448,21 @@ class _MapPageState extends State<MapPage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            _buildInfoColumn(context, 'Latitude', position.latitude.toStringAsFixed(5)),
-                            _buildInfoColumn(context, 'Longitude', position.longitude.toStringAsFixed(5)),
-                            _buildInfoColumn(context, 'Akurasi', '±${position.accuracy.toStringAsFixed(1)} m'),
+                            _buildInfoColumn(
+                              context,
+                              'Latitude',
+                              position.latitude.toStringAsFixed(5),
+                            ),
+                            _buildInfoColumn(
+                              context,
+                              'Longitude',
+                              position.longitude.toStringAsFixed(5),
+                            ),
+                            _buildInfoColumn(
+                              context,
+                              'Akurasi',
+                              '±${position.accuracy.toStringAsFixed(1)} m',
+                            ),
                           ],
                         ),
                       ],
@@ -412,7 +484,10 @@ class _MapPageState extends State<MapPage> {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 12, color: isDarkMode ? Colors.white54 : Colors.black54),
+          style: TextStyle(
+            fontSize: 12,
+            color: isDarkMode ? Colors.white54 : Colors.black54,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
@@ -435,74 +510,105 @@ class _MapPageState extends State<MapPage> {
       isScrollControlled: true,
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.viewInsetsOf(ctx).bottom + MediaQuery.paddingOf(ctx).bottom,
+          bottom:
+              MediaQuery.viewInsetsOf(ctx).bottom +
+              MediaQuery.paddingOf(ctx).bottom,
         ),
         child: Container(
           margin: const EdgeInsets.all(16),
           child: _buildGlassContainer(
-          context,
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: isDarkMode ? Colors.white24 : Colors.grey.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(10),
+            context,
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: isDarkMode
+                          ? Colors.white24
+                          : Colors.grey.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
-              ),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.warning_rounded, color: Colors.red),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      report['kategori_laporan'] ?? 'Laporan Darurat',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold, 
-                        fontSize: 18,
-                        color: isDarkMode ? Colors.white : Colors.black87,
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.warning_rounded,
+                        color: Colors.red,
                       ),
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        report['kategori_laporan'] ?? 'Laporan Darurat',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: isDarkMode ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildDetailRow(
+                  context,
+                  Icons.info_outline,
+                  'Status',
+                  report['status'] ?? '-',
+                ),
+                const SizedBox(height: 12),
+                _buildDetailRow(
+                  context,
+                  Icons.location_on_outlined,
+                  'Lokasi',
+                  report['lokasi_laporan'] ?? 'Tidak diketahui',
+                ),
+                if (report['distance_km'] != null) ...[
+                  const SizedBox(height: 12),
+                  _buildDetailRow(
+                    context,
+                    Icons.route_outlined,
+                    'Jarak',
+                    '${report['distance_km']} KM',
                   ),
                 ],
-              ),
-              const SizedBox(height: 16),
-              _buildDetailRow(context, Icons.info_outline, 'Status', report['status'] ?? '-'),
-              const SizedBox(height: 12),
-              _buildDetailRow(context, Icons.location_on_outlined, 'Lokasi', report['lokasi_laporan'] ?? 'Tidak diketahui'),
-              if (report['distance_km'] != null) ...[
-                const SizedBox(height: 12),
-                _buildDetailRow(context, Icons.route_outlined, 'Jarak', '${report['distance_km']} KM'),
+                const SizedBox(height: 16),
               ],
-              const SizedBox(height: 16),
-            ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
 
-  Widget _buildDetailRow(BuildContext context, IconData icon, String label, String value) {
+  Widget _buildDetailRow(
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value,
+  ) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: isDarkMode ? Colors.white54 : Colors.black54),
+        Icon(
+          icon,
+          size: 20,
+          color: isDarkMode ? Colors.white54 : Colors.black54,
+        ),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
@@ -510,12 +616,19 @@ class _MapPageState extends State<MapPage> {
             children: [
               Text(
                 label,
-                style: TextStyle(fontSize: 12, color: isDarkMode ? Colors.white54 : Colors.black54),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDarkMode ? Colors.white54 : Colors.black54,
+                ),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: TextStyle(fontSize: 14, color: isDarkMode ? Colors.white : Colors.black87, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDarkMode ? Colors.white : Colors.black87,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
@@ -524,4 +637,3 @@ class _MapPageState extends State<MapPage> {
     );
   }
 }
-

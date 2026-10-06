@@ -42,7 +42,7 @@ class DeviceInfoHelper {
         'model': model,
         'battery_level': batteryLevel,
         'signal_strength': signalStrength,
-      }
+      },
     };
   }
 }

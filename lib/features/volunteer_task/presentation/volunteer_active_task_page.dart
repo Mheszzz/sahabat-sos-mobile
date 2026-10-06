@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:sahabat_sos_mobile/features/volunteer_task/data/datasources/volunteer_remote_data_source.dart';
-import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart' as import_event_bus;
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
+    as import_event_bus;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:dio/dio.dart';
@@ -15,7 +16,8 @@ class VolunteerActiveTaskPage extends StatefulWidget {
   const VolunteerActiveTaskPage({super.key});
 
   @override
-  State<VolunteerActiveTaskPage> createState() => _VolunteerActiveTaskPageState();
+  State<VolunteerActiveTaskPage> createState() =>
+      _VolunteerActiveTaskPageState();
 }
 
 class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
@@ -62,21 +64,26 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
       final response = await dio.get(url);
 
       if (response.statusCode == 200 && mounted) {
-        if (response.data['routes'] == null || (response.data['routes'] as List).isEmpty) {
-          setState(() { _etaText = 'Gagal'; });
+        if (response.data['routes'] == null ||
+            (response.data['routes'] as List).isEmpty) {
+          setState(() {
+            _etaText = 'Gagal';
+          });
           return;
         }
         final routes = response.data['routes'] as List;
         if (routes.isEmpty) {
-          setState(() { _etaText = 'Gagal'; });
+          setState(() {
+            _etaText = 'Gagal';
+          });
         } else {
           final geometry = routes[0]['geometry'];
           final coords = geometry['coordinates'] as List;
-          
+
           final durationSeconds = routes[0]['duration'] as num;
           final durationMins = (durationSeconds / 60).round();
           final distanceMeters = routes[0]['distance'] as num;
-          
+
           String eta = '';
           if (durationMins > 0) {
             eta = '$durationMins Menit';
@@ -84,9 +91,9 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
             eta = '< 1 Menit';
           }
           if (distanceMeters > 1000) {
-             eta += ' (${(distanceMeters/1000).toStringAsFixed(1)}km)';
+            eta += ' (${(distanceMeters / 1000).toStringAsFixed(1)}km)';
           } else {
-             eta += ' (${distanceMeters.round()}m)';
+            eta += ' (${distanceMeters.round()}m)';
           }
 
           setState(() {
@@ -95,7 +102,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
               return LatLng(coord[1] as double, coord[0] as double);
             }).toList();
           });
-          
+
           // Tunggu sedikit agar map widget ter-render sebelum fitCamera
           Future.delayed(const Duration(milliseconds: 300), () {
             if (mounted && _routePoints.length > 1) {
@@ -110,11 +117,16 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
           });
         }
       } else if (mounted) {
-        setState(() { _etaText = 'Gagal'; });
+        setState(() {
+          _etaText = 'Gagal';
+        });
       }
     } catch (e) {
       debugPrint('Error fetching route: $e');
-      if (mounted) setState(() { _etaText = 'Gagal'; });
+      if (mounted)
+        setState(() {
+          _etaText = 'Gagal';
+        });
     } finally {
       if (mounted) {
         setState(() {
@@ -138,12 +150,16 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
           _activeTask = res['data'];
           _isLoading = false;
         });
-        
+
         if (_activeTask != null) {
-          final lat = double.tryParse(_activeTask!['latitude']?.toString() ?? '');
-          final lng = double.tryParse(_activeTask!['longitude']?.toString() ?? '');
+          final lat = double.tryParse(
+            _activeTask!['latitude']?.toString() ?? '',
+          );
+          final lng = double.tryParse(
+            _activeTask!['longitude']?.toString() ?? '',
+          );
           final volPos = _locationService.currentPosition.value;
-          
+
           if (lat != null && lng != null && volPos != null) {
             double vLat = volPos.latitude;
             double vLng = volPos.longitude;
@@ -153,13 +169,12 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
               vLng = lng - 0.015;
             }
             _effectiveVolPos = LatLng(vLat, vLng);
-            
-            _fetchRoute(
-              _effectiveVolPos!,
-              LatLng(lat, lng),
-            );
+
+            _fetchRoute(_effectiveVolPos!, LatLng(lat, lng));
           } else {
-            setState(() { _etaText = 'Gagal (Lokasi?)'; });
+            setState(() {
+              _etaText = 'Gagal (Lokasi?)';
+            });
           }
         }
       }
@@ -173,108 +188,21 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
     }
   }
 
-  /// Buka pilihan navigasi eksternal: Google Maps atau Waze
+  /// Buka navigasi eksternal (Google Maps)
   Future<void> _openExternalNavigation(double lat, double lng) async {
     final googleMapsUrl = Uri.parse(
-        'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
-    final wazeUrl = Uri.parse(
-        'https://waze.com/ul?ll=$lat,$lng&navigate=yes');
-    final googleMapsApp = Uri.parse(
-        'google.navigation:q=$lat,$lng&mode=d');
-    final wazeApp = Uri.parse(
-        'waze://?ll=$lat,$lng&navigate=yes');
+      'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving',
+    );
+    final googleMapsApp = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
 
     if (!mounted) return;
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        margin: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                const Text(
-                  'Buka dengan Aplikasi',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                const SizedBox(height: 16),
-                // Google Maps
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(CupertinoIcons.map_fill, color: Colors.blue.shade700),
-                  ),
-                  title: const Text('Google Maps',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Navigasi turn-by-turn'),
-                  trailing: const Icon(CupertinoIcons.chevron_right, size: 14),
-                  onTap: () async {
-                    Navigator.pop(ctx);
-                    // Coba buka app dulu, fallback ke browser
-                    if (await canLaunchUrl(googleMapsApp)) {
-                      await launchUrl(googleMapsApp);
-                    } else {
-                      await launchUrl(googleMapsUrl,
-                          mode: LaunchMode.externalApplication);
-                    }
-                  },
-                ),
-                const Divider(height: 1),
-                // Waze
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.cyan.shade50,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(CupertinoIcons.location_north_fill,
-                        color: Colors.cyan.shade700),
-                  ),
-                  title: const Text('Waze',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Navigasi real-time dengan komunitas'),
-                  trailing: const Icon(CupertinoIcons.chevron_right, size: 14),
-                  onTap: () async {
-                    Navigator.pop(ctx);
-                    if (await canLaunchUrl(wazeApp)) {
-                      await launchUrl(wazeApp);
-                    } else {
-                      await launchUrl(wazeUrl,
-                          mode: LaunchMode.externalApplication);
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+    if (await canLaunchUrl(googleMapsApp)) {
+      await launchUrl(googleMapsApp);
+    } else {
+      await launchUrl(googleMapsUrl, mode: LaunchMode.externalApplication);
+    }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -288,7 +216,11 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Color(0xFFE0F7FA), Color(0xFFF1F8E9), Color(0xFFE3F2FD)],
+                    colors: [
+                      Color(0xFFE0F7FA),
+                      Color(0xFFF1F8E9),
+                      Color(0xFFE3F2FD),
+                    ],
                   ),
                 ),
               ),
@@ -309,7 +241,11 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Color(0xFFE0F7FA), Color(0xFFF1F8E9), Color(0xFFE3F2FD)],
+                    colors: [
+                      Color(0xFFE0F7FA),
+                      Color(0xFFF1F8E9),
+                      Color(0xFFE3F2FD),
+                    ],
                   ),
                 ),
               ),
@@ -321,11 +257,19 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                   mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(CupertinoIcons.doc_text_search, size: 64, color: primaryTeal.withValues(alpha: 0.5)),
+                    Icon(
+                      CupertinoIcons.doc_text_search,
+                      size: 64,
+                      color: primaryTeal.withValues(alpha: 0.5),
+                    ),
                     const SizedBox(height: 16),
                     const Text(
                       'Tidak ada tugas aktif.',
-                      style: TextStyle(color: Colors.black54, fontSize: 16, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        color: Colors.black54,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -340,21 +284,31 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
     final pengguna = _activeTask!['pengguna'] ?? {};
     final nama = pengguna['name'] ?? 'Korban';
     final noTelp = pengguna['no_telp'] ?? '-';
-    final lokasi = _activeTask!['lokasi_user'] ?? _activeTask!['lokasi_laporan'] ?? 'Lokasi tidak diketahui';
-    
+    final lokasi =
+        _activeTask!['lokasi_user'] ??
+        _activeTask!['lokasi_laporan'] ??
+        'Lokasi tidak diketahui';
+
     final kategoriUser = pengguna['kategori_user'] ?? 'Umum';
-    final catatanMedis = (pengguna['catatan_medis'] != null && pengguna['catatan_medis'].toString().isNotEmpty) 
-        ? pengguna['catatan_medis'] 
+    final catatanMedis =
+        (pengguna['catatan_medis'] != null &&
+            pengguna['catatan_medis'].toString().isNotEmpty)
+        ? pengguna['catatan_medis']
         : 'Tidak ada catatan medis spesifik';
 
     // Helper untuk menentukan protokol berdasarkan kategori
-    String protocolText = 'Tetap tenang, perkenalkan diri Anda dengan ramah, dan tanyakan bantuan apa yang dibutuhkan.';
+    String protocolText =
+        'Tetap tenang, perkenalkan diri Anda dengan ramah, dan tanyakan bantuan apa yang dibutuhkan.';
     if (kategoriUser.toString().toLowerCase().contains('tunanetra')) {
-      protocolText = 'Dekati dari arah depan, sentuh pundak dengan izin, lalu sebutkan nama dan identitas resmi relawan Sahabat SOS secara perlahan dan artikulatif.';
-    } else if (kategoriUser.toString().toLowerCase().contains('tunarungu') || kategoriUser.toString().toLowerCase().contains('tuli')) {
-      protocolText = 'Sentuh pundak dengan lembut untuk menarik perhatian, bicara berhadapan agar gerak bibir terlihat, atau gunakan tulisan/isyarat sederhana.';
+      protocolText =
+          'Dekati dari arah depan, sentuh pundak dengan izin, lalu sebutkan nama dan identitas resmi relawan Sahabat SOS secara perlahan dan artikulatif.';
+    } else if (kategoriUser.toString().toLowerCase().contains('tunarungu') ||
+        kategoriUser.toString().toLowerCase().contains('tuli')) {
+      protocolText =
+          'Sentuh pundak dengan lembut untuk menarik perhatian, bicara berhadapan agar gerak bibir terlihat, atau gunakan tulisan/isyarat sederhana.';
     } else if (kategoriUser.toString().toLowerCase().contains('tunadaksa')) {
-      protocolText = 'Tanyakan dulu bagaimana Anda bisa membantu memindahkan atau memosisikan mereka. Jangan menarik tubuh mereka tanpa instruksi.';
+      protocolText =
+          'Tanyakan dulu bagaimana Anda bisa membantu memindahkan atau memosisikan mereka. Jangan menarik tubuh mereka tanpa instruksi.';
     }
 
     // Karena berada di halaman ini berarti tugas sudah diterima (proses),
@@ -381,7 +335,11 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
             const SizedBox(width: 8),
             const Text(
               'Sahabat SOS',
-              style: TextStyle(color: primaryTeal, fontWeight: FontWeight.bold, fontSize: 16),
+              style: TextStyle(
+                color: primaryTeal,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
             ),
           ],
         ),
@@ -394,7 +352,11 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon: const Icon(CupertinoIcons.phone_fill, color: sosRed, size: 20),
+              icon: const Icon(
+                CupertinoIcons.phone_fill,
+                color: sosRed,
+                size: 20,
+              ),
               onPressed: () {},
             ),
           ),
@@ -409,7 +371,11 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFFE0F7FA), Color(0xFFF1F8E9), Color(0xFFE3F2FD)],
+                  colors: [
+                    Color(0xFFE0F7FA),
+                    Color(0xFFF1F8E9),
+                    Color(0xFFE3F2FD),
+                  ],
                 ),
               ),
             ),
@@ -444,7 +410,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
               child: Container(color: Colors.transparent),
             ),
           ),
-          
+
           SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
@@ -454,36 +420,57 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                   GlassContainer(
                     padding: const EdgeInsets.all(16),
                     color: sosRed.withValues(alpha: 0.75),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.4),
+                      width: 1.5,
+                    ),
                     borderRadius: BorderRadius.circular(20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            const Icon(CupertinoIcons.time, color: Colors.white70, size: 14),
+                            const Icon(
+                              CupertinoIcons.time,
+                              color: Colors.white70,
+                              size: 14,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               'ID: #SOS-' + idSos.toString(),
-                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 8),
                         const Text(
                           'Panggilan Darurat SOS',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(CupertinoIcons.location_solid, color: Colors.white, size: 16),
+                            const Icon(
+                              CupertinoIcons.location_solid,
+                              color: Colors.white,
+                              size: 16,
+                            ),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
                                 lokasi,
-                                style: const TextStyle(color: Colors.white, fontSize: 13),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                           ],
@@ -504,17 +491,31 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                           children: [
                             const Text(
                               'TAHAPAN PENANGANAN',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black54),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black54,
+                              ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: primaryTeal.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
-                                'Langkah ' + currentStep.toString() + ' dari ' + totalSteps.toString(),
-                                style: const TextStyle(color: primaryTeal, fontSize: 11, fontWeight: FontWeight.bold),
+                                'Langkah ' +
+                                    currentStep.toString() +
+                                    ' dari ' +
+                                    totalSteps.toString(),
+                                style: const TextStyle(
+                                  color: primaryTeal,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ],
@@ -523,11 +524,27 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Expanded(child: _buildStep(1, 'Diterima', currentStep, isFirst: true)),
+                            Expanded(
+                              child: _buildStep(
+                                1,
+                                'Diterima',
+                                currentStep,
+                                isFirst: true,
+                              ),
+                            ),
                             _buildLine(1, currentStep),
-                            Expanded(child: _buildStep(2, 'Ditangani', currentStep)),
+                            Expanded(
+                              child: _buildStep(2, 'Ditangani', currentStep),
+                            ),
                             _buildLine(2, currentStep),
-                            Expanded(child: _buildStep(3, 'Selesai', currentStep, isLast: true)),
+                            Expanded(
+                              child: _buildStep(
+                                3,
+                                'Selesai',
+                                currentStep,
+                                isLast: true,
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -547,28 +564,50 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                           children: [
                             Row(
                               children: [
-                                Icon(CupertinoIcons.map, color: primaryTeal, size: 20),
+                                Icon(
+                                  CupertinoIcons.map,
+                                  color: primaryTeal,
+                                  size: 20,
+                                ),
                                 const SizedBox(width: 8),
                                 const Text(
                                   'Rute Tercepat ke\nKorban',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
                                 ),
                               ],
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
-                                color: Colors.green.shade50.withValues(alpha: 0.5),
+                                color: Colors.green.shade50.withValues(
+                                  alpha: 0.5,
+                                ),
                                 borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.green.shade200),
+                                border: Border.all(
+                                  color: Colors.green.shade200,
+                                ),
                               ),
                               child: Row(
                                 children: [
-                                  Icon(CupertinoIcons.time, color: primaryTeal, size: 14),
+                                  Icon(
+                                    CupertinoIcons.time,
+                                    color: primaryTeal,
+                                    size: 14,
+                                  ),
                                   const SizedBox(width: 4),
                                   Text(
                                     _etaText,
-                                    style: const TextStyle(color: primaryTeal, fontWeight: FontWeight.bold, fontSize: 12),
+                                    style: const TextStyle(
+                                      color: primaryTeal,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -583,8 +622,12 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                             color: Colors.grey[200],
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: const [
-                              BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 5))
-                            ]
+                              BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 10,
+                                offset: Offset(0, 5),
+                              ),
+                            ],
                           ),
                           child: Stack(
                             children: [
@@ -593,22 +636,40 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                 child: FlutterMap(
                                   mapController: _mapController,
                                   options: MapOptions(
-                                    initialCenter: _routePoints.isNotEmpty 
-                                        ? _routePoints.first 
-                                        : (_activeTask != null && _activeTask!['latitude'] != null && _activeTask!['longitude'] != null)
-                                            ? LatLng(double.tryParse(_activeTask!['latitude'].toString()) ?? 0.0, double.tryParse(_activeTask!['longitude'].toString()) ?? 0.0)
-                                            : _effectiveVolPos != null
-                                                ? _effectiveVolPos!
-                                                : const LatLng(-6.200000, 106.816666),
+                                    initialCenter: _routePoints.isNotEmpty
+                                        ? _routePoints.first
+                                        : (_activeTask != null &&
+                                              _activeTask!['latitude'] !=
+                                                  null &&
+                                              _activeTask!['longitude'] != null)
+                                        ? LatLng(
+                                            double.tryParse(
+                                                  _activeTask!['latitude']
+                                                      .toString(),
+                                                ) ??
+                                                0.0,
+                                            double.tryParse(
+                                                  _activeTask!['longitude']
+                                                      .toString(),
+                                                ) ??
+                                                0.0,
+                                          )
+                                        : _effectiveVolPos != null
+                                        ? _effectiveVolPos!
+                                        : const LatLng(-6.200000, 106.816666),
                                     initialZoom: 14.0,
-                                    interactionOptions: const InteractionOptions(
-                                      flags: InteractiveFlag.none, // Disable zoom, pan, etc.
-                                    ),
+                                    interactionOptions:
+                                        const InteractionOptions(
+                                          flags: InteractiveFlag
+                                              .none, // Disable zoom, pan, etc.
+                                        ),
                                   ),
                                   children: [
                                     TileLayer(
-                                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                      userAgentPackageName: 'com.sahabat_sos_mobile.app',
+                                      urlTemplate:
+                                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                      userAgentPackageName:
+                                          'com.sahabat_sos_mobile.app',
                                     ),
                                     if (_routePoints.isNotEmpty)
                                       PolylineLayer(
@@ -632,21 +693,43 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                               decoration: BoxDecoration(
                                                 color: Colors.blue,
                                                 shape: BoxShape.circle,
-                                                border: Border.all(color: Colors.white, width: 2),
-                                                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)]
+                                                border: Border.all(
+                                                  color: Colors.white,
+                                                  width: 2,
+                                                ),
+                                                boxShadow: const [
+                                                  BoxShadow(
+                                                    color: Colors.black26,
+                                                    blurRadius: 4,
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           ),
                                         // Victim marker
-                                        if (_activeTask != null && _activeTask!['latitude'] != null && _activeTask!['longitude'] != null)
+                                        if (_activeTask != null &&
+                                            _activeTask!['latitude'] != null &&
+                                            _activeTask!['longitude'] != null)
                                           Marker(
                                             point: LatLng(
-                                              double.tryParse(_activeTask!['latitude'].toString()) ?? 0.0,
-                                              double.tryParse(_activeTask!['longitude'].toString()) ?? 0.0,
+                                              double.tryParse(
+                                                    _activeTask!['latitude']
+                                                        .toString(),
+                                                  ) ??
+                                                  0.0,
+                                              double.tryParse(
+                                                    _activeTask!['longitude']
+                                                        .toString(),
+                                                  ) ??
+                                                  0.0,
                                             ),
                                             width: 32,
                                             height: 32,
-                                            child: const Icon(CupertinoIcons.location_solid, color: sosRed, size: 32),
+                                            child: const Icon(
+                                              CupertinoIcons.location_solid,
+                                              color: sosRed,
+                                              size: 32,
+                                            ),
                                           ),
                                       ],
                                     ),
@@ -654,7 +737,11 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                 ),
                               ),
                               if (_isFetchingRoute)
-                                const Center(child: CircularProgressIndicator(color: primaryTeal)),
+                                const Center(
+                                  child: CircularProgressIndicator(
+                                    color: primaryTeal,
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -663,21 +750,40 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                           width: double.infinity,
                           child: ElevatedButton.icon(
                             onPressed: () {
-                              final lat = double.tryParse(_activeTask!['latitude']?.toString() ?? '');
-                              final lng = double.tryParse(_activeTask!['longitude']?.toString() ?? '');
+                              final lat = double.tryParse(
+                                _activeTask!['latitude']?.toString() ?? '',
+                              );
+                              final lng = double.tryParse(
+                                _activeTask!['longitude']?.toString() ?? '',
+                              );
                               if (lat != null && lng != null) {
                                 _openExternalNavigation(lat, lng);
                               }
                             },
-                            icon: const Icon(CupertinoIcons.arrow_up_right_square, size: 16, color: primaryTeal),
-                            label: const Text('Buka Maps / Waze', style: TextStyle(color: primaryTeal, fontWeight: FontWeight.bold, fontSize: 14)),
+                            icon: const Icon(
+                              CupertinoIcons.arrow_up_right_square,
+                              size: 16,
+                              color: primaryTeal,
+                            ),
+                            label: const Text(
+                              'Buka Google Maps',
+                              style: TextStyle(
+                                color: primaryTeal,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white.withValues(alpha: 0.5),
+                              backgroundColor: Colors.white.withValues(
+                                alpha: 0.5,
+                              ),
                               elevation: 0,
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(color: Colors.white.withValues(alpha: 0.8)),
+                                side: BorderSide(
+                                  color: Colors.white.withValues(alpha: 0.8),
+                                ),
                               ),
                             ),
                           ),
@@ -696,9 +802,15 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                         Row(
                           children: [
                             CircleAvatar(
-                              backgroundColor: Colors.white.withValues(alpha: 0.5),
+                              backgroundColor: Colors.white.withValues(
+                                alpha: 0.5,
+                              ),
                               radius: 24,
-                              child: const Icon(CupertinoIcons.person, color: primaryTeal, size: 24),
+                              child: const Icon(
+                                CupertinoIcons.person,
+                                color: primaryTeal,
+                                size: 24,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -709,21 +821,43 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                     children: [
                                       Text(
                                         nama,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
                                       ),
                                       const SizedBox(width: 8),
-                                      if (kategoriUser.toLowerCase() != 'umum' && kategoriUser != '')
+                                      if (kategoriUser.toLowerCase() !=
+                                              'umum' &&
+                                          kategoriUser != '')
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
                                           decoration: BoxDecoration(
-                                            color: Colors.blue.shade50.withValues(alpha: 0.8),
-                                            borderRadius: BorderRadius.circular(8),
+                                            color: Colors.blue.shade50
+                                                .withValues(alpha: 0.8),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                           ),
                                           child: Row(
                                             children: [
-                                              Icon(CupertinoIcons.eye_slash_fill, color: Colors.blue.shade700, size: 10),
+                                              Icon(
+                                                CupertinoIcons.eye_slash_fill,
+                                                color: Colors.blue.shade700,
+                                                size: 10,
+                                              ),
                                               const SizedBox(width: 4),
-                                              Text(kategoriUser, style: TextStyle(color: Colors.blue.shade700, fontSize: 10, fontWeight: FontWeight.bold)),
+                                              Text(
+                                                kategoriUser,
+                                                style: TextStyle(
+                                                  color: Colors.blue.shade700,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
                                             ],
                                           ),
                                         ),
@@ -732,7 +866,10 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                   const SizedBox(height: 4),
                                   Text(
                                     catatanMedis,
-                                    style: const TextStyle(color: Colors.black87, fontSize: 12),
+                                    style: const TextStyle(
+                                      color: Colors.black87,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -745,25 +882,40 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                           decoration: BoxDecoration(
                             color: Colors.amber.shade50.withValues(alpha: 0.6),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.amber.shade200.withValues(alpha: 0.5)),
+                            border: Border.all(
+                              color: Colors.amber.shade200.withValues(
+                                alpha: 0.5,
+                              ),
+                            ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
                                 children: [
-                                  Icon(CupertinoIcons.info_circle, color: Colors.amber.shade800, size: 16),
+                                  Icon(
+                                    CupertinoIcons.info_circle,
+                                    color: Colors.amber.shade800,
+                                    size: 16,
+                                  ),
                                   const SizedBox(width: 6),
                                   Text(
                                     'Protokol Interaksi:',
-                                    style: TextStyle(color: Colors.amber.shade900, fontWeight: FontWeight.bold, fontSize: 12),
+                                    style: TextStyle(
+                                      color: Colors.amber.shade900,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 6),
                               Text(
                                 protocolText,
-                                style: TextStyle(color: Colors.amber.shade900, fontSize: 11),
+                                style: TextStyle(
+                                  color: Colors.amber.shade900,
+                                  fontSize: 11,
+                                ),
                               ),
                             ],
                           ),
@@ -774,10 +926,19 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                             Expanded(
                               child: ElevatedButton.icon(
                                 onPressed: () {},
-                                icon: const Icon(CupertinoIcons.phone, size: 16, color: primaryTeal),
-                                label: const Text('Panggil', style: TextStyle(color: primaryTeal)),
+                                icon: const Icon(
+                                  CupertinoIcons.phone,
+                                  size: 16,
+                                  color: primaryTeal,
+                                ),
+                                label: const Text(
+                                  'Panggil',
+                                  style: TextStyle(color: primaryTeal),
+                                ),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white.withValues(alpha: 0.5),
+                                  backgroundColor: Colors.white.withValues(
+                                    alpha: 0.5,
+                                  ),
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -790,10 +951,19 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                             Expanded(
                               child: ElevatedButton.icon(
                                 onPressed: () {},
-                                icon: const Icon(CupertinoIcons.chat_bubble, size: 16, color: primaryTeal),
-                                label: const Text('Chat', style: TextStyle(color: primaryTeal)),
+                                icon: const Icon(
+                                  CupertinoIcons.chat_bubble,
+                                  size: 16,
+                                  color: primaryTeal,
+                                ),
+                                label: const Text(
+                                  'Chat',
+                                  style: TextStyle(color: primaryTeal),
+                                ),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white.withValues(alpha: 0.5),
+                                  backgroundColor: Colors.white.withValues(
+                                    alpha: 0.5,
+                                  ),
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -816,17 +986,27 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                       label: 'Kasus Telah Selesai',
                       onCompleted: () async {
                         try {
-                          await _dataSource.updateSosStatus(int.parse(idSos.toString()), 'selesai');
-                          import_event_bus.GlobalEventBus.refreshMap.value = !import_event_bus.GlobalEventBus.refreshMap.value;
+                          await _dataSource.updateSosStatus(
+                            int.parse(idSos.toString()),
+                            'selesai',
+                          );
+                          import_event_bus.GlobalEventBus.refreshMap.value =
+                              !import_event_bus.GlobalEventBus.refreshMap.value;
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Tugas telah diselesaikan.')),
+                              const SnackBar(
+                                content: Text('Tugas telah diselesaikan.'),
+                              ),
                             );
                           }
                         } catch (e) {
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Gagal menyelesaikan: ' + e.toString())),
+                              SnackBar(
+                                content: Text(
+                                  'Gagal menyelesaikan: ' + e.toString(),
+                                ),
+                              ),
                             );
                           }
                         }
@@ -838,17 +1018,28 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () {},
-                      icon: const Icon(CupertinoIcons.shield, color: sosRed, size: 20),
+                      icon: const Icon(
+                        CupertinoIcons.shield,
+                        color: sosRed,
+                        size: 20,
+                      ),
                       label: const Text(
                         'Minta Bantuan Tambahan Relawan',
-                        style: TextStyle(color: sosRed, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: sosRed,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red.shade50.withValues(alpha: 0.7),
+                        backgroundColor: Colors.red.shade50.withValues(
+                          alpha: 0.7,
+                        ),
                         elevation: 0,
                         side: BorderSide(color: Colors.red.shade200),
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                     ),
                   ),
@@ -862,10 +1053,16 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
     );
   }
 
-  Widget _buildStep(int stepNum, String label, int currentStep, {bool isFirst = false, bool isLast = false}) {
+  Widget _buildStep(
+    int stepNum,
+    String label,
+    int currentStep, {
+    bool isFirst = false,
+    bool isLast = false,
+  }) {
     bool isCompleted = stepNum < currentStep;
     bool isActive = stepNum == currentStep;
-    
+
     IconData? icon;
     if (isCompleted) {
       icon = CupertinoIcons.check_mark;
@@ -874,19 +1071,31 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
     } else if (isActive && stepNum == 3) {
       icon = CupertinoIcons.flag_fill;
     }
-    
+
     return Column(
       children: [
         Container(
           width: 32,
           height: 32,
           decoration: BoxDecoration(
-            color: isCompleted || isActive ? primaryTeal : Colors.white.withValues(alpha: 0.5),
+            color: isCompleted || isActive
+                ? primaryTeal
+                : Colors.white.withValues(alpha: 0.5),
             shape: BoxShape.circle,
-            border: Border.all(color: isCompleted || isActive ? Colors.transparent : Colors.white, width: 2),
+            border: Border.all(
+              color: isCompleted || isActive
+                  ? Colors.transparent
+                  : Colors.white,
+              width: 2,
+            ),
             boxShadow: [
-               if (isActive) BoxShadow(color: primaryTeal.withValues(alpha: 0.3), blurRadius: 8, spreadRadius: 2)
-            ]
+              if (isActive)
+                BoxShadow(
+                  color: primaryTeal.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  spreadRadius: 2,
+                ),
+            ],
           ),
           child: icon != null
               ? Icon(icon, size: 16, color: Colors.white)
@@ -894,7 +1103,9 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                   child: Text(
                     stepNum.toString(),
                     style: TextStyle(
-                      color: isCompleted || isActive ? Colors.white : Colors.grey[500],
+                      color: isCompleted || isActive
+                          ? Colors.white
+                          : Colors.grey[500],
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
@@ -906,8 +1117,12 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
           label,
           style: TextStyle(
             fontSize: 11,
-            color: isActive ? primaryTeal : (isCompleted ? Colors.black87 : Colors.grey),
-            fontWeight: isActive || isCompleted ? FontWeight.bold : FontWeight.normal,
+            color: isActive
+                ? primaryTeal
+                : (isCompleted ? Colors.black87 : Colors.grey),
+            fontWeight: isActive || isCompleted
+                ? FontWeight.bold
+                : FontWeight.normal,
           ),
         ),
       ],
@@ -973,10 +1188,12 @@ class _SlideToCompleteButtonState extends State<SlideToCompleteButton> {
                   ),
                 ),
               ),
-              
+
               // 2. Peeling / Fill Effect (Solid Teal expanding)
               AnimatedContainer(
-                duration: _dragPosition == 0.0 ? const Duration(milliseconds: 300) : Duration.zero,
+                duration: _dragPosition == 0.0
+                    ? const Duration(milliseconds: 300)
+                    : Duration.zero,
                 width: _dragPosition + _thumbSize,
                 height: _thumbSize,
                 decoration: BoxDecoration(
@@ -990,7 +1207,8 @@ class _SlideToCompleteButtonState extends State<SlideToCompleteButton> {
                       // Render the white text perfectly aligned with the base text
                       Positioned(
                         left: 0,
-                        width: maxWidth, // Force same width as parent to keep text centered
+                        width:
+                            maxWidth, // Force same width as parent to keep text centered
                         child: Container(
                           height: _thumbSize,
                           alignment: Alignment.center,
@@ -1011,7 +1229,9 @@ class _SlideToCompleteButtonState extends State<SlideToCompleteButton> {
 
               // 3. Draggable Thumb
               AnimatedPositioned(
-                duration: _dragPosition == 0.0 ? const Duration(milliseconds: 300) : Duration.zero,
+                duration: _dragPosition == 0.0
+                    ? const Duration(milliseconds: 300)
+                    : Duration.zero,
                 curve: Curves.easeOutBack,
                 left: _dragPosition,
                 child: GestureDetector(
@@ -1048,10 +1268,14 @@ class _SlideToCompleteButtonState extends State<SlideToCompleteButton> {
                           color: Colors.black.withValues(alpha: 0.25),
                           blurRadius: 8,
                           offset: const Offset(0, 3),
-                        )
+                        ),
                       ],
                     ),
-                    child: const Icon(Icons.keyboard_double_arrow_right, color: Colors.white, size: 36),
+                    child: const Icon(
+                      Icons.keyboard_double_arrow_right,
+                      color: Colors.white,
+                      size: 36,
+                    ),
                   ),
                 ),
               ),
@@ -1062,4 +1286,3 @@ class _SlideToCompleteButtonState extends State<SlideToCompleteButton> {
     );
   }
 }
-
