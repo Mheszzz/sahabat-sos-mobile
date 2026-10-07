@@ -2,7 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/volunteer_dashboard_page.dart';
-import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/volunteer_active_task_page.dart';
+import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/volunteer_task_list_page.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/volunteer_map_page.dart';
 import 'package:sahabat_sos_mobile/features/profile/presentation/screens/volunteer_profile_screen.dart';
 
@@ -122,7 +122,7 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
   Widget build(BuildContext context) {
     final pages = [
       const VolunteerDashboardPage(),
-      const VolunteerActiveTaskPage(),
+      const VolunteerTaskListPage(),
       VolunteerMapPage(key: _mapPageKey),
       const VolunteerProfileScreen(),
     ];

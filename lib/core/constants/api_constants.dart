@@ -1,7 +1,7 @@
 class ApiConstants {
   // Gunakan IP komputer lokal agar bisa diakses oleh HP Fisik di jaringan Wi-Fi yang sama
-  static const String baseUrl = 'http://192.168.1.2:8000/api';
-  static const String storageUrl = 'http://192.168.1.2:8000/storage';
+  static const String baseUrl = 'http://10.44.214.189:8000/api';
+  static const String storageUrl = 'http://10.44.214.189:8000/storage';
 
   static const String authGoogle = '$baseUrl/auth/google/mobile';
   static const String authRegisterPengguna = '$baseUrl/auth/register/pengguna';
@@ -52,5 +52,8 @@ class ApiConstants {
   static const String tuyaDeviceList = '$baseUrl/tuya-device/list';
 
   static const String relawanLocationUpdate = '$baseUrl/relawan/location';
-  static const String relawanBeranda = '$baseUrl/relawan/beranda';
+  // Riwayat / History Endpoints
+  static const String riwayatPengguna = '$baseUrl/pengguna/riwayat';
+  static const String riwayatRelawan = '$baseUrl/relawan/riwayat';
+  static const String tugasRelawan = '$baseUrl/relawan/tugas';
 }

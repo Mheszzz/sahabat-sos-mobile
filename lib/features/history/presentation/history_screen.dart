@@ -91,57 +91,28 @@ class _HistoryPageState extends State<HistoryPage> {
     try {
       final prefs = GetIt.instance<SharedPreferences>();
       final token = prefs.getString('auth_token');
+      final role = prefs.getString('role');
       final dio = GetIt.instance<Dio>();
 
       final headers = {if (token != null) 'Authorization': 'Bearer $token'};
 
-      // Fetch Laporan
-      final laporanResponseFuture = dio.get(
-        ApiConstants.laporan,
+      String endpoint = ApiConstants.riwayatPengguna;
+      if (role == 'relawan') {
+        endpoint = ApiConstants.riwayatRelawan;
+      }
+
+      final response = await dio.get(
+        endpoint,
         options: Options(headers: headers),
       );
 
-      // Fetch SOS User History (safe catch for relawan who might not have access)
-      final sosResponseFuture = dio
-          .get(ApiConstants.sosUserHistory, options: Options(headers: headers))
-          .catchError((e) {
-            if (e is DioException && e.response?.statusCode == 403) {
-              return Response(
-                requestOptions: e.requestOptions,
-                statusCode: 403,
-                data: {'data': []},
-              );
-            }
-            throw e;
-          });
-
-      final results = await Future.wait([
-        laporanResponseFuture,
-        sosResponseFuture,
-      ]);
-      final laporanResponse = results[0];
-      final sosResponse = results[1];
-
       List<dynamic> allData = [];
 
-      if (laporanResponse.statusCode == 200) {
-        final laporanData = laporanResponse.data['data'] is List
-            ? laporanResponse.data['data']
-            : (laporanResponse.data['data']['data'] ?? []);
-        allData.addAll(laporanData as List);
-      }
-
-      if (sosResponse.statusCode == 200) {
-        final sosData = sosResponse.data['data'] is List
-            ? sosResponse.data['data']
-            : (sosResponse.data['data']['data'] ?? []);
-
-        // SOS might not have "kategori_laporan" field, let's inject it so it maps correctly
-        final mappedSos = (sosData as List).map((e) {
-          e['kategori_laporan'] = e['kategori_laporan'] ?? 'SOS';
-          return e;
-        });
-        allData.addAll(mappedSos);
+      if (response.statusCode == 200) {
+        final data = response.data['data'] is List
+            ? response.data['data']
+            : (response.data['data'] != null && response.data['data']['data'] != null ? response.data['data']['data'] : []);
+        allData.addAll(data as List);
       }
 
       setState(() {
@@ -168,7 +139,15 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   HistoryItem _mapToHistoryItem(dynamic data) {
-    String rawKategori = data['kategori_laporan'] ?? 'Lainnya';
+    String _extractString(dynamic value, [String defaultVal = 'Lainnya']) {
+      if (value == null) return defaultVal;
+      if (value is Map) {
+        return (value['nama_kategori'] ?? value['nama'] ?? value['name'] ?? defaultVal).toString();
+      }
+      return value.toString();
+    }
+    
+    String rawKategori = _extractString(data['kategori'] ?? data['kategori_laporan'], 'Lainnya');
     String kategori = rawKategori
         .replaceAll('_', ' ')
         .split(' ')
@@ -177,10 +156,11 @@ class _HistoryPageState extends State<HistoryPage> {
           return word[0].toUpperCase() + word.substring(1).toLowerCase();
         })
         .join(' ');
-    String statusStr = data['status'] ?? data['status_sos'] ?? 'aktif';
+    String statusStr = (data['status'] ?? data['status_sos'] ?? 'aktif').toString();
 
     HistoryType type = HistoryType.laporan;
-    if (kategori.toLowerCase() == 'sos' ||
+    if (data['tipe'] == 'sos' ||
+        kategori.toLowerCase() == 'sos' ||
         kategori.toLowerCase() == 'sos darurat') {
       type = HistoryType.sos;
     }
@@ -198,7 +178,7 @@ class _HistoryPageState extends State<HistoryPage> {
     String? officerInfo = relawanName != null ? 'Relawan $relawanName' : null;
 
     String rawDate =
-        data['waktu_laporan'] ?? data['waktu_sos'] ?? data['created_at'] ?? '';
+        (data['waktu'] ?? data['waktu_laporan'] ?? data['waktu_sos'] ?? data['created_at'] ?? '').toString();
     String displayDate = rawDate;
     try {
       if (rawDate.isNotEmpty) {
@@ -227,12 +207,12 @@ class _HistoryPageState extends State<HistoryPage> {
       '/api',
       '/storage/',
     );
-    String? foto = data['foto_laporan'] ?? data['foto'];
+    String? foto = (data['foto_laporan'] ?? data['foto'])?.toString();
     String? audio =
-        data['audio_laporan'] ??
+        (data['audio_laporan'] ??
         data['rekam_suara'] ??
         data['rekaman_suara'] ??
-        data['audio'];
+        data['audio'])?.toString();
 
     return HistoryItem(
       id: data['id'],
@@ -243,10 +223,11 @@ class _HistoryPageState extends State<HistoryPage> {
           : 'Laporan: $kategori',
       dateTime: displayDate,
       location:
+          (data['lokasi'] ??
           data['lokasi_laporan'] ??
           data['lokasi_user'] ??
-          'Lokasi tidak diketahui',
-      description: data['deskripsi'],
+          'Lokasi tidak diketahui').toString(),
+      description: data['deskripsi']?.toString(),
       officerInfo: officerInfo,
       detailButtonLabel: type == HistoryType.sos
           ? 'Lihat Detail SOS'

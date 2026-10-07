@@ -163,7 +163,7 @@ class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
   Future<Map<String, dynamic>> getRelawanBerandaRiwayat() async {
     try {
       final response = await dio.get(
-        ApiConstants.relawanBeranda,
+        ApiConstants.riwayatRelawan,
         options: Options(headers: _getHeaders()),
       );
       if (response.statusCode == 200) {

@@ -29,6 +29,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
   Map<String, dynamic>? _activeTask;
   List<dynamic> _riwayatList = [];
   bool _isLoading = true;
+  int _visibleRiwayatCount = 5;
 
   @override
   void initState() {
@@ -782,7 +783,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                         ),
                       )
                     else
-                      ..._riwayatList.map((item) {
+                      ..._riwayatList.take(_visibleRiwayatCount).map((item) {
                         final isSos = item['tipe'] == 'sos';
                         final title = item['kategori_display'] ?? (isSos ? 'Keadaan Darurat (SOS)' : 'Laporan');
                         
@@ -886,8 +887,19 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                             ],
                           ),
                         );
-                      }),
+                      }).toList(),
 
+                    if (_visibleRiwayatCount < _riwayatList.length)
+                      Center(
+                        child: TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _visibleRiwayatCount += 5;
+                            });
+                          },
+                          child: const Text('Muat Lebih Banyak'),
+                        ),
+                      ),
                     const SizedBox(height: 80),
                   ],
                 ),
@@ -899,3 +911,4 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
     );
   }
 }
+

@@ -289,6 +289,24 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
           if (!hasAssigned) {
             _acceptedSos = null;
             _routePoints.clear();
+          } else if (_acceptedSos == null) {
+            try {
+              final assignedSos = finalUniqueList.firstWhere((e) => e['is_assigned'] == true);
+              _acceptedSos = assignedSos;
+              
+              final sosLat = double.tryParse(assignedSos['latitude']?.toString() ?? '');
+              final sosLng = double.tryParse(assignedSos['longitude']?.toString() ?? '');
+              final volunteerPos = _locationService.currentPosition.value;
+              
+              if (sosLat != null && sosLng != null && volunteerPos != null && _routePoints.isEmpty) {
+                _fetchRoute(
+                  LatLng(volunteerPos.latitude, volunteerPos.longitude),
+                  LatLng(sosLat, sosLng),
+                );
+              }
+            } catch (e) {
+              debugPrint('Error finding assigned SOS: $e');
+            }
           }
         });
 
