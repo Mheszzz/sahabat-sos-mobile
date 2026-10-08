@@ -11,6 +11,7 @@ abstract class VolunteerRemoteDataSource {
   Future<Map<String, dynamic>> getBeranda();
   Future<Map<String, dynamic>> getRelawanBerandaRiwayat();
   Future<Map<String, dynamic>> updateStatusKetersediaan(String status);
+  Future<void> hubungiKontakDarurat(String tipe, int id);
 }
 
 class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
@@ -202,6 +203,27 @@ class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
         e.response?.data?['message'] ??
             e.message ??
             'Gagal memperbarui status ketersediaan',
+      );
+    }
+  }
+
+  @override
+  Future<void> hubungiKontakDarurat(String tipe, int id) async {
+    try {
+      final response = await dio.post(
+        ApiConstants.hubungiKontakDaruratTask(tipe, id),
+        options: Options(headers: _getHeaders()),
+      );
+      if (response.statusCode != 200) {
+        throw Exception(
+          response.data['message'] ?? 'Gagal menghubungi kontak darurat',
+        );
+      }
+    } on DioException catch (e) {
+      throw Exception(
+        e.response?.data?['message'] ??
+            e.message ??
+            'Gagal menghubungi kontak darurat',
       );
     }
   }

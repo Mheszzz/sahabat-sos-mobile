@@ -1,7 +1,7 @@
 class ApiConstants {
   // Gunakan IP komputer lokal agar bisa diakses oleh HP Fisik di jaringan Wi-Fi yang sama
-  static const String baseUrl = 'http://10.44.214.189:8000/api';
-  static const String storageUrl = 'http://10.44.214.189:8000/storage';
+  static const String baseUrl = 'http://192.168.1.2:8000/api';
+  static const String storageUrl = 'http://192.168.1.2:8000/storage';
 
   static const String authGoogle = '$baseUrl/auth/google/mobile';
   static const String authRegisterPengguna = '$baseUrl/auth/register/pengguna';
@@ -38,6 +38,9 @@ class ApiConstants {
       '$baseUrl/pengguna/kontak-darurat/$id';
   static String kontakDaruratToggle(dynamic id) =>
       '$baseUrl/pengguna/kontak-darurat/$id/toggle-notif';
+  
+  static String hubungiKontakDaruratTask(String tipe, dynamic id) => 
+      '$baseUrl/tugas-aktif/$tipe/$id/hubungi-kontak-darurat';
 
   // Volunteer / Relawan Endpoints
   static const String relawanProfile = '$baseUrl/relawan/profile';

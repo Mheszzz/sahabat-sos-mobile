@@ -60,6 +60,11 @@
         <meta-data
             android:name="THING_SMART_SECRET"
             android:value="84keu3y8erwku9rs9adnae595cvtsruv" />
+
+        <service
+            android:name="id.flutter.flutter_background_service.BackgroundService"
+            android:foregroundServiceType="connectedDevice|dataSync"
+            android:exported="true" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

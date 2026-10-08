@@ -170,7 +170,30 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
             }
             _effectiveVolPos = LatLng(vLat, vLng);
 
-            _fetchRoute(_effectiveVolPos!, LatLng(lat, lng));
+            if (_activeTask!['distance_formatted'] != null && _activeTask!['polyline'] != null) {
+              setState(() {
+                _etaText = '${_activeTask!['duration_formatted']} (${_activeTask!['distance_formatted']})';
+                final List<dynamic> polyCoords = _activeTask!['polyline'];
+                _routePoints = polyCoords.map((coord) {
+                  return LatLng(coord[1] as double, coord[0] as double);
+                }).toList();
+              });
+
+              // Tunggu sedikit agar map widget ter-render sebelum fitCamera
+              Future.delayed(const Duration(milliseconds: 300), () {
+                if (mounted && _routePoints.length > 1) {
+                  final bounds = LatLngBounds.fromPoints(_routePoints);
+                  _mapController.fitCamera(
+                    CameraFit.bounds(
+                      bounds: bounds,
+                      padding: const EdgeInsets.all(30.0),
+                    ),
+                  );
+                }
+              });
+            } else {
+              _fetchRoute(_effectiveVolPos!, LatLng(lat, lng));
+            }
           } else {
             setState(() {
               _etaText = 'Gagal (Lokasi?)';
@@ -201,6 +224,55 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
       await launchUrl(googleMapsApp);
     } else {
       await launchUrl(googleMapsUrl, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _hubungiKontakDarurat() async {
+    if (_activeTask == null) return;
+    
+    final idSos = _activeTask!['id'];
+    
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hubungi Kontak Darurat'),
+        content: const Text('Yakin ingin mengirim notifikasi SOS ke kontak darurat korban?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hubungi', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+      
+      // Default tipe "sos" untuk SOS aktif
+      await _dataSource.hubungiKontakDarurat('sos', idSos);
+      
+      if (!mounted) return;
+      Navigator.pop(context); // close loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Notifikasi telah dikirim ke kontak darurat korban')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menghubungi kontak darurat')),
+      );
     }
   }
 
@@ -973,6 +1045,33 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _hubungiKontakDarurat,
+                            icon: const Icon(
+                              CupertinoIcons.exclamationmark_triangle_fill,
+                              color: sosRed,
+                              size: 16,
+                            ),
+                            label: const Text(
+                              'Hubungi Kontak Darurat Korban',
+                              style: TextStyle(color: sosRed, fontWeight: FontWeight.bold),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red.shade50.withValues(
+                                alpha: 0.8,
+                              ),
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(color: sosRed.withValues(alpha: 0.3)),
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
