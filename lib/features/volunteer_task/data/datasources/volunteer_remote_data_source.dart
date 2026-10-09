@@ -141,7 +141,7 @@ class VolunteerRemoteDataSourceImpl implements VolunteerRemoteDataSource {
   Future<Map<String, dynamic>> getBeranda() async {
     try {
       final response = await dio.get(
-        ApiConstants.beranda,
+        ApiConstants.relawanBeranda,
         options: Options(headers: _getHeaders()),
       );
       if (response.statusCode == 200) {

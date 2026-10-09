@@ -27,6 +27,7 @@ class ApiConstants {
 
   static const String sosUserHistory = '$baseUrl/sos/user/history';
   static String sosDetail(dynamic id) => '$baseUrl/sos/$id';
+  static String sosActivities(dynamic id) => '$baseUrl/sos/$id/activities';
 
   static const String emergencyTrigger = '$baseUrl/sos/trigger';
   static const String emergencyActive = '$baseUrl/sos/active';
@@ -49,6 +50,7 @@ class ApiConstants {
   static String sosStatusUpdate(dynamic id) => '$baseUrl/sos/$id/status';
   static String sosReject(dynamic id) => '$baseUrl/sos/$id/reject';
   static const String relawanStatusKetersediaan = '$baseUrl/relawan/status-ketersediaan';
+  static const String relawanBeranda = '$baseUrl/relawan/beranda';
 
   // Tuya Device
   static const String tuyaDeviceRegister = '$baseUrl/tuya-device/register';

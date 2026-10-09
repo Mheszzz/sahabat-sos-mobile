@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:sahabat_sos_mobile/app.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:sahabat_sos_mobile/core/services/background_service.dart';
+import 'package:sahabat_sos_mobile/core/widgets/permission_gate.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/data/services/tuya_background_listener.dart';
 import 'package:sahabat_sos_mobile/routing/app_router.dart';
 
@@ -27,5 +28,5 @@ void main() async {
   // (This will also start Tuya and WebSockets in the background isolate)
   await initializeBackgroundService();
 
-  runApp(const SahabatSosApp());
+  runApp(const PermissionGate(child: SahabatSosApp()));
 }

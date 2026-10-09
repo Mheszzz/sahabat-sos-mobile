@@ -97,14 +97,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
           filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
           child: Container(
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withValues(alpha: 0.8),
-                  Colors.white.withValues(alpha: 0.5),
-                ],
-              ),
+              color: Colors.white,
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(24),
               ),
@@ -336,15 +329,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
         height: double.infinity,
         width: double.infinity,
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F7FA), // Light blue/teal
-              Color(0xFFF5F6F8), // Greyish white
-              Color(0xFFE0F2F1), // Light teal
-            ],
-          ),
+          color: Colors.white,
         ),
         child: SafeArea(
           child: SingleChildScrollView(
@@ -468,8 +453,8 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
                       relationText: 'Kerabat',
                       phone: contact['no_telp'] ?? '-',
                       accessIcon: terimaNotif
-                          ? Icons.notifications_active
-                          : Icons.notifications_off,
+                          ? CupertinoIcons.bell_fill
+                          : CupertinoIcons.bell_slash,
                       accessText: terimaNotif
                           ? 'Akses: Menerima Notifikasi'
                           : 'Notifikasi Dinonaktifkan',

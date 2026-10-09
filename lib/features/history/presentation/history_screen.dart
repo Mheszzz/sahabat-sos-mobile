@@ -4,6 +4,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:get_it/get_it.dart';
+import 'dart:async';
+import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'report_detail_screen.dart';
 
@@ -76,10 +78,79 @@ class _HistoryPageState extends State<HistoryPage> {
   int _currentPage = 1;
   final int _itemsPerPage = 10;
 
+  Timer? _refreshTimer;
+  final List<String> _subscribedChannels = [];
+
   @override
   void initState() {
     super.initState();
     _fetchHistory();
+    
+    // Fallback polling untuk Laporan (karena backend belum ada event LaporanUpdateStatus)
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+      if (mounted && !_isLoading) {
+        _fetchHistorySilently();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    _unsubscribeAll();
+    super.dispose();
+  }
+
+  void _unsubscribeAll() {
+    for (var channel in _subscribedChannels) {
+      WebsocketService.echo?.leave(channel);
+    }
+    _subscribedChannels.clear();
+  }
+
+  Future<void> _fetchHistorySilently() async {
+    // Versi _fetchHistory tanpa setState _isLoading = true agar UI tidak berkedip
+    try {
+      final prefs = GetIt.instance<SharedPreferences>();
+      final token = prefs.getString('auth_token');
+      final role = prefs.getString('role');
+      final dio = GetIt.instance<Dio>();
+
+      final headers = {if (token != null) 'Authorization': 'Bearer $token'};
+      String endpoint = role == 'relawan' ? ApiConstants.riwayatRelawan : ApiConstants.riwayatPengguna;
+
+      final response = await dio.get(endpoint, options: Options(headers: headers));
+
+      if (response.statusCode == 200 && mounted) {
+        final data = response.data['data'] is List
+            ? response.data['data']
+            : (response.data['data'] != null && response.data['data']['data'] != null ? response.data['data']['data'] : []);
+        
+        setState(() {
+          _allItems = (data as List).map((item) => _mapToHistoryItem(item)).toList();
+          _allItems.sort((a, b) => b.dateTime.compareTo(a.dateTime));
+        });
+        _updateWebsocketSubscriptions();
+      }
+    } catch (e) {
+      // Abaikan error saat silent refresh
+    }
+  }
+
+  void _updateWebsocketSubscriptions() {
+    if (WebsocketService.echo == null) return;
+    
+    for (var item in _allItems) {
+      if (item.type == HistoryType.sos && item.status != HistoryStatus.selesai) {
+        final channelName = 'sos.${item.id}';
+        if (!_subscribedChannels.contains(channelName)) {
+          _subscribedChannels.add(channelName);
+          WebsocketService.echo?.private(channelName)?.listen('.SOSUpdateStatus', (e) {
+             if (mounted) _fetchHistorySilently();
+          });
+        }
+      }
+    }
   }
 
   Future<void> _fetchHistory() async {
@@ -123,6 +194,8 @@ class _HistoryPageState extends State<HistoryPage> {
 
         _isLoading = false;
       });
+      
+      _updateWebsocketSubscriptions();
     } on DioException catch (e) {
       setState(() {
         _errorMessage = e.response != null
@@ -159,9 +232,13 @@ class _HistoryPageState extends State<HistoryPage> {
     String statusStr = (data['status'] ?? data['status_sos'] ?? 'aktif').toString();
 
     HistoryType type = HistoryType.laporan;
-    if (data['tipe'] == 'sos' ||
+    if (data['tipe']?.toString().toLowerCase() == 'sos' ||
+        data['jenis']?.toString().toLowerCase() == 'sos' ||
         kategori.toLowerCase() == 'sos' ||
-        kategori.toLowerCase() == 'sos darurat') {
+        kategori.toLowerCase() == 'sos darurat' ||
+        kategori.toLowerCase().contains('sos') ||
+        data['status_sos'] != null ||
+        data['waktu_sos'] != null) {
       type = HistoryType.sos;
     }
 
@@ -329,15 +406,7 @@ class _HistoryPageState extends State<HistoryPage> {
         height: double.infinity,
         width: double.infinity,
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F7FA), // Light blue/teal
-              Color(0xFFF5F6F8), // Greyish white
-              Color(0xFFE0F2F1), // Light teal
-            ],
-          ),
+          color: Colors.white,
         ),
         child: SafeArea(
           child: RefreshIndicator(
@@ -461,13 +530,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  gradient: isSelected
-                      ? const LinearGradient(
-                          colors: [Color(0xFF00695C), Color(0xFF004D40)],
-                        )
-                      : const LinearGradient(
-                          colors: [Colors.white, Colors.white],
-                        ),
+                  color: isSelected ? const Color(0xFF00695C) : Colors.white,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
                     color: isSelected
@@ -583,14 +646,7 @@ class _HistoryPageState extends State<HistoryPage> {
                           filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                           child: Container(
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Colors.white.withValues(alpha: 0.7),
-                                  Colors.white.withValues(alpha: 0.4),
-                                ],
-                              ),
+                              color: Colors.white,
                             ),
                             child: child!,
                           ),
@@ -837,7 +893,7 @@ class _HistoryPageState extends State<HistoryPage> {
         lowerTitle.contains('obat') ||
         lowerTitle.contains('ambulans')) {
       return (
-        icon: Icons.local_hospital_rounded,
+        icon: CupertinoIcons.add_circled,
         color: const Color(0xFFD32F2F),
       );
     } else if (lowerTitle.contains('ancaman') ||
@@ -852,7 +908,7 @@ class _HistoryPageState extends State<HistoryPage> {
         color: const Color(0xFF00838F),
       );
     } else if (lowerTitle.contains('aksesibilitas')) {
-      return (icon: Icons.accessible_rounded, color: const Color(0xFF6A1B9A));
+      return (icon: CupertinoIcons.person_crop_circle, color: const Color(0xFF6A1B9A));
     } else if (lowerTitle.contains('lainnya')) {
       return (
         icon: CupertinoIcons.ellipsis_circle_fill,

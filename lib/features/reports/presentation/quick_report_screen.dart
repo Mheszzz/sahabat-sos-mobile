@@ -153,13 +153,13 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       case 'butuh_pendamping':
         return CupertinoIcons.person_2_fill;
       case 'kondisi_medis':
-        return Icons.local_hospital_rounded;
+        return CupertinoIcons.add_circled;
       case 'ancaman_bahaya':
         return CupertinoIcons.exclamationmark_triangle_fill;
       case 'tersesat':
         return CupertinoIcons.compass_fill;
       case 'aksesibilitas_rusak':
-        return Icons.accessible_rounded;
+        return CupertinoIcons.person_crop_circle;
       case 'lainnya':
         return CupertinoIcons.ellipsis_circle_fill;
       default:
@@ -538,17 +538,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       extendBodyBehindAppBar: true,
       appBar: _buildAppBar(),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F7FA), // Light blue/teal
-              Color(0xFFF5F6F8), // Greyish white
-              Color(0xFFE0F2F1), // Light teal
-            ],
-          ),
-        ),
+        color: const Color(0xFFF5F6F8),
         child: SafeArea(
           child: _isLoadingOptions
               ? const Center(
@@ -644,7 +634,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF5F6F8),
       elevation: 0,
       iconTheme: const IconThemeData(color: primaryTeal),
       centerTitle: false,

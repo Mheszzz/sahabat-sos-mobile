@@ -262,15 +262,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       body: Container(
         height: double.infinity,
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F7FA), // Light blue/teal
-              Color(0xFFF5F6F8), // Greyish white
-              Color(0xFFE0F2F1), // Light teal
-            ],
-          ),
+          color: Colors.white,
         ),
         child: SafeArea(
           child: _isLoading
@@ -375,7 +367,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   {
                                     'value': 'tunarungu',
                                     'label': 'Tunarungu',
-                                    'icon': Icons.hearing_disabled_outlined,
+                                    'icon': CupertinoIcons.ear,
                                   },
                                   {
                                     'value': 'tunawicara',

@@ -1,4 +1,4 @@
-import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
+﻿import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
     as import_event_bus;
 import 'dart:async';
 import 'dart:convert';
@@ -721,7 +721,7 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
-                            Icons.gps_fixed,
+                            CupertinoIcons.location_fill,
                             color: primaryColor,
                             size: 22,
                           ),

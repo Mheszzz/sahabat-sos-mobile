@@ -97,11 +97,7 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Colors.red.shade800, Colors.red.shade600],
-                    ),
+                    color: Colors.white,
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,

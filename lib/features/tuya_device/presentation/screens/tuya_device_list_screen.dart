@@ -179,10 +179,10 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF5F6F8),
       appBar: AppBar(
         automaticallyImplyLeading: widget.showBackButton,
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFF5F6F8),
         elevation: 0,
         scrolledUnderElevation: 0,
         iconTheme: const IconThemeData(color: Color(0xFF00695C)), // primaryTeal
@@ -204,17 +204,7 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
         ),
       ),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F7FA), // Light blue/teal
-              Color(0xFFF5F6F8), // Greyish white
-              Color(0xFFE0F2F1), // Light teal
-            ],
-          ),
-        ),
+        color: const Color(0xFFF5F6F8),
         child: SafeArea(
           child: _isLoading
               ? const Center(

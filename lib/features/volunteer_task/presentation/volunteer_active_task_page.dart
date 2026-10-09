@@ -284,17 +284,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
           children: [
             Positioned.fill(
               child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFFE0F7FA),
-                      Color(0xFFF1F8E9),
-                      Color(0xFFE3F2FD),
-                    ],
-                  ),
-                ),
+                color: const Color(0xFFF5F6F8),
               ),
             ),
             const Center(child: CupertinoActivityIndicator(radius: 16)),
@@ -309,17 +299,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
           children: [
             Positioned.fill(
               child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFFE0F7FA),
-                      Color(0xFFF1F8E9),
-                      Color(0xFFE3F2FD),
-                    ],
-                  ),
-                ),
+                color: const Color(0xFFF5F6F8),
               ),
             ),
             Center(
@@ -439,49 +419,10 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
           // iOS Style Abstract Gradient Background
           Positioned.fill(
             child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFE0F7FA),
-                    Color(0xFFF1F8E9),
-                    Color(0xFFE3F2FD),
-                  ],
-                ),
-              ),
+              color: const Color(0xFFF5F6F8),
             ),
           ),
-          Positioned(
-            top: -50,
-            left: -50,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.tealAccent.withValues(alpha: 0.3),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -100,
-            right: -50,
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.blueAccent.withValues(alpha: 0.2),
-              ),
-            ),
-          ),
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-              child: Container(color: Colors.transparent),
-            ),
-          ),
+
 
           SafeArea(
             child: SingleChildScrollView(
@@ -1371,7 +1312,7 @@ class _SlideToCompleteButtonState extends State<SlideToCompleteButton> {
                       ],
                     ),
                     child: const Icon(
-                      Icons.keyboard_double_arrow_right,
+                      CupertinoIcons.chevron_right_2,
                       color: Colors.white,
                       size: 36,
                     ),

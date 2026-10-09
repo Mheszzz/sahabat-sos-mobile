@@ -8,6 +8,7 @@ import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/voluntee
 import 'dart:ui';
 import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/widgets/glass_container.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart' as import_event_bus;
 
 class VolunteerTaskListPage extends StatefulWidget {
   const VolunteerTaskListPage({super.key});
@@ -31,6 +32,20 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage> {
   void initState() {
     super.initState();
     _fetchData();
+    // Mendengarkan trigger pembaruan dari WebSocket
+    import_event_bus.GlobalEventBus.refreshMap.addListener(_onWebSocketUpdate);
+  }
+
+  @override
+  void dispose() {
+    import_event_bus.GlobalEventBus.refreshMap.removeListener(_onWebSocketUpdate);
+    super.dispose();
+  }
+
+  void _onWebSocketUpdate() {
+    if (mounted) {
+      _fetchData();
+    }
   }
 
   Future<void> _fetchData() async {
@@ -107,21 +122,11 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFE0F7FA), // Light blue/teal
-            Color(0xFFF5F6F8), // Greyish white
-            Color(0xFFE0F2F1), // Light teal
-          ],
-        ),
-      ),
-      child: DefaultTabController(
+        color: const Color(0xFFF5F6F8),
+        child: DefaultTabController(
         length: 2,
         child: Scaffold(
-          backgroundColor: Colors.transparent,
+          backgroundColor: const Color(0xFFF5F6F8),
           appBar: AppBar(
             backgroundColor: Colors.white.withOpacity(0.15),
             elevation: 0,

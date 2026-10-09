@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'dart:async';
 import 'dart:ui';
 
@@ -10,6 +11,7 @@ import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
+import 'sos_activities_sheet.dart';
 
 class SosStatusPage extends StatefulWidget {
   const SosStatusPage({super.key});
@@ -235,19 +237,9 @@ class _SosStatusPageState extends State<SosStatusPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF5F6F8),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F7FA), // Light blue/teal
-              Color(0xFFF5F6F8), // Greyish white
-              Color(0xFFE0F2F1), // Light teal
-            ],
-          ),
-        ),
+        color: const Color(0xFFF5F6F8),
         child: SafeArea(
           child: CustomScrollView(
             slivers: [
@@ -288,10 +280,10 @@ class _SosStatusPageState extends State<SosStatusPage> {
                           ),
                           child: Icon(
                             _sosStatus == 'selesai'
-                                ? Icons.check_circle
+                                ? CupertinoIcons.checkmark_circle_fill
                                 : (_sosStatus == 'proses'
-                                      ? Icons.directions_car
-                                      : Icons.campaign),
+                                      ? CupertinoIcons.car_detailed
+                                      : CupertinoIcons.speaker_3_fill),
                             color: Colors.white,
                             size: 60,
                           ),
@@ -370,7 +362,7 @@ class _SosStatusPageState extends State<SosStatusPage> {
                                   ),
                                   const SizedBox(height: 20),
                                   _buildStatusItem(
-                                    icon: Icons.check_circle_outline,
+                                    icon: CupertinoIcons.checkmark_circle,
                                     iconColor: const Color(0xFF00695C),
                                     iconBgColor: const Color(0xFFE0F2F1),
                                     title: 'Lokasi terkirim',
@@ -382,8 +374,8 @@ class _SosStatusPageState extends State<SosStatusPage> {
                                     icon:
                                         _sosStatus == 'proses' ||
                                             _sosStatus == 'selesai'
-                                        ? Icons.check_circle_outline
-                                        : Icons.autorenew,
+                                        ? CupertinoIcons.checkmark_circle
+                                        : CupertinoIcons.refresh,
                                     iconColor:
                                         _sosStatus == 'proses' ||
                                             _sosStatus == 'selesai'
@@ -410,8 +402,8 @@ class _SosStatusPageState extends State<SosStatusPage> {
                                   const SizedBox(height: 20),
                                   _buildStatusItem(
                                     icon: _sosStatus == 'selesai'
-                                        ? Icons.check_circle_outline
-                                        : Icons.more_horiz,
+                                        ? CupertinoIcons.checkmark_circle
+                                        : CupertinoIcons.ellipsis,
                                     iconColor: _sosStatus == 'selesai'
                                         ? const Color(0xFF00695C)
                                         : Colors.grey.shade700,
@@ -433,11 +425,40 @@ class _SosStatusPageState extends State<SosStatusPage> {
 
                       const Spacer(),
 
+                      // Lihat Riwayat Aktivitas Button
+                      if (_sosId != null)
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            SosActivitiesSheet.show(context, _sosId!);
+                          },
+                          icon: const Icon(
+                            CupertinoIcons.clock,
+                            color: primaryTeal,
+                          ),
+                          label: const Text(
+                            'Lihat Riwayat Aktivitas',
+                            style: TextStyle(
+                              color: primaryTeal,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: primaryTeal),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            minimumSize: const Size(double.infinity, 50),
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+
                       // Hubungi Customer Services Button
                       ElevatedButton.icon(
                         onPressed: () {},
                         icon: const Icon(
-                          Icons.support_agent,
+                          CupertinoIcons.headphones,
                           color: Colors.white,
                         ),
                         label: const Text(
@@ -510,7 +531,7 @@ class _SosStatusPageState extends State<SosStatusPage> {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: const [
                                       Icon(
-                                        Icons.cancel_outlined,
+                                        CupertinoIcons.xmark_circle,
                                         color: Colors.black87,
                                       ),
                                       SizedBox(width: 8),

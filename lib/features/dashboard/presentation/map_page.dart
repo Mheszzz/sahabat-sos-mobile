@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:ui';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -291,7 +291,7 @@ class _MapPageState extends State<MapPage> {
                           ),
                           child: const Center(
                             child: Icon(
-                              Icons.my_location,
+                              CupertinoIcons.location_fill,
                               color: Colors.blue,
                               size: 30,
                             ),
@@ -315,7 +315,7 @@ class _MapPageState extends State<MapPage> {
                               _showGlassBottomSheet(context, report);
                             },
                             child: const Icon(
-                              Icons.location_on,
+                              CupertinoIcons.location_solid,
                               color: Colors.redAccent,
                               size: 40,
                               shadows: [
@@ -428,7 +428,7 @@ class _MapPageState extends State<MapPage> {
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
-                                Icons.gps_fixed,
+                                CupertinoIcons.location_fill,
                                 color: primaryColor,
                                 size: 20,
                               ),
@@ -545,7 +545,7 @@ class _MapPageState extends State<MapPage> {
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
-                        Icons.warning_rounded,
+                        CupertinoIcons.exclamationmark_triangle_fill,
                         color: Colors.red,
                       ),
                     ),
@@ -565,14 +565,14 @@ class _MapPageState extends State<MapPage> {
                 const SizedBox(height: 16),
                 _buildDetailRow(
                   context,
-                  Icons.info_outline,
+                  CupertinoIcons.info_circle,
                   'Status',
                   report['status'] ?? '-',
                 ),
                 const SizedBox(height: 12),
                 _buildDetailRow(
                   context,
-                  Icons.location_on_outlined,
+                  CupertinoIcons.location,
                   'Lokasi',
                   report['lokasi_laporan'] ?? 'Tidak diketahui',
                 ),
@@ -580,7 +580,7 @@ class _MapPageState extends State<MapPage> {
                   const SizedBox(height: 12),
                   _buildDetailRow(
                     context,
-                    Icons.route_outlined,
+                    CupertinoIcons.map,
                     'Jarak',
                     '${report['distance_km']} KM',
                   ),

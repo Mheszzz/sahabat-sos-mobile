@@ -24,20 +24,10 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF5F6F8),
       resizeToAvoidBottomInset: false,
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F7FA), // Light blue/teal
-              Color(0xFFF5F6F8), // Greyish white
-              Color(0xFFE0F2F1), // Light teal
-            ],
-          ),
-        ),
+        color: const Color(0xFFF5F6F8),
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {

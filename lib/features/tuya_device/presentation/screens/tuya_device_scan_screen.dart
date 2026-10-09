@@ -171,9 +171,9 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF5F6F8),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFF5F6F8),
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
@@ -197,17 +197,7 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
         ),
       ),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F7FA), // Light blue/teal
-              Color(0xFFF5F6F8), // Greyish white
-              Color(0xFFE0F2F1), // Light teal
-            ],
-          ),
-        ),
+        color: const Color(0xFFF5F6F8),
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),

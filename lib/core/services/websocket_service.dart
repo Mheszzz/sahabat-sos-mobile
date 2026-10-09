@@ -213,6 +213,8 @@ class WebsocketService {
     publicChannel.bind('SOSCreated', (event) {
       debugPrint("🚨 SOSCreated diterima di $publicChannelName");
       processEvent(event, publicChannelName);
+      // Panggil event bus agar halaman tugas ter-refresh detik itu juga
+      GlobalEventBus.refreshMap.value = !GlobalEventBus.refreshMap.value;
     });
 
     publicChannel.bind('SOSUpdateStatus', (event) {

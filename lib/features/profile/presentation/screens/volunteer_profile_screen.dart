@@ -87,20 +87,10 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF5F6F8),
       appBar: _buildAppBar(),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F7FA), // Light blue/teal
-              Color(0xFFF5F6F8), // Greyish white
-              Color(0xFFE0F2F1), // Light teal
-            ],
-          ),
-        ),
+        color: const Color(0xFFF5F6F8),
         child: _isLoading
             ? const Center(child: CircularProgressIndicator(color: primaryTeal))
             : SafeArea(
@@ -170,7 +160,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF5F6F8),
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
@@ -326,8 +316,8 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                 children: [
                   Icon(
                     isVerified
-                        ? Icons.health_and_safety_rounded
-                        : Icons.pending_actions_rounded,
+                        ? CupertinoIcons.checkmark_shield_fill
+                        : CupertinoIcons.time,
                     color: isVerified ? primaryTeal : const Color(0xFFEF6C00),
                     size: 16,
                   ),
@@ -374,13 +364,13 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
       child: Column(
         children: [
           _buildInfoTile(
-            icon: Icons.work_rounded,
+            icon: CupertinoIcons.briefcase_fill,
             title: 'Pekerjaan',
             value: _job,
           ),
           const Divider(height: 1, indent: 56),
           _buildInfoTile(
-            icon: Icons.volunteer_activism_rounded,
+            icon: CupertinoIcons.heart_fill,
             title: 'Alasan Menjadi Relawan',
             value: _reason,
           ),

@@ -9,6 +9,7 @@ import '../../../../routing/routes.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../data/datasources/profile_remote_data_source.dart';
+import '../../../../features/history/presentation/sos_history_screen.dart' as sahabat_sos_mobile_history;
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -120,7 +121,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       case 'tunanetra':
         return CupertinoIcons.eye_slash;
       case 'tunarungu':
-        return Icons.hearing_disabled_outlined;
+        return CupertinoIcons.ear;
       case 'tunawicara':
         return CupertinoIcons.mic_slash;
       case 'umum':
@@ -133,20 +134,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF5F6F8),
       appBar: _buildAppBar(),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F7FA), // Light blue/teal
-              Color(0xFFF5F6F8), // Greyish white
-              Color(0xFFE0F2F1), // Light teal
-            ],
-          ),
-        ),
+        color: const Color(0xFFF5F6F8),
         child: _isLoading
             ? const Center(child: CircularProgressIndicator(color: primaryTeal))
             : SafeArea(
@@ -204,6 +195,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               const SizedBox(height: 24),
 
                               _buildSectionHeader(
+                                icon: CupertinoIcons.clock,
+                                title: 'Riwayat Khusus',
+                              ),
+                              const SizedBox(height: 12),
+                              _buildGlassContainer(
+                                child: _buildHelpTile(
+                                  icon: CupertinoIcons.exclamationmark_triangle,
+                                  iconColor: Colors.red,
+                                  iconBg: Colors.red.withValues(alpha: 0.1),
+                                  title: 'Riwayat Darurat (SOS)',
+                                  subtitle: 'Lihat catatan riwayat SOS spesifik Anda',
+                                  onTap: () {
+                                    Navigator.of(context).push(MaterialPageRoute(
+                                      builder: (context) => const sahabat_sos_mobile_history.SosHistoryScreen(),
+                                    ));
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+
+                              _buildSectionHeader(
                                 icon: CupertinoIcons.question_circle,
                                 title: 'Bantuan',
                               ),
@@ -236,7 +248,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF5F6F8),
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
