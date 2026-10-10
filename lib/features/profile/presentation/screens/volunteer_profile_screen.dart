@@ -56,7 +56,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           _address = userData['alamat'] ?? 'Alamat belum diatur';
           _job = userData['pekerjaan'] ?? 'Belum diatur';
           _reason = userData['alasan_relawan'] ?? 'Belum diatur';
-          _verificationStatus = userData['status_verifikasi'] ?? 'pending';
+          _verificationStatus = (userData['status_verifikasi'] ?? 'pending').toString().toLowerCase();
 
           if (userData['email'] != null) {
             _email = userData['email'];

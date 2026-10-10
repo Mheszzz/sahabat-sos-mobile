@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'package:intl/intl.dart';
+import 'package:geocoding/geocoding.dart';
 
 class SosHistoryScreen extends StatefulWidget {
   const SosHistoryScreen({super.key});
@@ -19,6 +20,65 @@ class _SosHistoryScreenState extends State<SosHistoryScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   List<dynamic> _sosHistory = [];
+
+  final Map<int, String> _addressCache = {};
+
+  Future<String> _getAddress(Map<String, dynamic> item, int index) async {
+    final id = item['id'] ?? index;
+    if (_addressCache.containsKey(id)) {
+      return _addressCache[id]!;
+    }
+
+    String defaultLocation = item['lokasi_sos']?.toString() ?? 'Lokasi tidak diketahui';
+    final rawLocationStr = defaultLocation;
+    final alamatMatch = RegExp(r'alamat:\s*([^,}]+)').firstMatch(rawLocationStr);
+    if (alamatMatch != null) {
+      defaultLocation = alamatMatch.group(1)!.trim();
+    }
+
+    final latVal = item['latitude'];
+    double? latitude;
+    if (latVal != null) {
+      latitude = (latVal is num) ? latVal.toDouble() : double.tryParse(latVal.toString());
+    } else {
+      final latMatch = RegExp(r'latitude:\s*(-?\d+\.\d+)').firstMatch(rawLocationStr);
+      if (latMatch != null) latitude = double.tryParse(latMatch.group(1)!);
+    }
+
+    final lngVal = item['longitude'];
+    double? longitude;
+    if (lngVal != null) {
+      longitude = (lngVal is num) ? lngVal.toDouble() : double.tryParse(lngVal.toString());
+    } else {
+      final lngMatch = RegExp(r'longitude:\s*(-?\d+\.\d+)').firstMatch(rawLocationStr);
+      if (lngMatch != null) longitude = double.tryParse(lngMatch.group(1)!);
+    }
+
+    if (latitude != null && longitude != null) {
+      try {
+        final placemarks = await Geocoding().placemarkFromCoordinates(latitude, longitude);
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          final addressList = [
+            place.subLocality,
+            place.locality,
+            place.subAdministrativeArea,
+            place.administrativeArea,
+          ].where((e) => e != null && e.isNotEmpty).toList();
+          final address = addressList.join(', ');
+          if (address.isNotEmpty) {
+            _addressCache[id] = address;
+            return address;
+          }
+        }
+      } catch (e) {
+        // Fallback
+      }
+    }
+    
+    _addressCache[id] = defaultLocation;
+    return defaultLocation;
+  }
 
   @override
   void initState() {
@@ -99,6 +159,15 @@ class _SosHistoryScreenState extends State<SosHistoryScreen> {
         textColor = Colors.red.shade800;
     }
 
+    String _getDisplayStatus(String s) {
+      final lower = s.toLowerCase();
+      if (lower == 'batal' || lower == 'dibatalkan') return 'DIBATALKAN';
+      if (lower == 'selesai') return 'SELESAI';
+      if (lower == 'proses' || lower == 'ditangani') return 'SEDANG DITANGANI';
+      if (lower == 'aktif') return 'MENUNGGU RELAWAN';
+      return s.toUpperCase();
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -106,7 +175,7 @@ class _SosHistoryScreenState extends State<SosHistoryScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        status.toUpperCase(),
+        _getDisplayStatus(status),
         style: TextStyle(
           color: textColor,
           fontSize: 12,
@@ -197,11 +266,16 @@ class _SosHistoryScreenState extends State<SosHistoryScreen> {
                                     const Icon(CupertinoIcons.location, size: 16, color: Colors.grey),
                                     const SizedBox(width: 6),
                                     Expanded(
-                                      child: Text(
-                                        location,
-                                        style: const TextStyle(color: Colors.grey, fontSize: 13),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                      child: FutureBuilder<String>(
+                                        future: _getAddress(item, index),
+                                        builder: (context, snapshot) {
+                                          return Text(
+                                            snapshot.data ?? location,
+                                            style: const TextStyle(color: Colors.grey, fontSize: 13),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          );
+                                        },
                                       ),
                                     ),
                                   ],

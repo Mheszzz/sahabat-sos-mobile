@@ -12,6 +12,7 @@ import 'history_screen.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
+import 'package:geocoding/geocoding.dart';
 
 class ReportDetailScreen extends StatefulWidget {
   final HistoryItem item;
@@ -37,6 +38,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   // Fresh data from API
   String? _freshStatus;
   String? _userRole;
+  String? _readableAddress;
 
   @override
   void initState() {
@@ -44,6 +46,33 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     _initAudioPlayer();
     _fetchDetailFromApi();
     _fetchUserRole();
+    _resolveAddress();
+  }
+
+  Future<void> _resolveAddress() async {
+    if (widget.item.latitude != null && widget.item.longitude != null) {
+      try {
+        final placemarks = await Geocoding().placemarkFromCoordinates(
+            widget.item.latitude!, widget.item.longitude!);
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          final addressList = [
+            place.subLocality,
+            place.locality,
+            place.subAdministrativeArea,
+            place.administrativeArea,
+          ].where((e) => e != null && e.isNotEmpty).toList();
+          final address = addressList.join(', ');
+          if (address.isNotEmpty && mounted) {
+            setState(() {
+              _readableAddress = address;
+            });
+          }
+        }
+      } catch (e) {
+        // Fallback
+      }
+    }
   }
 
   Future<void> _fetchUserRole() async {
@@ -62,7 +91,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       );
       if (response.statusCode == 200 && mounted) {
         setState(() {
-          _userRole = response.data['data']['role'];
+          _userRole = response.data['data']['role']?.toString().toLowerCase();
         });
       }
     } catch (e) {
@@ -95,7 +124,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         final data = response.data['data'];
         if (data != null) {
           setState(() {
-            _freshStatus = data['status'] ?? data['status_sos'];
+            _freshStatus = (data['status'] ?? data['status_sos'])?.toString().toLowerCase();
           });
         }
       }
@@ -280,6 +309,15 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     return Colors.red;
   }
 
+  String _getDisplayStatus(String status) {
+    status = status.toLowerCase();
+    if (status == 'batal' || status == 'dibatalkan') return 'DIBATALKAN';
+    if (status == 'selesai') return 'SELESAI';
+    if (status == 'proses' || status == 'ditangani') return 'SEDANG DITANGANI';
+    if (status == 'aktif') return 'MENUNGGU RELAWAN';
+    return status.toUpperCase();
+  }
+
   IconData _getStatusIcon(String status) {
     status = status.toLowerCase();
     if (status == 'selesai') return CupertinoIcons.checkmark_circle_fill;
@@ -437,7 +475,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                           Icon(statusIcon, color: statusColor, size: 14),
                           const SizedBox(width: 6),
                           Text(
-                            statusString.toUpperCase(),
+                            _getDisplayStatus(statusString),
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -666,7 +704,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    widget.item.location,
+                                    _readableAddress ?? widget.item.location,
                                     style: const TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,

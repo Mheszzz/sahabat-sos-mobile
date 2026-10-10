@@ -12,6 +12,7 @@ import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
     as event_bus;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sahabat_sos_mobile/features/volunteer_task/data/datasources/volunteer_remote_data_source.dart';
 
 class MainVolunteerScreen extends StatefulWidget {
   final int initialIndex;
@@ -23,6 +24,7 @@ class MainVolunteerScreen extends StatefulWidget {
 
 class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
   late int _selectedIndex;
+  bool? _isVerified;
   final LocationService _locationService = sl<LocationService>();
 
   // Key untuk akses langsung ke VolunteerMapPage state
@@ -39,6 +41,7 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
 
   /// Dipanggil saat relawan menerima tugas → pindah ke tab Peta & tampilkan rute
   void _onNavigateToMap() {
+    if (_isVerified == false) return;
     final sosData = event_bus.GlobalEventBus.navigateToMapWithSos.value;
     if (sosData == null) return;
 
@@ -64,6 +67,34 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
   }
 
   Future<void> _initVolunteerServices() async {
+    // 0. Check Verification Status
+    try {
+      final volunteerDataSource = sl<VolunteerRemoteDataSource>();
+      final response = await volunteerDataSource.getRelawanProfile();
+      final userData = response['user'];
+      if (userData != null) {
+        final status = (userData['status_verifikasi'] ?? 'pending').toString().toLowerCase();
+        if (mounted) {
+          setState(() {
+            _isVerified = status == 'terverifikasi';
+            if (_isVerified == false && _selectedIndex != 3) {
+              _selectedIndex = 3; // Force to Profile tab
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching verification status: $e');
+      if (mounted) {
+        setState(() {
+          _isVerified = false; // default to block
+          if (_selectedIndex != 3) {
+            _selectedIndex = 3;
+          }
+        });
+      }
+    }
+
     // 1. Start Location Tracking
     final hasPerm = await _locationService.requestPermission();
     if (hasPerm) {
@@ -171,6 +202,15 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
                         final item = _navItems[index];
                         return GestureDetector(
                           onTap: () {
+                            if (_isVerified == false && index != 3) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Akun Anda belum diverifikasi oleh admin.'),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                              return;
+                            }
                             setState(() {
                               _selectedIndex = index;
                             });
@@ -192,18 +232,22 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
                               children: [
                                 Icon(
                                   isSelected ? item.selectedIcon : item.icon,
-                                  color: isSelected
-                                      ? primaryTeal
-                                      : _unselectedColor,
+                                  color: (_isVerified == false && index != 3)
+                                      ? Colors.grey.withValues(alpha: 0.3)
+                                      : isSelected
+                                          ? primaryTeal
+                                          : _unselectedColor,
                                   size: 24,
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   item.label,
                                   style: TextStyle(
-                                    color: isSelected
-                                        ? primaryTeal
-                                        : _unselectedColor,
+                                    color: (_isVerified == false && index != 3)
+                                        ? Colors.grey.withValues(alpha: 0.3)
+                                        : isSelected
+                                            ? primaryTeal
+                                            : _unselectedColor,
                                     fontSize: 11,
                                     fontWeight: isSelected
                                         ? FontWeight.w600

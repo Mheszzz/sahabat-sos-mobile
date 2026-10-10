@@ -95,7 +95,7 @@ class _SosStatusPageState extends State<SosStatusPage> {
         if (data != null) {
           setState(() {
             _sosId = data['id'];
-            _sosStatus = data['status_sos'] ?? 'aktif';
+            _sosStatus = (data['status_sos'] ?? 'aktif').toString().toLowerCase();
             _emptyPollCount = 0; // reset
           });
 
@@ -114,7 +114,7 @@ class _SosStatusPageState extends State<SosStatusPage> {
             });
           }
 
-          if (_sosStatus == 'selesai') {
+          if (_sosStatus == 'selesai' || _sosStatus == 'dibatalkan' || _sosStatus == 'batal') {
             _startSelesaiTimer();
           }
         } else {
@@ -401,20 +401,24 @@ class _SosStatusPageState extends State<SosStatusPage> {
                                   ),
                                   const SizedBox(height: 20),
                                   _buildStatusItem(
-                                    icon: _sosStatus == 'selesai'
+                                    icon: (_sosStatus == 'selesai' || _sosStatus == 'dibatalkan' || _sosStatus == 'batal')
                                         ? CupertinoIcons.checkmark_circle
                                         : CupertinoIcons.ellipsis,
-                                    iconColor: _sosStatus == 'selesai'
+                                    iconColor: (_sosStatus == 'selesai' || _sosStatus == 'dibatalkan' || _sosStatus == 'batal')
                                         ? const Color(0xFF00695C)
                                         : Colors.grey.shade700,
-                                    iconBgColor: _sosStatus == 'selesai'
+                                    iconBgColor: (_sosStatus == 'selesai' || _sosStatus == 'dibatalkan' || _sosStatus == 'batal')
                                         ? const Color(0xFFE0F2F1)
                                         : Colors.grey.shade200,
-                                    title: 'Bantuan Selesai',
+                                    title: (_sosStatus == 'dibatalkan' || _sosStatus == 'batal') 
+                                        ? 'Bantuan Dibatalkan' 
+                                        : 'Bantuan Selesai',
                                     description: _sosStatus == 'selesai'
                                         ? 'Bantuan telah tiba dan selesai.'
-                                        : 'Menunggu relawan tiba.',
-                                    isFaded: _sosStatus != 'selesai',
+                                        : ((_sosStatus == 'dibatalkan' || _sosStatus == 'batal') 
+                                            ? 'Permintaan bantuan telah dibatalkan.' 
+                                            : 'Menunggu relawan tiba.'),
+                                    isFaded: (_sosStatus != 'selesai' && _sosStatus != 'dibatalkan' && _sosStatus != 'batal'),
                                   ),
                                 ],
                               ),

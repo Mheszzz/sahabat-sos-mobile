@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import 'dart:async';
 import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
+import 'package:geocoding/geocoding.dart';
 import 'report_detail_screen.dart';
 
 enum HistoryStatus { selesai, ditangani, aktif, dibatalkan }
@@ -64,6 +65,37 @@ class _HistoryPageState extends State<HistoryPage> {
   List<HistoryItem> _allItems = [];
   String? _errorMessage;
 
+  final Map<int, String> _addressCache = {};
+
+  Future<String> _getAddress(HistoryItem item) async {
+    if (_addressCache.containsKey(item.id)) {
+      return _addressCache[item.id]!;
+    }
+    if (item.latitude != null && item.longitude != null) {
+      try {
+        final placemarks = await Geocoding().placemarkFromCoordinates(item.latitude!, item.longitude!);
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          final addressList = [
+            place.subLocality,
+            place.locality,
+            place.subAdministrativeArea,
+            place.administrativeArea,
+          ].where((e) => e != null && e.isNotEmpty).toList();
+          final address = addressList.join(', ');
+          if (address.isNotEmpty) {
+            _addressCache[item.id] = address;
+            return address;
+          }
+        }
+      } catch (e) {
+        // Fallback to item.location if geocoding fails
+      }
+    }
+    _addressCache[item.id] = item.location;
+    return item.location;
+  }
+
   int _selectedTimeFilter =
       0; // 0: Semua Waktu, 1: 1 Minggu, 2: 1 Bulan, 3: Kustom
   final List<String> _timeFilters = [
@@ -113,7 +145,7 @@ class _HistoryPageState extends State<HistoryPage> {
     try {
       final prefs = GetIt.instance<SharedPreferences>();
       final token = prefs.getString('auth_token');
-      final role = prefs.getString('role');
+      final role = prefs.getString('user_role');
       final dio = GetIt.instance<Dio>();
 
       final headers = {if (token != null) 'Authorization': 'Bearer $token'};
@@ -162,7 +194,7 @@ class _HistoryPageState extends State<HistoryPage> {
     try {
       final prefs = GetIt.instance<SharedPreferences>();
       final token = prefs.getString('auth_token');
-      final role = prefs.getString('role');
+      final role = prefs.getString('user_role');
       final dio = GetIt.instance<Dio>();
 
       final headers = {if (token != null) 'Authorization': 'Bearer $token'};
@@ -229,7 +261,7 @@ class _HistoryPageState extends State<HistoryPage> {
           return word[0].toUpperCase() + word.substring(1).toLowerCase();
         })
         .join(' ');
-    String statusStr = (data['status'] ?? data['status_sos'] ?? 'aktif').toString();
+    String statusStr = (data['status'] ?? data['status_sos'] ?? 'aktif').toString().toLowerCase();
 
     HistoryType type = HistoryType.laporan;
     if (data['tipe']?.toString().toLowerCase() == 'sos' ||
@@ -291,6 +323,33 @@ class _HistoryPageState extends State<HistoryPage> {
         data['rekaman_suara'] ??
         data['audio'])?.toString();
 
+    String rawLocationStr = (data['lokasi'] ??
+          data['lokasi_laporan'] ??
+          data['lokasi_user'] ??
+          'Lokasi tidak diketahui').toString();
+
+    String locationStr = rawLocationStr;
+    final alamatMatch = RegExp(r'alamat:\s*([^,}]+)').firstMatch(rawLocationStr);
+    if (alamatMatch != null) {
+      locationStr = alamatMatch.group(1)!.trim();
+    }
+
+    double? lat;
+    if (data['latitude'] != null) {
+      lat = (data['latitude'] is num) ? (data['latitude'] as num).toDouble() : double.tryParse(data['latitude'].toString());
+    } else {
+      final latMatch = RegExp(r'latitude:\s*(-?\d+\.\d+)').firstMatch(rawLocationStr);
+      if (latMatch != null) lat = double.tryParse(latMatch.group(1)!);
+    }
+
+    double? lng;
+    if (data['longitude'] != null) {
+      lng = (data['longitude'] is num) ? (data['longitude'] as num).toDouble() : double.tryParse(data['longitude'].toString());
+    } else {
+      final lngMatch = RegExp(r'longitude:\s*(-?\d+\.\d+)').firstMatch(rawLocationStr);
+      if (lngMatch != null) lng = double.tryParse(lngMatch.group(1)!);
+    }
+
     return HistoryItem(
       id: data['id'],
       type: type,
@@ -299,11 +358,7 @@ class _HistoryPageState extends State<HistoryPage> {
           ? 'SOS Darurat: $kategori'
           : 'Laporan: $kategori',
       dateTime: displayDate,
-      location:
-          (data['lokasi'] ??
-          data['lokasi_laporan'] ??
-          data['lokasi_user'] ??
-          'Lokasi tidak diketahui').toString(),
+      location: locationStr,
       description: data['deskripsi']?.toString(),
       officerInfo: officerInfo,
       detailButtonLabel: type == HistoryType.sos
@@ -322,12 +377,8 @@ class _HistoryPageState extends State<HistoryPage> {
                 ? audio
                 : '$baseUrlStorage${audio.replaceFirst('public/', '')}')
           : null,
-      latitude: (data['latitude'] is num)
-          ? (data['latitude'] as num).toDouble()
-          : double.tryParse(data['latitude']?.toString() ?? ''),
-      longitude: (data['longitude'] is num)
-          ? (data['longitude'] as num).toDouble()
-          : double.tryParse(data['longitude']?.toString() ?? ''),
+      latitude: lat,
+      longitude: lng,
     );
   }
 
@@ -1041,14 +1092,19 @@ class _HistoryPageState extends State<HistoryPage> {
                         ),
                         const SizedBox(width: 6),
                         Expanded(
-                          child: Text(
-                            item.location,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Colors.black87,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                          child: FutureBuilder<String>(
+                            future: _getAddress(item),
+                            builder: (context, snapshot) {
+                              return Text(
+                                snapshot.data ?? item.location,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.black87,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              );
+                            },
                           ),
                         ),
                       ],

@@ -182,7 +182,7 @@ class _LoginPageState extends State<LoginPage> {
                             if (userData != null && userData['role'] != null) {
                               await prefs.setString(
                                 'user_role',
-                                userData['role'],
+                                userData['role'].toString().toLowerCase(),
                               );
                             }
                           }

@@ -1,4 +1,4 @@
-﻿import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
     as import_event_bus;
 import 'dart:async';
 import 'dart:convert';
@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'package:sahabat_sos_mobile/features/volunteer_task/data/datasources/volunteer_remote_data_source.dart'
@@ -525,15 +526,6 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                           final lng = lngRaw + (offsetIndex * 0.00025);
 
                           final name = sos['pengguna']?['name'] ?? 'SOS';
-                          String locationDesc =
-                              sos['lokasi_user'] ??
-                              sos['lokasi_laporan'] ??
-                              sos['address'] ??
-                              '';
-                          if (locationDesc.isEmpty) {
-                            locationDesc =
-                                "${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}";
-                          }
                           final isAssigned = sos['is_assigned'] == true;
 
                           return Marker(
@@ -588,17 +580,21 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                        if (locationDesc.isNotEmpty)
-                                          Text(
-                                            locationDesc,
-                                            style: TextStyle(
-                                              fontSize: 9,
-                                              color: isDarkMode
-                                                  ? Colors.black87
-                                                  : Colors.grey[800],
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
+                                          FutureBuilder<String>(
+                                            future: _getMarkerAddress(sos, latRaw, lngRaw),
+                                            builder: (context, snapshot) {
+                                              return Text(
+                                                snapshot.data ?? 'Memuat...',
+                                                style: TextStyle(
+                                                  fontSize: 9,
+                                                  color: isDarkMode
+                                                      ? Colors.black87
+                                                      : Colors.grey[800],
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              );
+                                            },
                                           ),
                                       ],
                                     ),
@@ -650,18 +646,24 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          _acceptedSos!['lokasi_user'] ??
-                              _acceptedSos!['lokasi_laporan'] ??
-                              _acceptedSos!['address'] ??
-                              "Lat: ${double.tryParse(_acceptedSos!['latitude'].toString())?.toStringAsFixed(4)}, Lng: ${double.tryParse(_acceptedSos!['longitude'].toString())?.toStringAsFixed(4)}",
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: isDarkMode ? Colors.white : Colors.black87,
+                        FutureBuilder<String>(
+                          future: _getMarkerAddress(
+                            _acceptedSos!,
+                            double.tryParse(_acceptedSos!['latitude']?.toString() ?? '') ?? 0.0,
+                            double.tryParse(_acceptedSos!['longitude']?.toString() ?? '') ?? 0.0,
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                          builder: (context, snapshot) {
+                            return Text(
+                              snapshot.data ?? 'Memuat...',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: isDarkMode ? Colors.white : Colors.black87,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -829,6 +831,44 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
 
   // ──────────────────── SOS Detail Sheet ────────────────────
 
+  final Map<String, String> _addressCache = {};
+  
+  Future<String> _getMarkerAddress(Map<String, dynamic> sos, double lat, double lng) async {
+    final id = sos['id']?.toString() ?? '${lat}_$lng';
+    if (_addressCache.containsKey(id)) return _addressCache[id]!;
+    final address = await _resolveAddress(sos, lat, lng);
+    _addressCache[id] = address;
+    return address;
+  }
+
+  Future<String> _resolveAddress(Map<String, dynamic> sos, double lat, double lng) async {
+    String alamat = sos['lokasi_user']?.toString() ?? sos['lokasi_laporan']?.toString() ?? sos['address']?.toString() ?? '';
+    final alamatMatch = RegExp(r'alamat:\s*([^,}]+)').firstMatch(alamat);
+    if (alamatMatch != null) {
+      alamat = alamatMatch.group(1)!.trim();
+    }
+    
+    if (lat != 0.0 && lng != 0.0) {
+      try {
+        final placemarks = await Geocoding().placemarkFromCoordinates(lat, lng);
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          final addressList = [
+            place.subLocality,
+            place.locality,
+            place.subAdministrativeArea,
+            place.administrativeArea,
+          ].where((e) => e != null && e.isNotEmpty).toList();
+          final address = addressList.join(', ');
+          if (address.isNotEmpty) return address;
+        }
+      } catch (_) {}
+    }
+
+    if (alamat.isNotEmpty) return alamat;
+    return "Lat: ${lat.toStringAsFixed(4)}, Lng: ${lng.toStringAsFixed(4)}";
+  }
+
   void _showSosDetails(Map<String, dynamic> sos) {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
@@ -853,13 +893,6 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
         pengguna['no_telp'] ??
         sos['user']?['no_telp'] ??
         '-';
-
-    String alamat =
-        sos['lokasi_user'] ?? sos['lokasi_laporan'] ?? sos['address'] ?? '';
-    if (alamat.isEmpty) {
-      alamat =
-          "Lat: ${sosLat.toStringAsFixed(4)}, Lng: ${sosLng.toStringAsFixed(4)}";
-    }
 
     final status = sos['status_sos'] ?? 'aktif';
 
@@ -953,11 +986,17 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                   noTelp,
                 ),
                 const SizedBox(height: 10),
-                _buildDetailRow(
-                  context,
-                  CupertinoIcons.location_solid,
-                  'Lokasi',
-                  alamat,
+                FutureBuilder<String>(
+                  future: _resolveAddress(sos, sosLat, sosLng),
+                  builder: (context, snapshot) {
+                    final loc = snapshot.data ?? 'Memuat...';
+                    return _buildDetailRow(
+                      context,
+                      CupertinoIcons.location_solid,
+                      'Lokasi',
+                      loc,
+                    );
+                  },
                 ),
                 if (distanceKm != null) ...[
                   const SizedBox(height: 10),
@@ -1088,8 +1127,9 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
     BuildContext context,
     IconData icon,
     String label,
-    String value,
-  ) {
+    String value, {
+    Widget? valueWidget,
+  }) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1112,7 +1152,7 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
+              valueWidget ?? Text(
                 value,
                 style: TextStyle(
                   fontSize: 14,

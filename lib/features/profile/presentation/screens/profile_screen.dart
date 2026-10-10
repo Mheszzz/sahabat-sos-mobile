@@ -1,6 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import '../../../../core/services/accessibility_service.dart';
+import '../../../../core/widgets/accessible_wrapper.dart';
+import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
@@ -37,6 +40,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _highContrast = false; // Local state only based on requirements
   bool _largeText = true;
 
+
+
   Dio get _dio => GetIt.instance<Dio>();
 
   @override
@@ -67,12 +72,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           // The API returns aksesibilitas as an object if hit via /pengguna/profile
           if (userData['aksesibilitas'] != null) {
             _voiceGuide = userData['aksesibilitas']['panduan_suara'] == true;
+            AccessibilityService.instance.isVoiceGuideEnabled = _voiceGuide;
             _haptic = userData['aksesibilitas']['getaran'] == true;
             _largeText = userData['aksesibilitas']['text_besar'] == true;
           } else {
-            _voiceGuide =
-                (userData['panduan_suara'] == 1 ||
-                userData['panduan_suara'] == true);
+            _voiceGuide = (userData['panduan_suara'] == 1 || userData['panduan_suara'] == true);
+            AccessibilityService.instance.isVoiceGuideEnabled = _voiceGuide;
             _haptic = (userData['getaran'] == 1 || userData['getaran'] == true);
             _largeText =
                 (userData['text_besar'] == 1 || userData['text_besar'] == true);
@@ -103,6 +108,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _updateSetting(String key, bool value) async {
     if (_fullUserData == null) return;
 
+    if (_haptic) {
+      HapticFeedback.lightImpact();
+    }
+
     // Update local map
     _fullUserData![key] = value ? 1 : 0;
 
@@ -132,12 +141,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final double textScale = _largeText ? 1.3 : 1.0;
+    final Color bgColor = _highContrast ? Colors.black : const Color(0xFFF5F6F8);
+
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        textScaler: TextScaler.linear(textScale),
+      ),
+      child: Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: const Color(0xFFF5F6F8),
+      backgroundColor: bgColor,
       appBar: _buildAppBar(),
       body: Container(
-        color: const Color(0xFFF5F6F8),
+        color: bgColor,
         child: _isLoading
             ? const Center(child: CircularProgressIndicator(color: primaryTeal))
             : SafeArea(
@@ -243,12 +259,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
       ),
+      ),
     );
   }
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: const Color(0xFFF5F6F8),
+      backgroundColor: _highContrast ? Colors.black : const Color(0xFFF5F6F8),
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
@@ -442,45 +459,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String label,
     required String value,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Icon(icon, color: primaryTeal, size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(fontSize: 11, color: Colors.black54),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
+    return AccessibleWrapper(
+      speakText: "$label, $value",
+      child: MergeSemantics(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
           ),
-        ],
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              ExcludeSemantics(child: Icon(icon, color: primaryTeal, size: 22)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(fontSize: 11, color: Colors.black54),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      value,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildSectionHeader({required IconData icon, required String title}) {
-    return Row(
+    return Semantics(header: true, child: Row(
       children: [
         Icon(icon, color: primaryTeal, size: 22),
         const SizedBox(width: 10),
@@ -493,6 +515,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       ],
+      ),
     );
   }
 
@@ -506,8 +529,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             subtitle: 'Narasi suara otomatis aktif.',
             value: _voiceGuide,
             onChanged: (v) {
-              setState(() => _voiceGuide = v);
+              setState(() {
+                 _voiceGuide = v;
+                 AccessibilityService.instance.isVoiceGuideEnabled = v;
+              });
               _updateSetting('panduan_suara', v);
+              if (v) AccessibilityService.instance.speak("Panduan suara diaktifkan");
             },
           ),
           const Divider(height: 1, indent: 56),
@@ -519,6 +546,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onChanged: (v) {
               setState(() => _haptic = v);
               _updateSetting('getaran', v);
+              AccessibilityService.instance.speak("Getaran ${v ? 'diaktifkan' : 'dimatikan'}");
             },
           ),
           const Divider(height: 1, indent: 56),
@@ -529,6 +557,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             value: _highContrast,
             onChanged: (v) {
               setState(() => _highContrast = v);
+              AccessibilityService.instance.speak("Kontras Tinggi ${v ? 'diaktifkan' : 'dimatikan'}");
             },
           ),
           const Divider(height: 1, indent: 56),
@@ -540,6 +569,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onChanged: (v) {
               setState(() => _largeText = v);
               _updateSetting('text_besar', v);
+              AccessibilityService.instance.speak("Teks Besar ${v ? 'diaktifkan' : 'dimatikan'}");
             },
           ),
         ],
@@ -554,7 +584,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return Padding(
+    return MergeSemantics(child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -588,15 +618,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
           ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: Colors.white,
-            activeTrackColor: primaryTeal,
-            inactiveThumbColor: Colors.white,
-            inactiveTrackColor: Colors.grey.shade300,
+          AccessibleWrapper(
+            speakText: "Tombol $title. Status saat ini ${value ? 'Aktif' : 'Mati'}. Ketuk dua kali untuk mengubah.",
+            onExecute: () => onChanged(!value),
+            child: Semantics(
+              label: title, value: value ? 'Aktif' : 'Mati', child: Switch(
+                value: value,
+                onChanged: onChanged,
+                activeThumbColor: Colors.white,
+                activeTrackColor: primaryTeal,
+                inactiveThumbColor: Colors.white,
+                inactiveTrackColor: Colors.grey.shade300,
+              ),
+            ),
           ),
         ],
+      ),
       ),
     );
   }
