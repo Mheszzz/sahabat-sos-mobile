@@ -1,10 +1,10 @@
-﻿import 'package:flutter/cupertino.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class PermissionGate extends StatefulWidget {
   final Widget child;
-  const PermissionGate({Key? key, required this.child}) : super(key: key);
+  const PermissionGate({super.key, required this.child});
 
   @override
   State<PermissionGate> createState() => _PermissionGateState();

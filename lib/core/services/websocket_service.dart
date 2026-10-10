@@ -182,7 +182,13 @@ class WebsocketService {
 
         // Jika event dari Laravel Reverb dibungkus class
         if (payload is Map && payload.containsKey('sos')) {
-          payload = payload['sos'];
+          final sosData = payload['sos'] is Map ? Map<String, dynamic>.from(payload['sos']) : <String, dynamic>{};
+          payload.forEach((key, value) {
+            if (key != 'sos') {
+              sosData[key] = value;
+            }
+          });
+          payload = sosData;
         }
 
         onNewSosReceived(payload);

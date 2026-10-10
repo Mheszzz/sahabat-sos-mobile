@@ -123,10 +123,11 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
       }
     } catch (e) {
       debugPrint('Error fetching route: $e');
-      if (mounted)
+      if (mounted) {
         setState(() {
           _etaText = 'Gagal';
         });
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -280,6 +281,12 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: const BackButton(color: primaryTeal),
+        ),
         body: Stack(
           children: [
             Positioned.fill(
@@ -295,6 +302,12 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
 
     if (_activeTask == null) {
       return Scaffold(
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: const BackButton(color: primaryTeal),
+        ),
         body: Stack(
           children: [
             Positioned.fill(
@@ -450,7 +463,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              'ID: #SOS-' + idSos.toString(),
+                              'ID: #SOS-$idSos',
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 12,
@@ -520,10 +533,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
-                                'Langkah ' +
-                                    currentStep.toString() +
-                                    ' dari ' +
-                                    totalSteps.toString(),
+                                'Langkah $currentStep dari $totalSteps',
                                 style: const TextStyle(
                                   color: primaryTeal,
                                   fontSize: 11,
@@ -1038,49 +1048,20 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                 content: Text('Tugas telah diselesaikan.'),
                               ),
                             );
+                            Navigator.pop(context);
                           }
                         } catch (e) {
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  'Gagal menyelesaikan: ' + e.toString(),
+                                  'Gagal menyelesaikan: $e',
                                 ),
                               ),
                             );
                           }
                         }
                       },
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {},
-                      icon: const Icon(
-                        CupertinoIcons.shield,
-                        color: sosRed,
-                        size: 20,
-                      ),
-                      label: const Text(
-                        'Minta Bantuan Tambahan Relawan',
-                        style: TextStyle(
-                          color: sosRed,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red.shade50.withValues(
-                          alpha: 0.7,
-                        ),
-                        elevation: 0,
-                        side: BorderSide(color: Colors.red.shade200),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
                     ),
                   ),
                   const SizedBox(height: 100), // padding for bottom nav

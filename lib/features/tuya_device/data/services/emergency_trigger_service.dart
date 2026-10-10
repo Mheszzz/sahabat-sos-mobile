@@ -6,6 +6,8 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../core/services/location_service.dart';
 import '../../../../core/utils/device_info_helper.dart';
 import '../models/tuya_dp_event_model.dart';
+import 'package:get_it/get_it.dart';
+import 'tuya_channel_service.dart';
 
 /// Service responsible for sending emergency trigger events to the Laravel backend.
 ///
@@ -68,6 +70,21 @@ class EmergencyTriggerService {
 
     final telemetryData = await DeviceInfoHelper.getSosTelemetryData();
 
+    Map<String, dynamic>? tuyaDeviceInfo;
+    try {
+      final tuyaService = GetIt.instance<TuyaChannelService>();
+      final tuyaDevice = await tuyaService.getDeviceStatus(event.deviceId);
+      tuyaDeviceInfo = {
+        'battery_level': tuyaDevice.batteryLevel,
+        'is_online': tuyaDevice.isOnline,
+        'device_id': tuyaDevice.deviceId,
+        'last_seen': tuyaDevice.lastEventAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
+        'location_updated_at': DateTime.now().toIso8601String(),
+      };
+    } catch (e) {
+      // Ignored if failed to get Tuya device info
+    }
+
     final payload = {
       'device_id': event.deviceId,
       'timestamp': event.timestamp.toIso8601String(),
@@ -78,6 +95,7 @@ class EmergencyTriggerService {
       'longitude': longitude ?? 0.0,
       'lokasi_user': _locationService.lastGeocodedAddress,
       ...telemetryData,
+      if (tuyaDeviceInfo != null) 'device_info': tuyaDeviceInfo,
     };
 
     // Attempt to send with retries

@@ -1,8 +1,9 @@
 import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
     as import_event_bus;
+import '../../volunteer_task/presentation/volunteer_active_task_page.dart'
+    as import_active_task;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'dart:ui';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../volunteer_task/presentation/widgets/new_assignment_dialog.dart';
 import '../../volunteer_task/presentation/widgets/glass_container.dart';
@@ -35,6 +36,21 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
   void initState() {
     super.initState();
     _initVolunteerData();
+    import_event_bus.GlobalEventBus.showSosAssignmentPopup.addListener(_onShowSosAssignmentPopup);
+    
+    // Gunakan addPostFrameCallback agar showDialog dipanggil 
+    // SETELAH proses build/initState pertama selesai.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _onShowSosAssignmentPopup();
+    });
+  }
+
+  void _onShowSosAssignmentPopup() {
+    final sosData = import_event_bus.GlobalEventBus.showSosAssignmentPopup.value;
+    if (sosData != null) {
+      _showNewAssignmentDialog(sosData);
+      import_event_bus.GlobalEventBus.showSosAssignmentPopup.value = null; // reset
+    }
   }
 
   Future<void> _initVolunteerData() async {
@@ -43,14 +59,6 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
     });
 
     try {
-      // Get dashboard data (which includes user and summary)
-      final beranda = await _volunteerDataSource.getBeranda();
-      _berandaData = beranda;
-      if (beranda['data'] != null && beranda['data']['user'] != null) {
-        final statusKetersediaan = beranda['data']['user']['status_ketersediaan'];
-        _isReady = (statusKetersediaan == 'tersedia');
-      }
-
       // Get active tasks for this volunteer
       try {
         final tasks = await _volunteerDataSource.getRelawanTasks();
@@ -64,7 +72,6 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
       }
 
       // Get volunteer history
-      // Get volunteer history
       try {
         final riwayatData = await _volunteerDataSource
             .getRelawanBerandaRiwayat();
@@ -75,8 +82,6 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
         if (rawData != null && rawData is List) {
           for (var item in rawData) {
             if (item is Map<String, dynamic>) {
-              // The backend already provides 'tipe', 'waktu', 'lokasi', 'kategori', 'deskripsi'
-              // but we map them to our display fields to ensure the UI renders them perfectly.
               item['tipe'] = item['tipe'] ?? 'laporan';
               item['waktu_display'] = item['waktu'] ?? item['waktu_laporan'] ?? item['waktu_sos'] ?? item['created_at'] ?? '';
               item['lokasi_display'] = item['lokasi'] ?? item['lokasi_laporan'] ?? item['lokasi_user'] ?? 'Lokasi tidak diketahui';
@@ -109,12 +114,22 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
         debugPrint("Gagal load riwayat: $e");
       }
 
-      final userData = beranda['user'];
+      // 4. Get User Profile for Websocket
+      final profileRes = await _volunteerDataSource.getRelawanProfile();
+      final userData = profileRes['user'];
 
       if (userData != null && userData['id'] != null) {
-        _volunteerId = userData['id'];
+        final statusKetersediaan = userData['status_ketersediaan']?.toString().toLowerCase();
+        _isReady = (statusKetersediaan == 'tersedia');
+        
+        _volunteerId = (userData['id'] is int) 
+            ? userData['id'] as int 
+            : int.tryParse(userData['id'].toString());
 
         final prefs = sl<SharedPreferences>();
+        if (_volunteerId != null) {
+          await prefs.setInt('volunteer_id', _volunteerId!);
+        }
         final token = prefs.getString('auth_token');
         if (token != null) {
           await WebsocketService.init(token);
@@ -148,6 +163,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
 
   @override
   void dispose() {
+    import_event_bus.GlobalEventBus.showSosAssignmentPopup.removeListener(_onShowSosAssignmentPopup);
     if (_volunteerId != null) {
       WebsocketService.stopListeningNewSosForVolunteer(_volunteerId!);
     }
@@ -157,10 +173,19 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
   bool _isDialogShowing = false;
   final List<int> _rejectedSosIds = [];
 
-  void _showNewAssignmentDialog(Map<String, dynamic> sosData) {
+  void _showNewAssignmentDialog(dynamic eventData) {
     if (_isDialogShowing) return;
+    if (eventData == null) return;
+    
+    Map<String, dynamic> sosData;
+    if (eventData is Map) {
+      sosData = Map<String, dynamic>.from(eventData);
+    } else {
+      return; // Tidak bisa diproses
+    }
 
-    final sosId = sosData['id'] as int;
+    final dynamic rawId = sosData['id'];
+    final sosId = (rawId is int) ? rawId : int.tryParse(rawId?.toString() ?? '0') ?? 0;
     if (_rejectedSosIds.contains(sosId)) {
       debugPrint('SOS #$sosId diabaikan karena sudah pernah ditolak.');
       return;
@@ -179,13 +204,16 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
           try {
             await _volunteerDataSource.updateSosStatus(sosId, 'proses');
 
-            // Trigger navigasi otomatis ke tab Peta dengan rute
-            import_event_bus.GlobalEventBus.navigateToMapWithSos.value =
-                sosData;
-
-            // Juga refresh data map
-            import_event_bus.GlobalEventBus.refreshMap.value =
-                !import_event_bus.GlobalEventBus.refreshMap.value;
+            // Langsung navigasi ke halaman detail tugas
+            if (mounted) {
+              import_event_bus.GlobalEventBus.refreshMap.value = !import_event_bus.GlobalEventBus.refreshMap.value;
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const import_active_task.VolunteerActiveTaskPage(),
+                ),
+              ).then((_) => _initVolunteerData()); // Refresh on back
+            }
 
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -751,7 +779,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                              String parseableDate = timeStr.replaceAll(' ', 'T');
                              if (!parseableDate.endsWith('Z') &&
                                  !parseableDate.contains('+') &&
-                                 (parseableDate.indexOf('T') == -1 ||
+                                 (!parseableDate.contains('T') ||
                                      parseableDate.indexOf('-', parseableDate.indexOf('T')) == -1)) {
                                parseableDate += 'Z';
                              }
@@ -838,7 +866,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                             ],
                           ),
                         );
-                      }).toList(),
+                      }),
 
                     if (_visibleRiwayatCount < _riwayatList.length)
                       Center(

@@ -159,7 +159,7 @@ class _SosHistoryScreenState extends State<SosHistoryScreen> {
         textColor = Colors.red.shade800;
     }
 
-    String _getDisplayStatus(String s) {
+    String getDisplayStatus(String s) {
       final lower = s.toLowerCase();
       if (lower == 'batal' || lower == 'dibatalkan') return 'DIBATALKAN';
       if (lower == 'selesai') return 'SELESAI';
@@ -175,7 +175,7 @@ class _SosHistoryScreenState extends State<SosHistoryScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        _getDisplayStatus(status),
+        getDisplayStatus(status),
         style: TextStyle(
           color: textColor,
           fontSize: 12,

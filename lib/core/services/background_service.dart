@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
+import 'dart:typed_data';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -71,11 +73,13 @@ void onStart(ServiceInstance service) async {
   final volunteerId = prefs.getInt('volunteer_id'); // Assume relawan ID is saved, check if it exists
 
   final FlutterLocalNotificationsPlugin localNotif = FlutterLocalNotificationsPlugin();
-  const alertChannel = AndroidNotificationChannel(
-    'sos_alert_channel', 
+  final alertChannel = AndroidNotificationChannel(
+    'sos_alert_channel_v2', 
     'Peringatan Darurat SOS',
     description: 'Notifikasi saat ada panggilan SOS masuk',
     importance: Importance.max, 
+    enableVibration: true,
+    vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
   );
   
   const AndroidInitializationSettings initializationSettingsAndroid =
@@ -100,13 +104,16 @@ void onStart(ServiceInstance service) async {
           id: 999,
           title: 'DARURAT: Bantuan Dibutuhkan!',
           body: 'Ada panggilan darurat baru di sekitar Anda.',
-          notificationDetails: const NotificationDetails(
+          payload: jsonEncode(payload),
+          notificationDetails: NotificationDetails(
             android: AndroidNotificationDetails(
-              'sos_alert_channel',
+              'sos_alert_channel_v2',
               'Peringatan Darurat SOS',
               importance: Importance.max,
               priority: Priority.high,
               fullScreenIntent: true,
+              enableVibration: true,
+              vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
             ),
           ),
         );
@@ -130,7 +137,7 @@ void onStart(ServiceInstance service) async {
         body: 'Permintaan bantuan Anda sedang diproses dan dikirim ke relawan.',
         notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(
-            'sos_alert_channel',
+            'sos_alert_channel_v2',
             'Peringatan Darurat SOS',
             importance: Importance.max,
             priority: Priority.high,
@@ -148,7 +155,7 @@ void onStart(ServiceInstance service) async {
       body: 'Terjadi kesalahan: $errorMsg',
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
-          'sos_alert_channel',
+          'sos_alert_channel_v2',
           'Peringatan Darurat SOS',
           importance: Importance.high,
           priority: Priority.high,

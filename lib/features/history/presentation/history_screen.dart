@@ -177,7 +177,7 @@ class _HistoryPageState extends State<HistoryPage> {
         final channelName = 'sos.${item.id}';
         if (!_subscribedChannels.contains(channelName)) {
           _subscribedChannels.add(channelName);
-          WebsocketService.echo?.private(channelName)?.listen('.SOSUpdateStatus', (e) {
+          WebsocketService.echo?.private(channelName).listen('.SOSUpdateStatus', (e) {
              if (mounted) _fetchHistorySilently();
           });
         }
@@ -244,7 +244,7 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   HistoryItem _mapToHistoryItem(dynamic data) {
-    String _extractString(dynamic value, [String defaultVal = 'Lainnya']) {
+    String extractString(dynamic value, [String defaultVal = 'Lainnya']) {
       if (value == null) return defaultVal;
       if (value is Map) {
         return (value['nama_kategori'] ?? value['nama'] ?? value['name'] ?? defaultVal).toString();
@@ -252,7 +252,7 @@ class _HistoryPageState extends State<HistoryPage> {
       return value.toString();
     }
     
-    String rawKategori = _extractString(data['kategori'] ?? data['kategori_laporan'], 'Lainnya');
+    String rawKategori = extractString(data['kategori'] ?? data['kategori_laporan'], 'Lainnya');
     String kategori = rawKategori
         .replaceAll('_', ' ')
         .split(' ')
@@ -294,7 +294,7 @@ class _HistoryPageState extends State<HistoryPage> {
         String parseableDate = rawDate.replaceAll(' ', 'T');
         if (!parseableDate.endsWith('Z') &&
             !parseableDate.contains('+') &&
-            (parseableDate.indexOf('T') == -1 ||
+            (!parseableDate.contains('T') ||
                 parseableDate.indexOf('-', parseableDate.indexOf('T')) == -1)) {
           parseableDate += 'Z';
         }

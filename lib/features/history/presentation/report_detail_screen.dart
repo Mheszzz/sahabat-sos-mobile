@@ -322,8 +322,9 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     status = status.toLowerCase();
     if (status == 'selesai') return CupertinoIcons.checkmark_circle_fill;
     if (status == 'ditangani') return CupertinoIcons.wrench_fill;
-    if (status == 'dibatalkan' || status == 'batal')
+    if (status == 'dibatalkan' || status == 'batal') {
       return CupertinoIcons.xmark_circle_fill;
+    }
     return CupertinoIcons.exclamationmark_triangle_fill;
   }
 
@@ -519,14 +520,13 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                                 ? statusString
                                 : 'aktif',
                             items:
-                                [
+                                {
                                       'aktif',
                                       'proses',
                                       'selesai',
                                       'dibatalkan',
                                       'batal',
-                                    ]
-                                    .toSet()
+                                    }
                                     .map(
                                       (e) => DropdownMenuItem(
                                         value: e,

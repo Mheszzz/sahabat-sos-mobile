@@ -184,6 +184,9 @@ class _LoginPageState extends State<LoginPage> {
                                 'user_role',
                                 userData['role'].toString().toLowerCase(),
                               );
+                              if (userData['role'].toString().toLowerCase() == 'relawan' && userData['id'] != null) {
+                                await prefs.setInt('volunteer_id', (userData['id'] is int) ? userData['id'] : int.tryParse(userData['id'].toString()) ?? 0);
+                              }
                             }
                           }
                         } catch (_) {}

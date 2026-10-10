@@ -8,4 +8,8 @@ class GlobalEventBus {
   /// Set ke null setelah navigasi selesai.
   static final ValueNotifier<Map<String, dynamic>?> navigateToMapWithSos =
       ValueNotifier<Map<String, dynamic>?>(null);
+
+  /// Ketika notifikasi SOS di-tap, jalankan popup terima tugas
+  static final ValueNotifier<Map<String, dynamic>?> showSosAssignmentPopup =
+      ValueNotifier<Map<String, dynamic>?>(null);
 }

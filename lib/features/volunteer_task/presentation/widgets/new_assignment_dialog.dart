@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/widgets/glass_container.dart';
+import 'package:geocoding/geocoding.dart';
 
 class NewAssignmentDialog extends StatefulWidget {
   final Map<String, dynamic> sosData;
@@ -23,11 +23,42 @@ class NewAssignmentDialog extends StatefulWidget {
 class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
   late Timer _timer;
   int _secondsRemaining = 90;
+  String? _address;
 
   @override
   void initState() {
     super.initState();
     _startTimer();
+    _resolveAddress();
+  }
+
+  Future<void> _resolveAddress() async {
+    final lat = double.tryParse(widget.sosData['latitude']?.toString() ?? '') ?? 0.0;
+    final lng = double.tryParse(widget.sosData['longitude']?.toString() ?? '') ?? 0.0;
+    String? alamat;
+    try {
+      if (lat != 0.0 && lng != 0.0) {
+        final placemarks = await Geocoding().placemarkFromCoordinates(lat, lng);
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          final addressList = [
+            place.subLocality,
+            place.locality,
+            place.subAdministrativeArea,
+            place.administrativeArea,
+          ].where((e) => e != null && e.isNotEmpty).toList();
+          if (addressList.isNotEmpty) {
+             alamat = addressList.join(', ');
+          }
+        }
+      }
+    } catch (_) {}
+    
+    if (mounted) {
+      setState(() {
+        _address = alamat ?? 'Lat: ${lat.toStringAsFixed(4)}, Lng: ${lng.toStringAsFixed(4)}';
+      });
+    }
   }
 
   void _startTimer() {
@@ -59,14 +90,15 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final pengguna = widget.sosData['pengguna'] ?? {};
-    final namaPelapor = pengguna['name'] ?? 'Tanpa Nama';
+    final pengguna = widget.sosData['pengguna'] is Map ? widget.sosData['pengguna'] as Map<String, dynamic> : <String, dynamic>{};
+    final user = widget.sosData['user'] is Map ? widget.sosData['user'] as Map<String, dynamic> : <String, dynamic>{};
+    
+    final namaPelapor = pengguna['name'] ?? user['nama'] ?? user['name'] ?? widget.sosData['nama'] ?? widget.sosData['nama_pelapor'] ?? 'Tanpa Nama';
     final lat = widget.sosData['latitude'] ?? 0.0;
     final lng = widget.sosData['longitude'] ?? 0.0;
-    final String lokasiStr = "Lat: $lat, Lng: $lng";
 
-    final kategori = pengguna['kategori_user'] ?? 'Umum';
-    final metodeKomunikasi = pengguna['metode_komunikasi'] ?? 'Standar';
+    final kategori = pengguna['kategori_user'] ?? user['kategori_user'] ?? 'Umum';
+    final metodeKomunikasi = pengguna['metode_komunikasi'] ?? user['metode_komunikasi'] ?? 'Standar';
     final bool hasDisability = (kategori != 'Umum' && kategori != '');
 
     return Dialog(
@@ -76,36 +108,34 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
       child: Container(
         constraints: const BoxConstraints(maxWidth: 400),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.4),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withValues(alpha: 0.2),
               blurRadius: 30,
               offset: const Offset(0, 10),
             ),
           ],
         ),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: ClipRRect(
+        child: ClipRRect(
             borderRadius: BorderRadius.circular(28),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header Gradient
+                // Header Background
                 Container(
                   padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFC62828),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
                         padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -145,7 +175,7 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
                             Text(
                               'PENUGASAN DARURAT BARU',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.6),
+                                color: Colors.white,
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 0.2,
@@ -155,7 +185,7 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
                             Text(
                               'Waktu respon tersisa: $_formattedTime',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
+                                color: Colors.white,
                                 fontSize: 12,
                                 decoration: TextDecoration.underline,
                               ),
@@ -212,14 +242,14 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
                         ),
                         const SizedBox(height: 20),
 
-                        // Location Info Card (Glassy White)
+                        // Location Info Card (Solid)
                         Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.3),
+                            color: Colors.grey.shade100,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.grey.shade300,
                             ),
                           ),
                           child: Column(
@@ -234,7 +264,7 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    'Titik Koordinat SOS',
+                                    'Lokasi SOS',
                                     style: TextStyle(
                                       color: Colors.teal.shade700,
                                       fontWeight: FontWeight.bold,
@@ -245,7 +275,7 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                lokasiStr,
+                                _address ?? 'Memuat...',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 14,
@@ -267,15 +297,15 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
 
                         const SizedBox(height: 16),
 
-                        // Special Needs Card (Glassy Yellow)
+                        // Special Needs Card (Solid Yellow)
                         if (hasDisability)
                           Container(
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
-                              color: Colors.amber.withOpacity(0.15),
+                              color: Colors.orange.shade50,
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                color: Colors.amber.withOpacity(0.4),
+                                color: Colors.orange.shade200,
                               ),
                             ),
                             child: Column(
@@ -446,7 +476,6 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
               ],
             ),
           ),
-        ),
       ),
     );
   }

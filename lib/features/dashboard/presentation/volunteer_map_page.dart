@@ -517,7 +517,7 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                               double.tryParse(sos['longitude'].toString()) ??
                               0.0;
 
-                          final coordKey = "${latRaw}_${lngRaw}";
+                          final coordKey = "${latRaw}_$lngRaw";
                           final offsetIndex = coordOffsets[coordKey] ?? 0;
                           coordOffsets[coordKey] = offsetIndex + 1;
 

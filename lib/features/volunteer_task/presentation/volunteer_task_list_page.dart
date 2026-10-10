@@ -128,7 +128,7 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage> {
         child: Scaffold(
           backgroundColor: const Color(0xFFF5F6F8),
           appBar: AppBar(
-            backgroundColor: Colors.white.withOpacity(0.15),
+            backgroundColor: Colors.white.withValues(alpha: 0.15),
             elevation: 0,
             flexibleSpace: ClipRect(
               child: BackdropFilter(
@@ -202,7 +202,7 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: sosRed.withOpacity(0.1),
+                        color: sosRed.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(CupertinoIcons.shield_fill, color: sosRed, size: 24),
@@ -264,7 +264,7 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              (isSos ? 'Darurat SOS' : 'Laporan') + ' - ID: ${item['id']}',
+                              '${isSos ? 'Darurat SOS' : 'Laporan'} - ID: ${item['id']}',
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -307,7 +307,7 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage> {
                   ),
                 ),
               );
-            }).toList(),
+            }),
         ],
       ),
     );
