@@ -95,7 +95,7 @@ class EmergencyTriggerService {
       'longitude': longitude ?? 0.0,
       'lokasi_user': _locationService.lastGeocodedAddress,
       ...telemetryData,
-      if (tuyaDeviceInfo != null) 'device_info': tuyaDeviceInfo,
+      'device_info': ?tuyaDeviceInfo,
     };
 
     // Attempt to send with retries
