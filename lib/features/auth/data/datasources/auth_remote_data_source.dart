@@ -29,14 +29,13 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   final SharedPreferences prefs;
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    // Web Client ID untuk Web, Android Client ID untuk Mobile
+    // Di Android, clientId HARUS null (Google Play Services mendeteksi via Package Name + SHA-1)
     clientId: kIsWeb
         ? '757209543690-bpjk959q2se7oq0eos1olm6urg35oicp.apps.googleusercontent.com'
-        : '757209543690-jpg1blpas12drdam7leck0ha4pk7sluo.apps.googleusercontent.com',
-    // Server Client ID (WAJIB Web Client ID) agar Android bisa minta Token/ServerAuthCode ke Laravel
-    serverClientId: kIsWeb
-        ? null
-        : '757209543690-bpjk959q2se7oq0eos1olm6urg35oicp.apps.googleusercontent.com',
+        : null,
+    // Server Client ID (WAJIB Web Client ID) agar Android bisa minta Token/idToken ke backend
+    serverClientId:
+        '757209543690-bpjk959q2se7oq0eos1olm6urg35oicp.apps.googleusercontent.com',
     scopes: ['email', 'profile'],
   );
 
@@ -51,26 +50,43 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       } catch (_) {}
 
       // 1. Munculkan dialog Google Sign In (di v6 ini cuma 1x dialog)
+      debugPrint("=== [DEBUG] Menampilkan dialog Google Sign-In ===");
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
       if (googleUser == null) {
+        debugPrint("=== [DEBUG] googleUser NULL (user membatalkan atau config salah) ===");
         throw Exception(
           'User membatalkan dialog Google Sign-In atau konfigurasi salah.',
         );
       }
+      debugPrint("=== [DEBUG] Akun dipilih: ${googleUser.email} ===");
 
-      // 2. Ambil token (accessToken)
+      // 2. Ambil token (accessToken / idToken)
+      debugPrint("=== [DEBUG] Meminta googleUser.authentication... ===");
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
-      final String? tokenToSend = googleAuth.accessToken ?? googleAuth.idToken;
+
+      debugPrint("=== [DEBUG] Google Sign-In Berhasil Didapat ===");
+      debugPrint("accessToken: ${googleAuth.accessToken != null ? 'ADA' : 'NULL'}");
+      debugPrint("idToken: ${googleAuth.idToken != null ? 'ADA' : 'NULL'}");
+
+      // Utamakan idToken jika ada (karena backend memverifikasi id_token), lalu fallback ke accessToken
+      final String? tokenToSend = googleAuth.idToken ?? googleAuth.accessToken;
 
       if (tokenToSend != null) {
+        debugPrint("Token yang dikirim ke backend: ${tokenToSend.substring(0, 20)}...");
+        debugPrint("Mengirim request ke Backend: ${ApiConstants.authGoogle}");
+
         // 3. Kirim token ke Backend (API Laravel)
+        debugPrint("=== [DEBUG] Mulai kirim request ke backend... ===");
         final response = await dio.post(
           ApiConstants.authGoogle,
-          data: {'token': tokenToSend},
-          options: Options(headers: {'Accept': 'application/json'}),
+          data: {'token': tokenToSend, 'id_token': tokenToSend},
+          options: Options(
+            headers: {'Accept': 'application/json'},
+          ),
         );
+        debugPrint("=== [DEBUG] Response diterima: ${response.statusCode} ===");
 
         if (response.statusCode == 200 || response.statusCode == 201) {
           final String backendToken = response.data['access_token'];

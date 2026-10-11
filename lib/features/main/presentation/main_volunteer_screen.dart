@@ -37,6 +37,26 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
     _selectedIndex = widget.initialIndex;
     _initVolunteerServices();
     event_bus.GlobalEventBus.navigateToMapWithSos.addListener(_onNavigateToMap);
+    event_bus.GlobalEventBus.changeVolunteerTab.addListener(_onChangeTab);
+  }
+
+  void _onChangeTab() {
+    final targetIndex = event_bus.GlobalEventBus.changeVolunteerTab.value;
+    if (targetIndex != null) {
+      if (_isVerified == false && targetIndex != 3) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Akun Anda belum diverifikasi oleh admin.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      } else {
+        setState(() {
+          _selectedIndex = targetIndex;
+        });
+      }
+      event_bus.GlobalEventBus.changeVolunteerTab.value = null;
+    }
   }
 
   /// Dipanggil saat relawan menerima tugas → pindah ke tab Peta & tampilkan rute
@@ -62,6 +82,7 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
     event_bus.GlobalEventBus.navigateToMapWithSos.removeListener(
       _onNavigateToMap,
     );
+    event_bus.GlobalEventBus.changeVolunteerTab.removeListener(_onChangeTab);
     _locationService.stopTracking();
     super.dispose();
   }

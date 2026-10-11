@@ -12,4 +12,9 @@ class GlobalEventBus {
   /// Ketika notifikasi SOS di-tap, jalankan popup terima tugas
   static final ValueNotifier<Map<String, dynamic>?> showSosAssignmentPopup =
       ValueNotifier<Map<String, dynamic>?>(null);
+
+  /// Untuk meminta perpindahan tab pada MainVolunteerScreen
+  /// 0: Beranda, 1: Tugas, 2: Peta, 3: Profil
+  static final ValueNotifier<int?> changeVolunteerTab =
+      ValueNotifier<int?>(null);
 }
