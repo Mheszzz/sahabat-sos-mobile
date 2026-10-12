@@ -542,7 +542,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         child: SafeArea(
           child: _isLoadingOptions
               ? const Center(
-                  child: CircularProgressIndicator(color: Colors.black87),
+                  child: CupertinoActivityIndicator(radius: 16),
                 )
               : _optionsError != null
               ? Center(
@@ -1254,9 +1254,8 @@ class _QuickReportScreenState extends State<QuickReportScreen>
             ? const SizedBox(
                 width: 18,
                 height: 18,
-                child: CircularProgressIndicator(
+                child: CupertinoActivityIndicator(
                   color: Colors.white,
-                  strokeWidth: 2,
                 ),
               )
             : const Icon(CupertinoIcons.paperplane_fill, size: 18),

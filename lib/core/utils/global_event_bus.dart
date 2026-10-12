@@ -17,4 +17,12 @@ class GlobalEventBus {
   /// 0: Beranda, 1: Tugas, 2: Peta, 3: Profil
   static final ValueNotifier<int?> changeVolunteerTab =
       ValueNotifier<int?>(null);
+
+  /// Dipicu ketika status verifikasi relawan berubah
+  static final ValueNotifier<bool?> volunteerVerificationStatus =
+      ValueNotifier<bool?>(null);
+
+  /// Dipicu ketika status aktif relawan (is_active) berubah
+  static final ValueNotifier<bool?> volunteerActiveStatus =
+      ValueNotifier<bool?>(null);
 }

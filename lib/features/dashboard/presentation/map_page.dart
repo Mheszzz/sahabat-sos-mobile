@@ -221,7 +221,7 @@ class _MapPageState extends State<MapPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(color: primaryColor),
+                  const CupertinoActivityIndicator(radius: 16),
                   const SizedBox(height: 16),
                   Text(
                     'Menunggu Sinyal GPS...',

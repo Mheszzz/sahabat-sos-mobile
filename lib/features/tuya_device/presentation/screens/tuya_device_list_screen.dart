@@ -208,7 +208,7 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
         child: SafeArea(
           child: _isLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF00695C)),
+                  child: CupertinoActivityIndicator(radius: 16),
                 )
               : RefreshIndicator(
                   onRefresh: _loadDevices,
@@ -361,8 +361,7 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
+                      child: CupertinoActivityIndicator(
                         color: Colors.white,
                       ),
                     )

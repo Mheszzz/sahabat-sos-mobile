@@ -11,6 +11,7 @@ import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 import 'package:sahabat_sos_mobile/core/utils/device_info_helper.dart';
+import 'package:sahabat_sos_mobile/core/widgets/app_loading_indicator.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/data/services/tuya_channel_service.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/data/models/tuya_device_model.dart';
 
@@ -122,6 +123,10 @@ class _DashboardPageState extends State<DashboardPage>
 
   @override
   Widget build(BuildContext context) {
+    if (_isBerandaLoading) {
+      return const AppLoadingScreen();
+    }
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFFF5F6F8),
@@ -254,7 +259,7 @@ class _DashboardPageState extends State<DashboardPage>
                   context: context,
                   barrierDismissible: false,
                   builder: (context) =>
-                      const Center(child: CircularProgressIndicator()),
+                      const Center(child: CupertinoActivityIndicator(radius: 16)),
                 );
 
                 // Get location
@@ -501,7 +506,7 @@ class _DashboardPageState extends State<DashboardPage>
                 ? const Center(
                     child: Padding(
                       padding: EdgeInsets.all(8.0),
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CupertinoActivityIndicator(radius: 12),
                     ),
                   )
                 : Row(

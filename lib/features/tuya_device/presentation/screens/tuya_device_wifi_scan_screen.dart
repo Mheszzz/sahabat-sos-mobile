@@ -560,7 +560,7 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
             Column(
               children: [
                 if (!_waitingForSmartLife) ...[
-                  const CircularProgressIndicator(color: Color(0xFF007AFF)),
+                  const CupertinoActivityIndicator(radius: 16),
                   const SizedBox(height: 16),
                 ],
                 Text(

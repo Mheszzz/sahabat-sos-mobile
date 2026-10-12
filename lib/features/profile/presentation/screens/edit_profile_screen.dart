@@ -267,7 +267,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         child: SafeArea(
           child: _isLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: primaryTeal),
+                  child: CupertinoActivityIndicator(radius: 16),
                 )
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(24),

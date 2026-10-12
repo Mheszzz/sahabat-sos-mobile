@@ -18,6 +18,8 @@ import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'package:sahabat_sos_mobile/features/volunteer_task/data/datasources/volunteer_remote_data_source.dart'
     as import_volunteer;
+import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/volunteer_active_task_page.dart'
+    as import_active_task;
 
 class VolunteerMapPage extends StatefulWidget {
   const VolunteerMapPage({super.key});
@@ -219,6 +221,14 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
   }
 
   Future<void> _fetchActiveSos() async {
+    final prefs = sl<SharedPreferences>();
+    final cachedStatus = prefs.getString('verification_status');
+    final cachedActive = prefs.getBool('user_is_active') ?? true;
+    if (cachedStatus != 'terverifikasi' || !cachedActive) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
     try {
       final dio = sl<Dio>();
       final options = Options(headers: _getHeaders());
@@ -392,7 +402,7 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(color: primaryColor),
+                  const CupertinoActivityIndicator(radius: 16),
                   const SizedBox(height: 16),
                   Text(
                     'Menunggu Sinyal GPS...',
@@ -908,10 +918,19 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
         ),
         child: Container(
           margin: const EdgeInsets.all(16),
-          child: _buildGlassContainer(
-            context,
-            padding: const EdgeInsets.all(20),
-            child: Column(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 20,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1015,13 +1034,13 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                   child: ElevatedButton.icon(
                     icon: Icon(
                       (sos['is_assigned'] == true)
-                          ? CupertinoIcons.check_mark_circled_solid
+                          ? CupertinoIcons.arrow_right_circle_fill
                           : CupertinoIcons.checkmark_circle,
                       size: 20,
                     ),
                     label: Text(
                       (sos['is_assigned'] == true)
-                          ? 'Selesaikan Tugas'
+                          ? 'Lihat Detail Tugas'
                           : 'Terima Tugas',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
@@ -1049,29 +1068,28 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                               final sosId = sos['id'] as int;
 
                               if (sos['is_assigned'] == true) {
-                                // Selesaikan Tugas
-                                await dataSource.updateSosStatus(
-                                  sosId,
-                                  'selesai',
-                                );
+                                // Navigasi ke halaman detail tugas
                                 if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Tugas telah diselesaikan.',
-                                      ),
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const import_active_task
+                                              .VolunteerActiveTaskPage(),
                                     ),
-                                  );
+                                  ).then((_) {
+                                    setState(() {
+                                      _acceptedSos = null;
+                                      _routePoints.clear();
+                                    });
+                                    _fetchActiveSos();
+                                  });
                                 }
-                                setState(() {
-                                  _acceptedSos = null;
-                                  _routePoints.clear();
-                                });
                               } else {
                                 // Terima Tugas
                                 await dataSource.updateSosStatus(
                                   sosId,
-                                  'proses',
+                                  'ditangani',
                                 );
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1119,9 +1137,8 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
             ),
           ),
         ),
-      ),
-    );
-  }
+      );
+    }
 
   Widget _buildDetailRow(
     BuildContext context,

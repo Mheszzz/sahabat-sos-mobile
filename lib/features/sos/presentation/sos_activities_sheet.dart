@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:get_it/get_it.dart';
@@ -120,7 +121,7 @@ class _SosActivitiesSheetState extends State<SosActivitiesSheet> {
           const Divider(height: 30),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: CupertinoActivityIndicator(radius: 16))
                 : _errorMessage != null
                     ? Center(
                         child: Column(

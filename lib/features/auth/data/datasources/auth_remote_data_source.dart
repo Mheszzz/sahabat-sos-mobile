@@ -92,6 +92,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
           final String backendToken = response.data['access_token'];
           final bool isProfileComplete =
               response.data['is_profile_complete'] ?? false;
+          final dynamic userData = response.data['user'];
 
           await prefs.setString('auth_token', backendToken);
           await prefs.setBool('is_profile_complete', isProfileComplete);
@@ -99,6 +100,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
           return {
             'token': backendToken,
             'is_profile_complete': isProfileComplete,
+            'user': userData,
           };
         } else {
           throw Exception(
@@ -110,6 +112,10 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
           'Google Auth tidak memberikan accessToken maupun idToken.',
         );
       }
+    } on DioException catch (e) {
+      debugPrint("DioException Google Sign-In: ${e.response?.data}");
+      final msg = e.response?.data?['message'] ?? e.message ?? 'Gagal memverifikasi akun ke server.';
+      throw Exception(msg);
     } catch (e) {
       debugPrint("Error Google Sign-In: $e");
       rethrow;

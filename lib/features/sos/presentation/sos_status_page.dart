@@ -12,6 +12,7 @@ import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
 import 'sos_activities_sheet.dart';
+import 'widgets/slide_to_cancel_button.dart';
 
 class SosStatusPage extends StatefulWidget {
   const SosStatusPage({super.key});
@@ -24,15 +25,16 @@ class _SosStatusPageState extends State<SosStatusPage> {
   static const Color primaryTeal = Color(0xFF00695C);
   static const Color sosRed = Color(0xFFE50000);
 
-  Timer? _cancelTimer;
   Timer? _statusTimer;
   Timer? _selesaiTimer;
-  bool _isCancelling = false;
   bool _isSelesaiTimerStarted = false;
-  double _cancelProgress = 0.0;
-  String _sosStatus = 'aktif';
+  String _sosStatus = 'belum ditangani';
   int? _sosId;
   double? _relawanDistance;
+
+  bool get _isDitangani => _sosStatus == 'ditangani';
+  bool get _isSelesai => _sosStatus == 'selesai';
+  bool get _isBatal => _sosStatus == 'batal';
 
   final LocationService _locationService = sl<LocationService>();
   StreamSubscription<ServiceStatus>? _serviceStatusStream;
@@ -41,13 +43,76 @@ class _SosStatusPageState extends State<SosStatusPage> {
   void initState() {
     super.initState();
     _fetchSosStatus();
-    // Poll for status every 5 seconds
+    _initWebSocket();
+    // Poll for status every 4 seconds
     _statusTimer = Timer.periodic(
-      const Duration(seconds: 5),
+      const Duration(seconds: 4),
       (_) => _fetchSosStatus(),
     );
     // Start real-time location tracking so volunteer can see user position
     _startLocationTracking();
+  }
+
+  bool _isSubscribedToSos = false;
+
+  Future<void> _initWebSocket() async {
+    try {
+      final prefs = sl<SharedPreferences>();
+      final token = prefs.getString('auth_token');
+      if (token == null) return;
+
+      await WebsocketService.init(token);
+      if (_sosId != null && mounted) {
+        _setupWebSocketListeners(_sosId!);
+      }
+    } catch (e) {
+      debugPrint('WebSocket init error in SosStatusPage: $e');
+    }
+  }
+
+  void _setupWebSocketListeners(int sosId) {
+    if (_isSubscribedToSos) return;
+    if (WebsocketService.echo == null) {
+      // Menunggu hingga WebsocketService.init selesai
+      return;
+    }
+    _isSubscribedToSos = true;
+
+    WebsocketService.listenToSosStatusUpdate(sosId, (payload) {
+      if (!mounted || payload == null) return;
+      debugPrint("📢 Status SOS diperbarui via WebSocket: $payload");
+
+      final rawStatus = (payload['status_sos'] ?? 'belum ditangani').toString().toLowerCase();
+
+      setState(() {
+        _sosStatus = rawStatus;
+      });
+
+      if (_isDitangani && !_isListeningRelawan) {
+        _listenToRelawanLocation(sosId);
+      }
+
+      if (_isSelesai || _isBatal) {
+        _startSelesaiTimer();
+      }
+    });
+
+    if (_isDitangani && !_isListeningRelawan) {
+      _listenToRelawanLocation(sosId);
+    }
+  }
+
+  void _listenToRelawanLocation(int sosId) {
+    _isListeningRelawan = true;
+    WebsocketService.listenToRelawanLocation(sosId, (payload) {
+      if (mounted && payload != null) {
+        setState(() {
+          if (payload['distance'] != null) {
+            _relawanDistance = (payload['distance'] as num).toDouble();
+          }
+        });
+      }
+    });
   }
 
   /// Mulai tracking lokasi user secara real-time.
@@ -93,28 +158,25 @@ class _SosStatusPageState extends State<SosStatusPage> {
       if (response.statusCode == 200 && mounted) {
         final data = response.data['data'];
         if (data != null) {
+          final rawStatus = (data['status_sos'] ?? 'belum ditangani').toString().toLowerCase();
+
           setState(() {
             _sosId = data['id'];
-            _sosStatus = (data['status_sos'] ?? 'aktif').toString().toLowerCase();
+            _sosStatus = rawStatus;
             _emptyPollCount = 0; // reset
           });
 
-          if (_sosStatus == 'proses' &&
-              _sosId != null &&
-              !_isListeningRelawan) {
-            _isListeningRelawan = true;
-            WebsocketService.listenToRelawanLocation(_sosId!, (payload) {
-              if (mounted && payload != null) {
-                setState(() {
-                  if (payload['distance'] != null) {
-                    _relawanDistance = (payload['distance'] as num).toDouble();
-                  }
-                });
-              }
-            });
+          if (_sosId != null) {
+            _setupWebSocketListeners(_sosId!);
           }
 
-          if (_sosStatus == 'selesai' || _sosStatus == 'dibatalkan' || _sosStatus == 'batal') {
+          if (_isDitangani &&
+              _sosId != null &&
+              !_isListeningRelawan) {
+            _listenToRelawanLocation(_sosId!);
+          }
+
+          if (_isSelesai || _isBatal) {
             _startSelesaiTimer();
           }
         } else {
@@ -143,38 +205,6 @@ class _SosStatusPageState extends State<SosStatusPage> {
     });
   }
 
-  void _startCancelTimer() {
-    setState(() {
-      _isCancelling = true;
-      _cancelProgress = 0.0;
-    });
-
-    const int durationMs = 5000;
-    const int intervalMs = 50;
-    int elapsedMs = 0;
-
-    _cancelTimer = Timer.periodic(const Duration(milliseconds: intervalMs), (
-      timer,
-    ) {
-      elapsedMs += intervalMs;
-      setState(() {
-        _cancelProgress = elapsedMs / durationMs;
-      });
-
-      if (elapsedMs >= durationMs) {
-        timer.cancel();
-        _cancelSos();
-      }
-    });
-  }
-
-  void _stopCancelTimer() {
-    _cancelTimer?.cancel();
-    setState(() {
-      _isCancelling = false;
-      _cancelProgress = 0.0;
-    });
-  }
 
   Future<void> _cancelSos() async {
     if (_sosId == null) {
@@ -222,12 +252,12 @@ class _SosStatusPageState extends State<SosStatusPage> {
 
   @override
   void dispose() {
-    _cancelTimer?.cancel();
     _statusTimer?.cancel();
     _selesaiTimer?.cancel();
     _serviceStatusStream?.cancel();
     _locationService.stopTracking();
     if (_sosId != null) {
+      WebsocketService.stopListeningSosStatusUpdate(_sosId!);
       WebsocketService.stopListeningRelawanLocation(_sosId!);
     }
     super.dispose();
@@ -258,18 +288,18 @@ class _SosStatusPageState extends State<SosStatusPage> {
                           width: 120,
                           height: 120,
                           decoration: BoxDecoration(
-                            color: _sosStatus == 'selesai'
+                            color: _isSelesai
                                 ? primaryTeal
-                                : (_sosStatus == 'proses'
+                                : (_isDitangani
                                       ? const Color(0xFFF57F17)
                                       : sosRed),
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
                                 color:
-                                    (_sosStatus == 'selesai'
+                                    (_isSelesai
                                             ? primaryTeal
-                                            : (_sosStatus == 'proses'
+                                            : (_isDitangani
                                                   ? const Color(0xFFF57F17)
                                                   : sosRed))
                                         .withValues(alpha: 0.3),
@@ -279,9 +309,9 @@ class _SosStatusPageState extends State<SosStatusPage> {
                             ],
                           ),
                           child: Icon(
-                            _sosStatus == 'selesai'
+                            _isSelesai
                                 ? CupertinoIcons.checkmark_circle_fill
-                                : (_sosStatus == 'proses'
+                                : (_isDitangani
                                       ? CupertinoIcons.car_detailed
                                       : CupertinoIcons.speaker_3_fill),
                             color: Colors.white,
@@ -292,16 +322,16 @@ class _SosStatusPageState extends State<SosStatusPage> {
                       const SizedBox(height: 24),
 
                       Text(
-                        _sosStatus == 'selesai'
+                        _isSelesai
                             ? 'BANTUAN SELESAI'
-                            : (_sosStatus == 'proses'
+                            : (_isDitangani
                                   ? 'RELAWAN DALAM PERJALANAN'
                                   : 'SOS SEDANG DIKIRIM'),
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: _sosStatus == 'selesai'
+                          color: _isSelesai
                               ? primaryTeal
-                              : (_sosStatus == 'proses'
+                              : (_isDitangani
                                     ? const Color(0xFFF57F17)
                                     : sosRed),
                           fontSize: 24,
@@ -310,9 +340,9 @@ class _SosStatusPageState extends State<SosStatusPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _sosStatus == 'selesai'
+                        _isSelesai
                             ? 'Panggilan darurat telah ditangani.'
-                            : (_sosStatus == 'proses'
+                            : (_isDitangani
                                   ? 'Relawan sedang menuju ke lokasi Anda.'
                                   : 'Bantuan sedang dicari...'),
                         textAlign: TextAlign.center,
@@ -371,54 +401,42 @@ class _SosStatusPageState extends State<SosStatusPage> {
                                   ),
                                   const SizedBox(height: 20),
                                   _buildStatusItem(
-                                    icon:
-                                        _sosStatus == 'proses' ||
-                                            _sosStatus == 'selesai'
+                                    icon: (_isDitangani || _isSelesai)
                                         ? CupertinoIcons.checkmark_circle
                                         : CupertinoIcons.refresh,
-                                    iconColor:
-                                        _sosStatus == 'proses' ||
-                                            _sosStatus == 'selesai'
+                                    iconColor: (_isDitangani || _isSelesai)
                                         ? const Color(0xFF00695C)
                                         : const Color(0xFFF57F17),
-                                    iconBgColor:
-                                        _sosStatus == 'proses' ||
-                                            _sosStatus == 'selesai'
+                                    iconBgColor: (_isDitangani || _isSelesai)
                                         ? const Color(0xFFE0F2F1)
                                         : const Color(0xFFFFF9C4),
-                                    title:
-                                        _sosStatus == 'proses' ||
-                                            _sosStatus == 'selesai'
+                                    title: (_isDitangani || _isSelesai)
                                         ? 'Relawan Menuju Lokasi'
                                         : 'Mencari Relawan',
-                                    description: _sosStatus == 'proses'
+                                    description: _isDitangani
                                         ? (_relawanDistance != null
                                               ? 'Relawan berjarak ${_relawanDistance!.toStringAsFixed(0)} meter dari Anda.'
                                               : 'Relawan telah menerima panggilan dan sedang dalam perjalanan.')
-                                        : (_sosStatus == 'selesai'
+                                        : (_isSelesai
                                               ? 'Relawan telah tiba.'
                                               : 'Sistem sedang mencari relawan terdekat.'),
                                   ),
                                   const SizedBox(height: 20),
                                   _buildStatusItem(
-                                    icon: (_sosStatus == 'selesai' || _sosStatus == 'dibatalkan' || _sosStatus == 'batal')
+                                    icon: _isSelesai
                                         ? CupertinoIcons.checkmark_circle
                                         : CupertinoIcons.ellipsis,
-                                    iconColor: (_sosStatus == 'selesai' || _sosStatus == 'dibatalkan' || _sosStatus == 'batal')
+                                    iconColor: _isSelesai
                                         ? const Color(0xFF00695C)
                                         : Colors.grey.shade700,
-                                    iconBgColor: (_sosStatus == 'selesai' || _sosStatus == 'dibatalkan' || _sosStatus == 'batal')
+                                    iconBgColor: _isSelesai
                                         ? const Color(0xFFE0F2F1)
                                         : Colors.grey.shade200,
-                                    title: (_sosStatus == 'dibatalkan' || _sosStatus == 'batal') 
-                                        ? 'Bantuan Dibatalkan' 
-                                        : 'Bantuan Selesai',
-                                    description: _sosStatus == 'selesai'
+                                    title: 'Bantuan Selesai',
+                                    description: _isSelesai
                                         ? 'Bantuan telah tiba dan selesai.'
-                                        : ((_sosStatus == 'dibatalkan' || _sosStatus == 'batal') 
-                                            ? 'Permintaan bantuan telah dibatalkan.' 
-                                            : 'Menunggu relawan tiba.'),
-                                    isFaded: (_sosStatus != 'selesai' && _sosStatus != 'dibatalkan' && _sosStatus != 'batal'),
+                                        : 'Menunggu relawan tiba.',
+                                    isFaded: !_isSelesai,
                                   ),
                                 ],
                               ),
@@ -483,7 +501,7 @@ class _SosStatusPageState extends State<SosStatusPage> {
                       ),
                       const SizedBox(height: 16),
 
-                      if (_sosStatus == 'selesai')
+                      if (_isSelesai)
                         ElevatedButton(
                           onPressed: () => context.pop(),
                           style: ElevatedButton.styleFrom(
@@ -503,60 +521,13 @@ class _SosStatusPageState extends State<SosStatusPage> {
                           ),
                         )
                       else ...[
-                        // Batalkan SOS Button
-                        GestureDetector(
-                          onTapDown: (_) => _startCancelTimer(),
-                          onTapUp: (_) => _stopCancelTimer(),
-                          onTapCancel: () => _stopCancelTimer(),
-                          child: Container(
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade300,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.shade400),
-                            ),
-                            child: Stack(
-                              children: [
-                                // Progress fill
-                                if (_isCancelling)
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: FractionallySizedBox(
-                                      alignment: Alignment.centerLeft,
-                                      widthFactor: _cancelProgress,
-                                      child: Container(
-                                        color: Colors.grey.shade400,
-                                      ),
-                                    ),
-                                  ),
-                                // Content
-                                Center(
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
-                                      Icon(
-                                        CupertinoIcons.xmark_circle,
-                                        color: Colors.black87,
-                                      ),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'Batalkan SOS (Tahan 5d)',
-                                        style: TextStyle(
-                                          color: Colors.black87,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        // Slide to Cancel SOS Button
+                        SlideToCancelButton(
+                          onCancelled: _cancelSos,
                         ),
                         const SizedBox(height: 16),
                         const Text(
-                          'Tahan tombol batal selama 5 detik untuk membatalkan keadaan darurat.',
+                          'Geser ke kanan untuk membatalkan keadaan darurat.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.black45, fontSize: 12),
                         ),

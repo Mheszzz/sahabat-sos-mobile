@@ -205,7 +205,7 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
       body: SafeArea(
         child: _isLoading
             ? const Center(
-                child: CircularProgressIndicator(color: Colors.black87),
+                child: CupertinoActivityIndicator(radius: 16),
               )
             : SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
@@ -421,8 +421,7 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
+                      child: CupertinoActivityIndicator(
                         color: Colors.white,
                       ),
                     )

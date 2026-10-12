@@ -491,8 +491,7 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
                         ? const SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
+                            child: CupertinoActivityIndicator(
                               color: Colors.white,
                             ),
                           )
@@ -518,7 +517,7 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
       padding: const EdgeInsets.all(32),
       child: const Column(
         children: [
-          CircularProgressIndicator(color: Color(0xFF007AFF)),
+          CupertinoActivityIndicator(radius: 16),
           SizedBox(height: 20),
           Text(
             'Mencari perangkat BLE terdekat...',

@@ -110,7 +110,8 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
               _mapController.fitCamera(
                 CameraFit.bounds(
                   bounds: bounds,
-                  padding: const EdgeInsets.all(30.0),
+                  padding: const EdgeInsets.all(24.0),
+                  maxZoom: 16.0,
                 ),
               );
             }
@@ -171,10 +172,15 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
             }
             _effectiveVolPos = LatLng(vLat, vLng);
 
-            if (_activeTask!['distance_formatted'] != null && _activeTask!['polyline'] != null) {
+            final routeInfo = _activeTask!['route_info'];
+            final polylineData = _activeTask!['polyline'] ?? (routeInfo != null ? routeInfo['polyline'] : null);
+            final durationStr = _activeTask!['duration_formatted'] ?? (routeInfo != null ? routeInfo['duration_formatted'] : null);
+            final distanceStr = _activeTask!['distance_formatted'] ?? (routeInfo != null ? routeInfo['distance_formatted'] : null);
+
+            if (distanceStr != null && polylineData != null) {
               setState(() {
-                _etaText = '${_activeTask!['duration_formatted']} (${_activeTask!['distance_formatted']})';
-                final List<dynamic> polyCoords = _activeTask!['polyline'];
+                _etaText = '$durationStr ($distanceStr)';
+                final List<dynamic> polyCoords = polylineData;
                 _routePoints = polyCoords.map((coord) {
                   return LatLng(coord[1] as double, coord[0] as double);
                 }).toList();
@@ -187,7 +193,8 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                   _mapController.fitCamera(
                     CameraFit.bounds(
                       bounds: bounds,
-                      padding: const EdgeInsets.all(30.0),
+                      padding: const EdgeInsets.all(24.0),
+                      maxZoom: 16.0,
                     ),
                   );
                 }
@@ -257,7 +264,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (_) => const Center(child: CircularProgressIndicator()),
+        builder: (_) => const Center(child: CupertinoActivityIndicator(radius: 16)),
       );
       
       // Default tipe "sos" untuk SOS aktif
@@ -639,7 +646,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                         ),
                         const SizedBox(height: 16),
                         Container(
-                          height: 150,
+                          height: 180,
                           width: double.infinity,
                           decoration: BoxDecoration(
                             color: Colors.grey[200],
@@ -681,10 +688,11 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                         ? _effectiveVolPos!
                                         : const LatLng(-6.200000, 106.816666),
                                     initialZoom: 14.0,
+                                    maxZoom: 18.0,
+                                    minZoom: 4.0,
                                     interactionOptions:
                                         const InteractionOptions(
-                                          flags: InteractiveFlag
-                                              .none, // Disable zoom, pan, etc.
+                                          flags: InteractiveFlag.all,
                                         ),
                                   ),
                                   children: [
@@ -693,6 +701,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                                       userAgentPackageName:
                                           'com.sahabat_sos_mobile.app',
+                                      maxZoom: 18,
                                     ),
                                     if (_routePoints.isNotEmpty)
                                       PolylineLayer(
@@ -761,9 +770,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                               ),
                               if (_isFetchingRoute)
                                 const Center(
-                                  child: CircularProgressIndicator(
-                                    color: primaryTeal,
-                                  ),
+                                  child: CupertinoActivityIndicator(radius: 16),
                                 ),
                             ],
                           ),

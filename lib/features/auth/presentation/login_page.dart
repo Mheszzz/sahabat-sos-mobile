@@ -8,6 +8,7 @@ import 'package:sahabat_sos_mobile/features/auth/data/datasources/auth_remote_da
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart' as event_bus;
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -167,29 +168,60 @@ class _LoginPageState extends State<LoginPage> {
                           final prefs =
                               get_it.GetIt.instance<SharedPreferences>();
                           final token = result['token'];
-                          final dio = get_it.GetIt.instance<Dio>();
-                          final profileRes = await dio.get(
-                            ApiConstants.me,
-                            options: Options(
-                              headers: {
-                                'Authorization': 'Bearer $token',
-                                'Accept': 'application/json',
-                              },
-                            ),
-                          );
-                          if (profileRes.statusCode == 200) {
-                            final userData = profileRes.data['user'];
-                            if (userData != null && userData['role'] != null) {
-                              await prefs.setString(
-                                'user_role',
-                                userData['role'].toString().toLowerCase(),
-                              );
-                              if (userData['role'].toString().toLowerCase() == 'relawan' && userData['id'] != null) {
-                                await prefs.setInt('volunteer_id', (userData['id'] is int) ? userData['id'] : int.tryParse(userData['id'].toString()) ?? 0);
-                              }
+                          Map<String, dynamic>? userData =
+                              result['user'] is Map<String, dynamic>
+                                  ? result['user'] as Map<String, dynamic>
+                                  : (result['user'] != null
+                                      ? Map<String, dynamic>.from(result['user'])
+                                      : null);
+
+                          if (userData == null) {
+                            final dio = get_it.GetIt.instance<Dio>();
+                            final profileRes = await dio.get(
+                              ApiConstants.me,
+                              options: Options(
+                                headers: {
+                                  'Authorization': 'Bearer $token',
+                                  'Accept': 'application/json',
+                                },
+                              ),
+                            );
+                            if (profileRes.statusCode == 200) {
+                              userData = profileRes.data['user'];
                             }
                           }
-                        } catch (_) {}
+
+                          if (userData != null && userData['role'] != null) {
+                            final role = userData['role'].toString().toLowerCase();
+                            await prefs.setString('user_role', role);
+                            if (role == 'relawan') {
+                              if (userData['id'] != null) {
+                                await prefs.setInt(
+                                  'volunteer_id',
+                                  (userData['id'] is int)
+                                      ? userData['id']
+                                      : int.tryParse(userData['id'].toString()) ?? 0,
+                                );
+                              }
+                              final verificationStatus =
+                                  (userData['status_verifikasi'] ?? 'pending')
+                                      .toString()
+                                      .toLowerCase();
+                              await prefs.setString(
+                                  'verification_status', verificationStatus);
+                              event_bus.GlobalEventBus.volunteerVerificationStatus
+                                  .value = (verificationStatus == 'terverifikasi');
+                              final isActive = (userData['is_active'] == true ||
+                                  userData['is_active'] == 1 ||
+                                  userData['is_active'] == '1');
+                              await prefs.setBool('user_is_active', isActive);
+                              event_bus.GlobalEventBus.volunteerActiveStatus
+                                  .value = isActive;
+                            }
+                          }
+                        } catch (e) {
+                          debugPrint("Error fetching user on login: $e");
+                        }
                         if (!mounted) return;
 
                         final userRole =
@@ -217,9 +249,10 @@ class _LoginPageState extends State<LoginPage> {
                     setState(() {
                       _isLoading = false;
                     });
+                    final errorMessage = e.toString().replaceFirst('Exception: ', '');
                     ScaffoldMessenger.of(
                       context,
-                    ).showSnackBar(SnackBar(content: Text('Gagal Login: $e')));
+                    ).showSnackBar(SnackBar(content: Text('Gagal Login: $errorMessage')));
                   }
                 },
           child: Container(
@@ -235,14 +268,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
             child: _isLoading
                 ? const Center(
-                    child: SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        valueColor: AlwaysStoppedAnimation<Color>(primaryDark),
-                      ),
-                    ),
+                    child: CupertinoActivityIndicator(radius: 12),
                   )
                 : Row(
                     mainAxisAlignment: MainAxisAlignment.center,

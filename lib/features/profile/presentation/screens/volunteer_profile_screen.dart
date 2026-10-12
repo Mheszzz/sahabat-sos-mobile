@@ -9,6 +9,7 @@ import '../../../../routing/routes.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../volunteer_task/data/datasources/volunteer_remote_data_source.dart';
+import '../../../../core/utils/global_event_bus.dart' as event_bus;
 
 class VolunteerProfileScreen extends StatefulWidget {
   const VolunteerProfileScreen({super.key});
@@ -21,6 +22,8 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
   static const Color primaryTeal = Color(0xFF00695C);
 
   bool _isLoading = true;
+  bool _isCheckingStatus = false;
+  bool _isActive = true;
   Map<String, dynamic>? _fullUserData;
 
   String _name = 'Memuat...';
@@ -38,16 +41,30 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
   @override
   void initState() {
     super.initState();
+    final prefs = GetIt.instance<SharedPreferences>();
+    _isActive = prefs.getBool('user_is_active') ?? true;
+    _verificationStatus = prefs.getString('verification_status') ?? 'pending';
     _fetchProfile();
   }
 
-  Future<void> _fetchProfile() async {
+  Future<void> _fetchProfile({bool isManualCheck = false}) async {
+    if (isManualCheck) {
+      setState(() {
+        _isCheckingStatus = true;
+      });
+    }
     try {
       final volunteerDataSource = GetIt.instance<VolunteerRemoteDataSource>();
       final response = await volunteerDataSource.getRelawanProfile();
 
       final userData = response['user'];
       if (userData != null) {
+        final bool wasActive = _isActive;
+        final bool newIsActive = (userData['is_active'] == true || userData['is_active'] == 1 || userData['is_active'] == '1');
+        final newStatus = (userData['status_verifikasi'] ?? 'pending').toString().toLowerCase();
+        final wasVerified = _verificationStatus == 'terverifikasi';
+        final isNowVerified = newStatus == 'terverifikasi';
+
         setState(() {
           _fullUserData = userData;
           _name = userData['name'] ?? 'Relawan';
@@ -56,7 +73,8 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           _address = userData['alamat'] ?? 'Alamat belum diatur';
           _job = userData['pekerjaan'] ?? 'Belum diatur';
           _reason = userData['alasan_relawan'] ?? 'Belum diatur';
-          _verificationStatus = (userData['status_verifikasi'] ?? 'pending').toString().toLowerCase();
+          _verificationStatus = newStatus;
+          _isActive = newIsActive;
 
           if (userData['email'] != null) {
             _email = userData['email'];
@@ -73,13 +91,86 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           }
 
           _isLoading = false;
+          _isCheckingStatus = false;
         });
+
+        final prefs = GetIt.instance<SharedPreferences>();
+        await prefs.setString('verification_status', newStatus);
+        await prefs.setBool('user_is_active', newIsActive);
+        event_bus.GlobalEventBus.volunteerActiveStatus.value = newIsActive;
+
+        if (!newIsActive) {
+          if (isManualCheck && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Akun Anda saat ini dinonaktifkan oleh administrator.'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 4),
+              ),
+            );
+          }
+        } else if (!wasActive && newIsActive) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Selamat! Akun Anda telah diaktifkan kembali oleh administrator.'),
+                backgroundColor: primaryTeal,
+                duration: Duration(seconds: 4),
+              ),
+            );
+          }
+        } else if (!wasVerified && isNowVerified) {
+          event_bus.GlobalEventBus.volunteerVerificationStatus.value = true;
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Selamat! Akun Anda telah diverifikasi oleh admin. Seluruh fitur relawan kini dapat diakses.'),
+                backgroundColor: primaryTeal,
+                duration: Duration(seconds: 4),
+              ),
+            );
+          }
+        } else if (isManualCheck && mounted) {
+          if (newStatus == 'pending') {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Akun Anda masih dalam tahap verifikasi oleh admin. Mohon menunggu.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          } else if (newStatus == 'ditolak') {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Pengajuan akun relawan ditolak oleh admin.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Status akun aktif dan terverifikasi.'),
+                backgroundColor: primaryTeal,
+              ),
+            );
+          }
+        }
       }
     } catch (e) {
       debugPrint("Error fetching volunteer profile: $e");
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isCheckingStatus = false;
+        });
+        if (isManualCheck) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Gagal memeriksa status: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -92,7 +183,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
       body: Container(
         color: const Color(0xFFF5F6F8),
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: primaryTeal))
+            ? const Center(child: CupertinoActivityIndicator(radius: 16))
             : SafeArea(
                 child: RefreshIndicator(
                   onRefresh: _fetchProfile,
@@ -104,6 +195,13 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _buildProfileHeader(),
+                        if (!_isActive || _verificationStatus != 'terverifikasi') ...[
+                          const SizedBox(height: 16),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: _buildVerificationStatusCard(),
+                          ),
+                        ],
                         const SizedBox(height: 24),
 
                         Padding(
@@ -257,9 +355,11 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isVerified
-                      ? primaryTeal
-                      : Colors.orange.withValues(alpha: 0.3),
+                  color: !_isActive
+                      ? Colors.red
+                      : (isVerified
+                          ? primaryTeal
+                          : Colors.orange.withValues(alpha: 0.3)),
                   width: 3,
                 ),
               ),
@@ -287,7 +387,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                   ),
                 ),
                 const SizedBox(width: 6),
-                if (isVerified)
+                if (isVerified && _isActive)
                   const Icon(
                     CupertinoIcons.checkmark_seal_fill,
                     color: primaryTeal,
@@ -306,29 +406,53 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               decoration: BoxDecoration(
-                color: isVerified
-                    ? const Color(0xFFE0F2F1)
-                    : const Color(0xFFFFE0B2),
+                color: !_isActive
+                    ? const Color(0xFFFFEBEE)
+                    : (isVerified
+                        ? const Color(0xFFE0F2F1)
+                        : (_verificationStatus == 'ditolak'
+                            ? const Color(0xFFFFEBEE)
+                            : const Color(0xFFFFE0B2))),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    isVerified
-                        ? CupertinoIcons.checkmark_shield_fill
-                        : CupertinoIcons.time,
-                    color: isVerified ? primaryTeal : const Color(0xFFEF6C00),
+                    !_isActive
+                        ? CupertinoIcons.slash_circle_fill
+                        : (isVerified
+                            ? CupertinoIcons.checkmark_shield_fill
+                            : (_verificationStatus == 'ditolak'
+                                ? CupertinoIcons.clear_thick_circled
+                                : CupertinoIcons.time)),
+                    color: !_isActive
+                        ? Colors.red.shade700
+                        : (isVerified
+                            ? primaryTeal
+                            : (_verificationStatus == 'ditolak'
+                                ? Colors.red.shade700
+                                : const Color(0xFFEF6C00))),
                     size: 16,
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    isVerified
-                        ? 'Relawan Terverifikasi'
-                        : 'Menunggu Verifikasi',
+                    !_isActive
+                        ? 'Akun Dinonaktifkan'
+                        : (isVerified
+                            ? 'Relawan Terverifikasi'
+                            : (_verificationStatus == 'ditolak'
+                                ? 'Verifikasi Ditolak'
+                                : 'Menunggu Verifikasi')),
                     style: TextStyle(
                       fontSize: 13,
-                      color: isVerified ? primaryTeal : const Color(0xFFEF6C00),
+                      color: !_isActive
+                          ? Colors.red.shade700
+                          : (isVerified
+                              ? primaryTeal
+                              : (_verificationStatus == 'ditolak'
+                                  ? Colors.red.shade700
+                                  : const Color(0xFFEF6C00))),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -355,6 +479,203 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildVerificationStatusCard() {
+    if (!_isActive) {
+      return Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFEBEE),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFFFCDD2), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade700.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    CupertinoIcons.slash_circle_fill,
+                    color: Colors.red.shade700,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Akun Relawan Dinonaktifkan',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Akun relawan Anda saat ini dinonaktifkan oleh administrator. Akses ke seluruh fitur operasional relawan (Beranda, Tugas, Peta) dibekukan sementara. Silakan hubungi admin atau periksa kembali status akun Anda.',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.black87,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isCheckingStatus
+                    ? null
+                    : () => _fetchProfile(isManualCheck: true),
+                icon: _isCheckingStatus
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CupertinoActivityIndicator(radius: 8),
+                      )
+                    : const Icon(CupertinoIcons.arrow_2_circlepath, size: 16),
+                label: Text(
+                  _isCheckingStatus
+                      ? 'Memeriksa...'
+                      : 'Periksa Status Akun',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red.shade700,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final isRejected = _verificationStatus == 'ditolak';
+    final cardColor = isRejected ? const Color(0xFFFFEBEE) : const Color(0xFFFFF3E0);
+    final borderColor = isRejected ? const Color(0xFFFFCDD2) : const Color(0xFFFFE0B2);
+    final iconColor = isRejected ? Colors.red.shade700 : const Color(0xFFEF6C00);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isRejected
+                      ? CupertinoIcons.clear_thick_circled
+                      : CupertinoIcons.hourglass,
+                  color: iconColor,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  isRejected
+                      ? 'Verifikasi Relawan Ditolak'
+                      : 'Tahap Verifikasi Relawan',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: iconColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            isRejected
+                ? 'Pendaftaran akun relawan Anda ditolak oleh administrator. Silakan hubungi tim admin untuk informasi lebih detail.'
+                : 'Akun Anda saat ini belum diverifikasi oleh admin. Semua fitur operasional relawan (Beranda, Tugas, Peta) dibatasi hingga akun disetujui.',
+            style: const TextStyle(
+              fontSize: 13,
+              color: Colors.black87,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _isCheckingStatus
+                  ? null
+                  : () => _fetchProfile(isManualCheck: true),
+              icon: _isCheckingStatus
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CupertinoActivityIndicator(radius: 8),
+                    )
+                  : const Icon(CupertinoIcons.arrow_2_circlepath, size: 16),
+              label: Text(
+                _isCheckingStatus
+                    ? 'Memeriksa...'
+                    : 'Periksa Status Verifikasi',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isRejected ? Colors.red.shade700 : const Color(0xFFEF6C00),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

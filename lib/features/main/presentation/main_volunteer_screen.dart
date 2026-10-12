@@ -25,6 +25,7 @@ class MainVolunteerScreen extends StatefulWidget {
 class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
   late int _selectedIndex;
   bool? _isVerified;
+  bool _isActive = true;
   final LocationService _locationService = sl<LocationService>();
 
   // Key untuk akses langsung ke VolunteerMapPage state
@@ -38,18 +39,54 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
     _initVolunteerServices();
     event_bus.GlobalEventBus.navigateToMapWithSos.addListener(_onNavigateToMap);
     event_bus.GlobalEventBus.changeVolunteerTab.addListener(_onChangeTab);
+    event_bus.GlobalEventBus.volunteerVerificationStatus.addListener(_onVerificationStatusChanged);
+    event_bus.GlobalEventBus.volunteerActiveStatus.addListener(_onActiveStatusChanged);
+  }
+
+  void _onActiveStatusChanged() {
+    final status = event_bus.GlobalEventBus.volunteerActiveStatus.value;
+    if (status != null && status != _isActive) {
+      setState(() {
+        _isActive = status;
+        if (!_isActive && _selectedIndex != 3) {
+          _selectedIndex = 3;
+        }
+      });
+      if (_isActive && _isVerified == true) {
+        _startOperationalServices();
+      } else {
+        _locationService.stopTracking();
+      }
+    }
+  }
+
+  void _onVerificationStatusChanged() {
+    final status = event_bus.GlobalEventBus.volunteerVerificationStatus.value;
+    if (status == true && _isVerified != true) {
+      setState(() {
+        _isVerified = true;
+      });
+      if (_isActive) {
+        _startOperationalServices();
+      }
+    } else if (status == false && _isVerified != false) {
+      setState(() {
+        _isVerified = false;
+        _selectedIndex = 3;
+      });
+      _locationService.stopTracking();
+    }
   }
 
   void _onChangeTab() {
     final targetIndex = event_bus.GlobalEventBus.changeVolunteerTab.value;
     if (targetIndex != null) {
-      if (_isVerified == false && targetIndex != 3) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Akun Anda belum diverifikasi oleh admin.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+      if ((_isVerified == false || !_isActive) && targetIndex != 3) {
+        if (!_isActive) {
+          _showDeactivatedDialog();
+        } else {
+          _showUnverifiedDialog();
+        }
       } else {
         setState(() {
           _selectedIndex = targetIndex;
@@ -59,9 +96,53 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
     }
   }
 
+  void _showDeactivatedDialog() {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Akun Dinonaktifkan'),
+        content: const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: Text(
+            'Akun relawan Anda saat ini telah dinonaktifkan oleh administrator.\n\nFitur Beranda, Tugas, dan Peta tidak dapat diakses selama status akun nonaktif.\n\nSilakan cek status akun Anda di halaman Profil atau hubungi admin.',
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Mengerti'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUnverifiedDialog() {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Akun Dalam Tahap Verifikasi'),
+        content: const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: Text(
+            'Akun relawan Anda sedang dalam peninjauan oleh admin Sahabat SOS.\n\nFitur Beranda, Tugas, dan Peta akan dapat diakses setelah akun Anda diverifikasi oleh admin.\n\nSilakan cek status verifikasi Anda di halaman Profil.',
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Mengerti'),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Dipanggil saat relawan menerima tugas → pindah ke tab Peta & tampilkan rute
   void _onNavigateToMap() {
-    if (_isVerified == false) return;
+    if (_isVerified == false || !_isActive) return;
     final sosData = event_bus.GlobalEventBus.navigateToMapWithSos.value;
     if (sosData == null) return;
 
@@ -83,39 +164,13 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
       _onNavigateToMap,
     );
     event_bus.GlobalEventBus.changeVolunteerTab.removeListener(_onChangeTab);
+    event_bus.GlobalEventBus.volunteerVerificationStatus.removeListener(_onVerificationStatusChanged);
+    event_bus.GlobalEventBus.volunteerActiveStatus.removeListener(_onActiveStatusChanged);
     _locationService.stopTracking();
     super.dispose();
   }
 
-  Future<void> _initVolunteerServices() async {
-    // 0. Check Verification Status
-    try {
-      final volunteerDataSource = sl<VolunteerRemoteDataSource>();
-      final response = await volunteerDataSource.getRelawanProfile();
-      final userData = response['user'];
-      if (userData != null) {
-        final status = (userData['status_verifikasi'] ?? 'pending').toString().toLowerCase();
-        if (mounted) {
-          setState(() {
-            _isVerified = status == 'terverifikasi';
-            if (_isVerified == false && _selectedIndex != 3) {
-              _selectedIndex = 3; // Force to Profile tab
-            }
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('Error fetching verification status: $e');
-      if (mounted) {
-        setState(() {
-          _isVerified = false; // default to block
-          if (_selectedIndex != 3) {
-            _selectedIndex = 3;
-          }
-        });
-      }
-    }
-
+  Future<void> _startOperationalServices() async {
     // 1. Start Location Tracking
     final hasPerm = await _locationService.requestPermission();
     if (hasPerm) {
@@ -131,6 +186,66 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
       }
     } catch (e) {
       debugPrint('WebSocket init error in MainVolunteer: $e');
+    }
+  }
+
+  Future<void> _initVolunteerServices() async {
+    // Cek cache SharedPreferences dulu agar responsif
+    try {
+      final prefs = sl<SharedPreferences>();
+      final cachedStatus = prefs.getString('verification_status');
+      final cachedActive = prefs.getBool('user_is_active') ?? true;
+      if (mounted) {
+        setState(() {
+          _isActive = cachedActive;
+          if (cachedStatus != null) {
+            _isVerified = cachedStatus == 'terverifikasi';
+          }
+          if ((_isVerified == false || !_isActive) && _selectedIndex != 3) {
+            _selectedIndex = 3;
+          }
+        });
+      }
+    } catch (_) {}
+
+    // 0. Check Verification Status ke server
+    try {
+      final volunteerDataSource = sl<VolunteerRemoteDataSource>();
+      final response = await volunteerDataSource.getRelawanProfile();
+      final userData = response['user'];
+      if (userData != null) {
+        final status = (userData['status_verifikasi'] ?? 'pending').toString().toLowerCase();
+        final active = (userData['is_active'] == true || userData['is_active'] == 1);
+        final prefs = sl<SharedPreferences>();
+        await prefs.setString('verification_status', status);
+        await prefs.setBool('user_is_active', active);
+
+        if (mounted) {
+          setState(() {
+            _isVerified = status == 'terverifikasi';
+            _isActive = active;
+            if ((_isVerified == false || !_isActive) && _selectedIndex != 3) {
+              _selectedIndex = 3; // Force to Profile tab
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching verification status: $e');
+      if (mounted && _isVerified == null) {
+        setState(() {
+          _isVerified = false; // default to block
+          if (_selectedIndex != 3) {
+            _selectedIndex = 3;
+          }
+        });
+      }
+    }
+
+    if (_isVerified == true && _isActive == true) {
+      await _startOperationalServices();
+    } else {
+      _locationService.stopTracking();
     }
   }
 
@@ -221,15 +336,16 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
                       children: List.generate(_navItems.length, (index) {
                         final isSelected = _selectedIndex == index;
                         final item = _navItems[index];
+                        final isLocked = (_isVerified == false || !_isActive) && index != 3;
+
                         return GestureDetector(
                           onTap: () {
-                            if (_isVerified == false && index != 3) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Akun Anda belum diverifikasi oleh admin.'),
-                                  backgroundColor: Colors.orange,
-                                ),
-                              );
+                            if (isLocked) {
+                              if (!_isActive) {
+                                _showDeactivatedDialog();
+                              } else {
+                                _showUnverifiedDialog();
+                              }
                               return;
                             }
                             setState(() {
@@ -251,21 +367,43 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  isSelected ? item.selectedIcon : item.icon,
-                                  color: (_isVerified == false && index != 3)
-                                      ? Colors.grey.withValues(alpha: 0.3)
-                                      : isSelected
-                                          ? primaryTeal
-                                          : _unselectedColor,
-                                  size: 24,
+                                Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Icon(
+                                      isSelected ? item.selectedIcon : item.icon,
+                                      color: isLocked
+                                          ? Colors.grey.withValues(alpha: 0.35)
+                                          : isSelected
+                                              ? primaryTeal
+                                              : _unselectedColor,
+                                      size: 24,
+                                    ),
+                                    if (isLocked)
+                                      Positioned(
+                                        top: -3,
+                                        right: -7,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(2.5),
+                                          decoration: BoxDecoration(
+                                            color: !_isActive ? Colors.red.shade700 : Colors.amber.shade800,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            CupertinoIcons.lock_fill,
+                                            color: Colors.white,
+                                            size: 8,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   item.label,
                                   style: TextStyle(
-                                    color: (_isVerified == false && index != 3)
-                                        ? Colors.grey.withValues(alpha: 0.3)
+                                    color: isLocked
+                                        ? Colors.grey.withValues(alpha: 0.35)
                                         : isSelected
                                             ? primaryTeal
                                             : _unselectedColor,

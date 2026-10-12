@@ -778,7 +778,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
+        builder: (context) => const Center(child: CupertinoActivityIndicator(radius: 16)),
       );
 
       final Map<String, dynamic> payload = {
@@ -833,6 +833,10 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
           'user_role',
           _selectedRole == _RoleType.relawan ? 'relawan' : 'pengguna',
         );
+        if (_selectedRole == _RoleType.relawan) {
+          final verificationStatus = (response.data['status_verifikasi'] ?? 'pending').toString().toLowerCase();
+          await prefs.setString('verification_status', verificationStatus);
+        }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profil berhasil disimpan!')),

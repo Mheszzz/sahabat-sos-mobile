@@ -200,12 +200,7 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
                     ? const SizedBox(
                         width: 26,
                         height: 26,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            primaryDark,
-                          ),
-                        ),
+                        child: CupertinoActivityIndicator(radius: 12),
                       )
                     : Image.network(
                         'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png',

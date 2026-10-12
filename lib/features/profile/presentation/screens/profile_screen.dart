@@ -13,6 +13,7 @@ import 'package:get_it/get_it.dart';
 
 import '../../data/datasources/profile_remote_data_source.dart';
 import '../../../../features/history/presentation/sos_history_screen.dart' as sahabat_sos_mobile_history;
+import '../../../../core/utils/global_event_bus.dart' as event_bus;
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -51,12 +52,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _fetchProfile() async {
+    final prefs = GetIt.instance<SharedPreferences>();
+    if (prefs.getString('user_role') == 'relawan') {
+      if (mounted) {
+        context.go(AppRoutes.homeVolunteer);
+      }
+      return;
+    }
+
     try {
       final profileDataSource = GetIt.instance<ProfileRemoteDataSource>();
       final response = await profileDataSource.getProfile();
 
       final userData = response['data'] ?? response['user'];
       if (userData != null) {
+        // Jika ternyata data profil menunjukkan role relawan, alihkan
+        if (userData['role'] != null && userData['role'].toString().toLowerCase() == 'relawan') {
+          await prefs.setString('user_role', 'relawan');
+          if (mounted) {
+            context.go(AppRoutes.homeVolunteer);
+          }
+          return;
+        }
+
         setState(() {
           _fullUserData = userData;
           _name = userData['name'] ?? 'Pengguna';
@@ -99,9 +117,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       debugPrint("Error fetching profile: $e");
-      setState(() {
-        _isLoading = false;
-      });
+      try {
+        final token = prefs.getString('auth_token');
+        if (token != null) {
+          final dio = GetIt.instance<Dio>();
+          final meRes = await dio.get(
+            ApiConstants.me,
+            options: Options(
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Accept': 'application/json',
+              },
+            ),
+          );
+          if (meRes.statusCode == 200) {
+            final uData = meRes.data['user'];
+            if (uData != null && uData['role'] != null) {
+              final role = uData['role'].toString().toLowerCase();
+              await prefs.setString('user_role', role);
+              if (role == 'relawan') {
+                if (uData['id'] != null) {
+                  await prefs.setInt(
+                    'volunteer_id',
+                    (uData['id'] is int)
+                        ? uData['id']
+                        : int.tryParse(uData['id'].toString()) ?? 0,
+                  );
+                }
+                final verificationStatus =
+                    (uData['status_verifikasi'] ?? 'pending')
+                        .toString()
+                        .toLowerCase();
+                await prefs.setString(
+                    'verification_status', verificationStatus);
+                event_bus.GlobalEventBus.volunteerVerificationStatus.value =
+                    (verificationStatus == 'terverifikasi');
+                final isActive = (uData['is_active'] == true ||
+                    uData['is_active'] == 1 ||
+                    uData['is_active'] == '1');
+                await prefs.setBool('user_is_active', isActive);
+                event_bus.GlobalEventBus.volunteerActiveStatus.value = isActive;
+                if (mounted) {
+                  context.go(AppRoutes.homeVolunteer);
+                  return;
+                }
+              }
+            }
+          }
+        }
+      } catch (meError) {
+        debugPrint("Error resolving user/me in ProfileScreen: $meError");
+      }
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -155,7 +226,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: Container(
         color: bgColor,
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: primaryTeal))
+            ? const Center(child: CupertinoActivityIndicator(radius: 16))
             : SafeArea(
                 child: RefreshIndicator(
                   onRefresh: _fetchProfile,

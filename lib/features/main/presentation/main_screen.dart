@@ -8,6 +8,9 @@ import 'package:sahabat_sos_mobile/features/profile/presentation/screens/profile
 import 'package:sahabat_sos_mobile/features/reports/presentation/quick_report_screen.dart';
 import 'package:sahabat_sos_mobile/features/history/presentation/history_screen.dart';
 import 'package:sahabat_sos_mobile/features/device/presentation/pages/device_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:go_router/go_router.dart';
+import '../../../routing/routes.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialIndex;
@@ -24,6 +27,13 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    final prefs = GetIt.instance<SharedPreferences>();
+    if (prefs.getString('user_role') == 'relawan') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go(AppRoutes.homeVolunteer);
+      });
+      return;
+    }
     _initLocationTracking();
   }
 

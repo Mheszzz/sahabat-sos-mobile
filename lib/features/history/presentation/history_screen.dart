@@ -277,7 +277,7 @@ class _HistoryPageState extends State<HistoryPage> {
     HistoryStatus status = HistoryStatus.aktif;
     if (statusStr == 'selesai') {
       status = HistoryStatus.selesai;
-    } else if (statusStr == 'proses') {
+    } else if (statusStr == 'ditangani') {
       status = HistoryStatus.ditangani;
     } else if (statusStr == 'dibatalkan' || statusStr == 'batal') {
       status = HistoryStatus.dibatalkan;
@@ -488,7 +488,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   const Center(
                     child: Padding(
                       padding: EdgeInsets.all(40.0),
-                      child: CircularProgressIndicator(color: primaryTeal),
+                      child: CupertinoActivityIndicator(radius: 16),
                     ),
                   )
                 else if (_errorMessage != null)

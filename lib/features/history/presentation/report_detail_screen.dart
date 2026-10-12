@@ -142,7 +142,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
+        builder: (context) => const Center(child: CupertinoActivityIndicator(radius: 16)),
       );
 
       final url = widget.item.type == HistoryType.sos
@@ -313,7 +313,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     status = status.toLowerCase();
     if (status == 'batal' || status == 'dibatalkan') return 'DIBATALKAN';
     if (status == 'selesai') return 'SELESAI';
-    if (status == 'proses' || status == 'ditangani') return 'SEDANG DITANGANI';
+    if (status == 'ditangani') return 'SEDANG DITANGANI';
     if (status == 'aktif') return 'MENUNGGU RELAWAN';
     return status.toUpperCase();
   }
@@ -397,6 +397,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     );
   }
 
+  static const Color primaryTeal = Color(0xFF00695C);
+
   @override
   Widget build(BuildContext context) {
     final statusString =
@@ -404,27 +406,29 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     final statusColor = _getStatusColor(statusString);
     final statusIcon = _getStatusIcon(statusString);
     final hasImage = widget.item.imageUrl != null;
+    final isSos = widget.item.type == HistoryType.sos;
+    final detailTitle = isSos ? 'Detail Kasus SOS' : 'Detail Laporan';
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF5F6F8),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFF5F6F8),
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        titleSpacing: 16,
-        iconTheme: const IconThemeData(color: Color(0xFF00695C)),
+        titleSpacing: 0,
+        iconTheme: const IconThemeData(color: primaryTeal),
         title: Row(
           children: [
-            Image.asset('assets/images/logo.png', width: 22, height: 22),
+            Image.asset('assets/images/logo.png', width: 24, height: 24),
             const SizedBox(width: 8),
-            const Text(
-              'Detail Laporan',
-              style: TextStyle(
-                color: Color(0xFF00695C),
+            Text(
+              detailTitle,
+              style: const TextStyle(
+                color: primaryTeal,
                 fontWeight: FontWeight.bold,
-                fontSize: 18,
+                fontSize: 20,
               ),
             ),
           ],
@@ -433,9 +437,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       body: Container(
         height: double.infinity,
         width: double.infinity,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-        ),
+        color: const Color(0xFFF5F6F8),
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -443,56 +445,61 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Title and Status
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        widget.item.title,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                          height: 1.2,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: statusColor.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(statusIcon, color: statusColor, size: 14),
-                          const SizedBox(width: 6),
-                          Text(
-                            _getDisplayStatus(statusString),
-                            style: TextStyle(
-                              fontSize: 11,
+                _buildGlassContainer(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            widget.item.title,
+                            style: const TextStyle(
+                              fontSize: 20,
                               fontWeight: FontWeight.bold,
-                              color: statusColor,
+                              color: Colors.black87,
+                              height: 1.2,
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: statusColor.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(statusIcon, color: statusColor, size: 14),
+                              const SizedBox(width: 6),
+                              Text(
+                                _getDisplayStatus(statusString),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: statusColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
                 if (_userRole == 'relawan' || _userRole == 'admin') ...[
                   _buildGlassContainer(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -500,40 +507,32 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Text(
-                            'Update Status Laporan:',
-                            style: TextStyle(
+                          Text(
+                            isSos ? 'Update Status SOS:' : 'Update Status Laporan:',
+                            style: const TextStyle(
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF00695C),
+                              color: primaryTeal,
                             ),
                           ),
                           const Spacer(),
                           DropdownButton<String>(
-                            value:
-                                [
-                                  'aktif',
-                                  'proses',
-                                  'selesai',
-                                  'dibatalkan',
-                                  'batal',
-                                ].contains(statusString)
-                                ? statusString
-                                : 'aktif',
-                            items:
-                                {
-                                      'aktif',
-                                      'proses',
-                                      'selesai',
-                                      'dibatalkan',
-                                      'batal',
-                                    }
-                                    .map(
-                                      (e) => DropdownMenuItem(
-                                        value: e,
-                                        child: Text(e.toUpperCase()),
-                                      ),
-                                    )
-                                    .toList(),
+                            value: isSos
+                                ? (['belum ditangani', 'ditangani', 'selesai', 'batal'].contains(statusString)
+                                    ? statusString
+                                    : 'belum ditangani')
+                                : (['menunggu', 'proses', 'selesai', 'dibatalkan', 'batal'].contains(statusString)
+                                    ? statusString
+                                    : 'menunggu'),
+                            items: (isSos
+                                    ? const ['belum ditangani', 'ditangani', 'selesai', 'batal']
+                                    : const ['menunggu', 'proses', 'selesai', 'dibatalkan', 'batal'])
+                                .map(
+                                  (e) => DropdownMenuItem(
+                                    value: e,
+                                    child: Text(e.toUpperCase()),
+                                  ),
+                                )
+                                .toList(),
                             onChanged: (val) {
                               if (val != null && val != statusString) {
                                 _updateStatus(val);
@@ -544,85 +543,80 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                 ],
 
                 // Image Card
                 if (hasImage) ...[
-                  Container(
-                    width: double.infinity,
-                    height: 220,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
+                  _buildGlassContainer(
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(16),
-                      child: Stack(
-                        fit: StackFit.expand,
+                      child: Column(
                         children: [
-                          Image.network(
-                            widget.item.imageUrl!,
-                            fit: BoxFit.contain, // Prevent cropping
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                                  color: Colors.grey[200],
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        CupertinoIcons.xmark_rectangle,
-                                        size: 40,
-                                        color: Colors.grey[400],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Gambar tidak tersedia',
-                                        style: TextStyle(
-                                          color: Colors.grey[500],
-                                          fontSize: 13,
+                          Stack(
+                            children: [
+                              Container(
+                                width: double.infinity,
+                                height: 220,
+                                color: Colors.black,
+                                child: Image.network(
+                                  widget.item.imageUrl!,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Container(
+                                        color: Colors.grey[200],
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              CupertinoIcons.xmark_rectangle,
+                                              size: 40,
+                                              color: Colors.grey[400],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              'Gambar tidak tersedia',
+                                              style: TextStyle(
+                                                color: Colors.grey[500],
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ],
-                                  ),
                                 ),
-                          ),
-                          Positioned(
-                            bottom: 12,
-                            right: 12,
-                            child: Material(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(30),
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(30),
-                                onTap: () => _showFullScreenImage(
-                                  context,
-                                  widget.item.imageUrl!,
-                                ),
-                                child: const Padding(
-                                  padding: EdgeInsets.all(8.0),
-                                  child: Icon(
-                                    CupertinoIcons
-                                        .arrow_up_left_arrow_down_right,
-                                    color: Colors.white,
-                                    size: 20,
+                              ),
+                              Positioned(
+                                bottom: 12,
+                                right: 12,
+                                child: Material(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(30),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(30),
+                                    onTap: () => _showFullScreenImage(
+                                      context,
+                                      widget.item.imageUrl!,
+                                    ),
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(8.0),
+                                      child: Icon(
+                                        CupertinoIcons
+                                            .arrow_up_left_arrow_down_right,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                 ],
 
                 // Info Section (Waktu & Lokasi & Map)
@@ -651,9 +645,9 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
-                                    'Waktu Laporan',
-                                    style: TextStyle(
+                                  Text(
+                                    isSos ? 'Waktu Kejadian' : 'Waktu Laporan',
+                                    style: const TextStyle(
                                       fontSize: 12,
                                       color: Colors.black54,
                                     ),
@@ -779,7 +773,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                       child: Row(
                         children: [
                           const CircleAvatar(
-                            backgroundColor: Color(0xFF00695C),
+                            backgroundColor: primaryTeal,
                             child: Icon(
                               CupertinoIcons.person_fill,
                               color: Colors.white,
@@ -794,7 +788,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                                   'Petugas Pendamping',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Color(0xFF004D40),
+                                    color: Colors.black54,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -803,7 +797,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFF004D40),
+                                    color: Colors.black87,
                                   ),
                                 ),
                               ],
@@ -860,119 +854,114 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                 // Audio Section
                 if (widget.item.audioUrl != null) ...[
                   const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.orange.withValues(alpha: 0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        InkWell(
-                          onTap: _isLoadingAudio ? null : _togglePlayPause,
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: const BoxDecoration(
-                              color: Colors.white24,
-                              shape: BoxShape.circle,
-                            ),
-                            child: _isLoadingAudio
-                                ? const SizedBox(
-                                    width: 32,
-                                    height: 32,
-                                    child: CircularProgressIndicator(
+                  _buildGlassContainer(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00695C).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          InkWell(
+                            onTap: _isLoadingAudio ? null : _togglePlayPause,
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: primaryTeal,
+                                shape: BoxShape.circle,
+                              ),
+                              child: _isLoadingAudio
+                                  ? const SizedBox(
+                                      width: 28,
+                                      height: 28,
+                                      child: CupertinoActivityIndicator(
+                                        color: Colors.white,
+                                        radius: 10,
+                                      ),
+                                    )
+                                  : Icon(
+                                      _isPlaying
+                                          ? CupertinoIcons.pause_fill
+                                          : CupertinoIcons.play_fill,
                                       color: Colors.white,
-                                      strokeWidth: 3,
+                                      size: 28,
                                     ),
-                                  )
-                                : Icon(
-                                    _isPlaying
-                                        ? CupertinoIcons.pause_fill
-                                        : CupertinoIcons.play_fill,
-                                    color: Colors.white,
-                                    size: 32,
-                                  ),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Pesan Suara Terlampir',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Pesan Suara Terlampir',
+                                  style: TextStyle(
+                                    color: Colors.black87,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              // Real Progress Slider
-                              Row(
-                                children: [
-                                  Text(
-                                    _formatDuration(_position),
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
+                                const SizedBox(height: 6),
+                                // Real Progress Slider
+                                Row(
+                                  children: [
+                                    Text(
+                                      _formatDuration(_position),
+                                      style: const TextStyle(
+                                        color: Colors.black54,
+                                        fontSize: 12,
+                                      ),
                                     ),
-                                  ),
-                                  Expanded(
-                                    child: SliderTheme(
-                                      data: SliderTheme.of(context).copyWith(
-                                        trackHeight: 3,
-                                        thumbShape: const RoundSliderThumbShape(
-                                          enabledThumbRadius: 6,
+                                    Expanded(
+                                      child: SliderTheme(
+                                        data: SliderTheme.of(context).copyWith(
+                                          trackHeight: 3,
+                                          thumbShape: const RoundSliderThumbShape(
+                                            enabledThumbRadius: 6,
+                                          ),
+                                          overlayShape:
+                                              const RoundSliderOverlayShape(
+                                                overlayRadius: 12,
+                                              ),
+                                          activeTrackColor: primaryTeal,
+                                          inactiveTrackColor: primaryTeal.withValues(alpha: 0.2),
+                                          thumbColor: primaryTeal,
+                                          overlayColor: primaryTeal.withValues(alpha: 0.2),
                                         ),
-                                        overlayShape:
-                                            const RoundSliderOverlayShape(
-                                              overlayRadius: 12,
-                                            ),
-                                        activeTrackColor: Colors.white,
-                                        inactiveTrackColor: Colors.white30,
-                                        thumbColor: Colors.white,
-                                        overlayColor: Colors.white24,
-                                      ),
-                                      child: Slider(
-                                        min: 0.0,
-                                        max: _duration.inSeconds.toDouble() > 0
-                                            ? _duration.inSeconds.toDouble()
-                                            : 1.0,
-                                        value:
-                                            (_position.inSeconds.toDouble() <=
-                                                _duration.inSeconds.toDouble())
-                                            ? _position.inSeconds.toDouble()
-                                            : 0.0,
-                                        onChanged: (value) async {
-                                          final position = Duration(
-                                            seconds: value.toInt(),
-                                          );
-                                          await _audioPlayer.seek(position);
-                                        },
+                                        child: Slider(
+                                          min: 0.0,
+                                          max: _duration.inSeconds.toDouble() > 0
+                                              ? _duration.inSeconds.toDouble()
+                                              : 1.0,
+                                          value:
+                                              (_position.inSeconds.toDouble() <=
+                                                  _duration.inSeconds.toDouble())
+                                              ? _position.inSeconds.toDouble()
+                                              : 0.0,
+                                          onChanged: (value) async {
+                                            final position = Duration(
+                                              seconds: value.toInt(),
+                                            );
+                                            await _audioPlayer.seek(position);
+                                          },
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  Text(
-                                    _formatDuration(_duration),
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
+                                    Text(
+                                      _formatDuration(_duration),
+                                      style: const TextStyle(
+                                        color: Colors.black54,
+                                        fontSize: 12,
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ],

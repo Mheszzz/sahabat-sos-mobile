@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:get_it/get_it.dart';
@@ -137,50 +138,57 @@ class _SosHistoryScreenState extends State<SosHistoryScreen> {
   }
 
   Widget _buildStatusBadge(String status) {
-    Color bgColor;
-    Color textColor;
+    Color badgeColor;
 
     switch (status.toLowerCase()) {
       case 'selesai':
-        bgColor = Colors.green.shade100;
-        textColor = Colors.green.shade800;
+        badgeColor = Colors.green.shade600;
         break;
       case 'batal':
       case 'dibatalkan':
-        bgColor = Colors.grey.shade200;
-        textColor = Colors.grey.shade700;
+        badgeColor = Colors.grey.shade600;
         break;
-      case 'proses':
-        bgColor = Colors.blue.shade100;
-        textColor = Colors.blue.shade800;
+      case 'ditangani':
+        badgeColor = Colors.orange;
         break;
       default:
-        bgColor = Colors.red.shade100;
-        textColor = Colors.red.shade800;
+        badgeColor = Colors.red.shade600;
     }
 
     String getDisplayStatus(String s) {
       final lower = s.toLowerCase();
-      if (lower == 'batal' || lower == 'dibatalkan') return 'DIBATALKAN';
-      if (lower == 'selesai') return 'SELESAI';
-      if (lower == 'proses' || lower == 'ditangani') return 'SEDANG DITANGANI';
-      if (lower == 'aktif') return 'MENUNGGU RELAWAN';
-      return s.toUpperCase();
+      if (lower == 'batal' || lower == 'dibatalkan') return 'Dibatalkan';
+      if (lower == 'selesai') return 'Selesai';
+      if (lower == 'ditangani') return 'Sedang Ditangani';
+      if (lower == 'belum ditangani' || lower == 'aktif') return 'Menunggu Relawan';
+      return s;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
+        color: badgeColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: badgeColor.withValues(alpha: 0.2)),
       ),
-      child: Text(
-        getDisplayStatus(status),
-        style: TextStyle(
-          color: textColor,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: badgeColor, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            getDisplayStatus(status),
+            style: TextStyle(
+              color: badgeColor,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -190,31 +198,113 @@ class _SosHistoryScreenState extends State<SosHistoryScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F8),
       appBar: AppBar(
-        title: const Text('Riwayat Khusus SOS', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        title: Row(
+          children: [
+            Image.asset('assets/images/logo.png', width: 24, height: 24),
+            const SizedBox(width: 8),
+            const Text(
+              'Riwayat Khusus SOS',
+              style: TextStyle(
+                color: primaryTeal,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFFF5F6F8),
         elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        titleSpacing: 0,
+        iconTheme: const IconThemeData(color: primaryTeal),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: primaryTeal))
+          ? const Center(child: CupertinoActivityIndicator(radius: 16))
           : _errorMessage != null
               ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(CupertinoIcons.exclamationmark_triangle, size: 50, color: Colors.red.shade300),
-                      const SizedBox(height: 16),
-                      Text(_errorMessage!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _fetchSosHistory,
-                        child: const Text('Coba Lagi'),
-                      )
-                    ],
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.red.shade100),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(CupertinoIcons.exclamationmark_circle, size: 48, color: Colors.red.shade400),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Oops! Terjadi Kesalahan',
+                            style: TextStyle(
+                              color: Colors.red.shade800,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(_errorMessage!, textAlign: TextAlign.center, style: TextStyle(color: Colors.red.shade700, fontSize: 14)),
+                          const SizedBox(height: 20),
+                          ElevatedButton.icon(
+                            onPressed: _fetchSosHistory,
+                            icon: const Icon(CupertinoIcons.refresh, size: 18),
+                            label: const Text('Coba Lagi'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red.shade600,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            ),
+                          )
+                        ],
+                      ),
+                    ),
                   ),
                 )
               : _sosHistory.isEmpty
-                  ? const Center(child: Text('Belum ada riwayat SOS.'))
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                CupertinoIcons.folder,
+                                size: 64,
+                                color: Colors.grey.shade400,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            const Text(
+                              'Belum ada riwayat SOS',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Riwayat panggilan SOS akan muncul di sini',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 14, color: Colors.black54),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
                   : ListView.builder(
                       padding: const EdgeInsets.all(16),
                       itemCount: _sosHistory.length,
@@ -226,71 +316,118 @@ class _SosHistoryScreenState extends State<SosHistoryScreen> {
                         final location = item['lokasi_sos'] ?? 'Lokasi tidak diketahui';
                         final relawan = item['relawan'] != null ? item['relawan']['name'] : null;
 
-                        return Card(
-                          elevation: 0,
+                        return Container(
                           margin: const EdgeInsets.only(bottom: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        title,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    _buildStatusBadge(status),
-                                  ],
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.4),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.6),
+                                    width: 1.5,
+                                  ),
                                 ),
-                                const SizedBox(height: 12),
-                                Row(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Icon(CupertinoIcons.clock, size: 16, color: Colors.grey),
-                                    const SizedBox(width: 6),
-                                    Text(_formatDate(date), style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  children: [
-                                    const Icon(CupertinoIcons.location, size: 16, color: Colors.grey),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: FutureBuilder<String>(
-                                        future: _getAddress(item, index),
-                                        builder: (context, snapshot) {
-                                          return Text(
-                                            snapshot.data ?? location,
-                                            style: const TextStyle(color: Colors.grey, fontSize: 13),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            title,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: Colors.black87,
+                                            ),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                          );
-                                        },
-                                      ),
+                                          ),
+                                        ),
+                                        _buildStatusBadge(status),
+                                      ],
                                     ),
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(vertical: 12),
+                                      child: Divider(height: 1),
+                                    ),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFE0F2F1),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: const Icon(CupertinoIcons.clock, size: 16, color: primaryTeal),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Text(_formatDate(date), style: const TextStyle(color: Colors.black54, fontSize: 13)),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFBE9E7),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: const Icon(CupertinoIcons.location, size: 16, color: Color(0xFFD84315)),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: FutureBuilder<String>(
+                                            future: _getAddress(item, index),
+                                            builder: (context, snapshot) {
+                                              return Text(
+                                                snapshot.data ?? location,
+                                                style: const TextStyle(color: Colors.black54, fontSize: 13),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (relawan != null) ...[
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: primaryTeal.withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: const Icon(CupertinoIcons.person_solid, size: 16, color: primaryTeal),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Text('Relawan: $relawan', style: const TextStyle(color: Colors.black54, fontSize: 13)),
+                                        ],
+                                      ),
+                                    ]
                                   ],
                                 ),
-                                if (relawan != null) ...[
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      const Icon(CupertinoIcons.person_solid, size: 16, color: Colors.grey),
-                                      const SizedBox(width: 6),
-                                      Text('Relawan: $relawan', style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                                    ],
-                                  ),
-                                ]
-                              ],
+                              ),
                             ),
                           ),
                         );

@@ -105,8 +105,8 @@ class _PermissionGateState extends State<PermissionGate> with WidgetsBindingObse
                   style: TextStyle(fontSize: 16),
                 ),
                 const SizedBox(height: 32),
-                _isChecking 
-                  ? const CircularProgressIndicator()
+                _isChecking
+                  ? const CupertinoActivityIndicator(radius: 16)
                   : ElevatedButton(
                       onPressed: () async {
                         await _requestPermissions();

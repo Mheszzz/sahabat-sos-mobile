@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -32,6 +33,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
 
   Map<String, dynamic>? _berandaData;
   Map<String, dynamic>? _activeTask;
+  String _activeTaskLokasi = '';
   List<dynamic> _riwayatList = [];
   bool _isLoading = true;
   int _visibleRiwayatCount = 5;
@@ -76,76 +78,91 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
     });
 
     try {
-      // 1. Ambil data beranda & statistik sistem
-      try {
-        final berandaRes = await _volunteerDataSource.getBeranda();
-        _berandaData = berandaRes;
-      } catch (e) {
-        debugPrint("Gagal load beranda data: $e");
-      }
+      final prefs = sl<SharedPreferences>();
+      final cachedStatus = prefs.getString('verification_status');
+      final cachedActive = prefs.getBool('user_is_active') ?? true;
+      final isVerifiedAndActive = (cachedStatus == 'terverifikasi') && cachedActive;
 
-      // 2. Ambil tugas aktif relawan ini
-      try {
-        final tasks = await _volunteerDataSource.getRelawanTasks();
-        if (tasks['data'] != null) {
-          _activeTask = tasks['data'];
-        } else {
-          _activeTask = null;
+      // 1. Ambil data beranda & statistik sistem (hanya jika terverifikasi dan aktif)
+      if (isVerifiedAndActive) {
+        try {
+          final berandaRes = await _volunteerDataSource.getBeranda();
+          _berandaData = berandaRes;
+        } catch (e) {
+          debugPrint("Gagal load beranda data: $e");
         }
-      } catch (e) {
-        _activeTask = null;
-        debugPrint("Gagal load tugas aktif: $e");
-      }
 
-      // 3. Ambil riwayat penanganan tugas relawan
-      try {
-        final riwayatData =
-            await _volunteerDataSource.getRelawanBerandaRiwayat();
-        final List<dynamic> combinedHistory = [];
-        final rawData = riwayatData['data'];
+        // 2. Ambil tugas aktif relawan ini
+        try {
+          final tasks = await _volunteerDataSource.getRelawanTasks();
+          if (tasks['data'] != null) {
+            _activeTask = tasks['data'];
+            // Resolve lokasi tugas aktif ke nama wilayah
+            _activeTaskLokasi = await _parseLokasiDisplay(_activeTask!);
+          } else {
+            _activeTask = null;
+            _activeTaskLokasi = '';
+          }
+        } catch (e) {
+          _activeTask = null;
+          _activeTaskLokasi = '';
+          debugPrint("Gagal load tugas aktif: $e");
+        }
 
-        if (rawData != null && rawData is List) {
-          for (var item in rawData) {
-            if (item is Map<String, dynamic>) {
-              item['tipe'] = item['tipe'] ?? 'laporan';
-              item['waktu_display'] = item['waktu'] ??
-                  item['waktu_laporan'] ??
-                  item['waktu_sos'] ??
-                  item['created_at'] ??
-                  '';
-              item['lokasi_display'] = item['lokasi'] ??
-                  item['lokasi_laporan'] ??
-                  item['lokasi_user'] ??
-                  'Lokasi tidak diketahui';
-              item['deskripsi_display'] = item['deskripsi'] ?? '';
-              item['kategori_display'] = item['kategori'] ??
-                  item['kategori_laporan'] ??
-                  'Laporan';
-              combinedHistory.add(item);
-            } else {
-              combinedHistory.add(item);
+        // 3. Ambil riwayat penanganan tugas relawan
+        try {
+          final riwayatData =
+              await _volunteerDataSource.getRelawanBerandaRiwayat();
+          final List<dynamic> combinedHistory = [];
+          final rawData = riwayatData['data'];
+
+          if (rawData != null && rawData is List) {
+            for (var item in rawData) {
+              if (item is Map<String, dynamic>) {
+                item['tipe'] = item['tipe'] ?? 'laporan';
+                item['waktu_display'] = item['waktu'] ??
+                    item['waktu_laporan'] ??
+                    item['waktu_sos'] ??
+                    item['created_at'] ??
+                    '';
+                item['lokasi_display'] = item['lokasi'] ??
+                    item['lokasi_laporan'] ??
+                    item['lokasi_user'] ??
+                    'Lokasi tidak diketahui';
+                item['deskripsi_display'] = item['deskripsi'] ?? '';
+                item['kategori_display'] = item['kategori'] ??
+                    item['kategori_laporan'] ??
+                    'Laporan';
+                combinedHistory.add(item);
+              } else {
+                combinedHistory.add(item);
+              }
             }
           }
+
+          // Urutkan dari yang terbaru
+          combinedHistory.sort((a, b) {
+            final String dateA = a is Map ? (a['waktu_display'] ?? '') : '';
+            final String dateB = b is Map ? (b['waktu_display'] ?? '') : '';
+
+            final timeA =
+                DateTime.tryParse(dateA) ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+            final timeB =
+                DateTime.tryParse(dateB) ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+            return timeB.compareTo(timeA);
+          });
+
+          _riwayatList = combinedHistory;
+        } catch (e) {
+          _riwayatList = [];
+          debugPrint("Gagal load riwayat: $e");
         }
-
-        // Urutkan dari yang terbaru
-        combinedHistory.sort((a, b) {
-          final String dateA = a is Map ? (a['waktu_display'] ?? '') : '';
-          final String dateB = b is Map ? (b['waktu_display'] ?? '') : '';
-
-          final timeA =
-              DateTime.tryParse(dateA) ??
-              DateTime.fromMillisecondsSinceEpoch(0);
-          final timeB =
-              DateTime.tryParse(dateB) ??
-              DateTime.fromMillisecondsSinceEpoch(0);
-          return timeB.compareTo(timeA);
-        });
-
-        _riwayatList = combinedHistory;
-      } catch (e) {
+      } else {
+        _activeTask = null;
+        _activeTaskLokasi = '';
         _riwayatList = [];
-        debugPrint("Gagal load riwayat: $e");
       }
 
       // 4. Ambil profil relawan untuk inisialisasi WebSocket & status verifikasi
@@ -168,20 +185,27 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
               ? userData['id'] as int
               : int.tryParse(userData['id'].toString());
 
-          final prefs = sl<SharedPreferences>();
+          final isActive = (userData['is_active'] == true || userData['is_active'] == 1);
           if (_volunteerId != null) {
             await prefs.setInt('volunteer_id', _volunteerId!);
           }
-          final token = prefs.getString('auth_token');
-          if (token != null) {
-            await WebsocketService.init(token);
-          }
+          await prefs.setString('verification_status', _verificationStatus);
+          await prefs.setBool('user_is_active', isActive);
+          import_event_bus.GlobalEventBus.volunteerVerificationStatus.value = (_verificationStatus == 'terverifikasi');
+          import_event_bus.GlobalEventBus.volunteerActiveStatus.value = isActive;
 
-          if (_volunteerId != null && _isReady) {
-            WebsocketService.listenToNewSosForVolunteer(
-              _volunteerId!,
-              _onNewSosReceived,
-            );
+          if (_verificationStatus == 'terverifikasi' && isActive) {
+            final token = prefs.getString('auth_token');
+            if (token != null) {
+              await WebsocketService.init(token);
+            }
+
+            if (_volunteerId != null && _isReady) {
+              WebsocketService.listenToNewSosForVolunteer(
+                _volunteerId!,
+                _onNewSosReceived,
+              );
+            }
           }
         }
       } catch (e) {
@@ -256,7 +280,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
           _isDialogShowing = false;
           Navigator.pop(ctx);
           try {
-            await _volunteerDataSource.updateSosStatus(sosId, 'proses');
+            await _volunteerDataSource.updateSosStatus(sosId, 'ditangani');
 
             if (!mounted) return;
             import_event_bus.GlobalEventBus.refreshMap.value =
@@ -311,7 +335,63 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
     );
   }
 
+  /// Resolve lokasi item menjadi teks dukuh/desa/kecamatan/kabupaten.
+  Future<String> _parseLokasiDisplay(Map<String, dynamic> item) async {
+    double? lat = _toDouble(item['latitude']);
+    double? lng = _toDouble(item['longitude']);
+
+    if (lat != null && lng != null && lat != 0.0 && lng != 0.0) {
+      try {
+        final placemarks = await Geocoding().placemarkFromCoordinates(lat, lng);
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          final parts = [
+            place.subLocality,
+            place.locality,
+            place.subAdministrativeArea,
+            place.administrativeArea,
+          ].where((e) => e != null && e.isNotEmpty).toList();
+          if (parts.isNotEmpty) return parts.join(', ');
+        }
+      } catch (_) {}
+    }
+
+    final raw = (item['lokasi_user'] ??
+            item['lokasi_laporan'] ??
+            item['lokasi'] ??
+            '')
+        .toString();
+    final alamatMatch = RegExp(r'alamat:\s*([^,}]+)').firstMatch(raw);
+    if (alamatMatch != null) {
+      final alamat = alamatMatch.group(1)!.trim();
+      if (alamat.isNotEmpty) return alamat;
+    }
+    if (raw.isNotEmpty && raw != 'null') return raw;
+    return 'Lokasi tidak tersedia';
+  }
+
+  double? _toDouble(dynamic val) {
+    if (val == null) return null;
+    if (val is num) return val.toDouble();
+    return double.tryParse(val.toString());
+  }
+
   Future<void> _toggleReadyStatus(bool val) async {
+    // Cegah aktivasi jika akun relawan belum terverifikasi oleh admin
+    if (val && _verificationStatus != 'terverifikasi') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _verificationStatus == 'ditolak'
+                ? 'Akun relawan Anda telah ditolak oleh admin.'
+                : 'Akun Anda masih dalam verifikasi admin. Belum dapat mengaktifkan status siaga.',
+          ),
+          backgroundColor: Colors.orange.shade800,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isReady = val;
     });
@@ -351,9 +431,10 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
         }
       }
 
+      final errorMsg = e.toString().replaceAll('Exception: ', '');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Gagal memperbarui status'),
+        SnackBar(
+          content: Text('Gagal memperbarui status: $errorMsg'),
           backgroundColor: Colors.red,
         ),
       );
@@ -561,60 +642,6 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
     );
   }
 
-  Future<void> _completeActiveTask() async {
-    if (_activeTask == null) return;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Selesaikan Tugas?'),
-        content: const Text(
-          'Pastikan korban telah mendapatkan pertolongan atau telah ditangani dengan aman.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryTeal,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text(
-              'Ya, Selesai',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    try {
-      await _volunteerDataSource.updateSosStatus(
-        _activeTask!['id'],
-        'selesai',
-      );
-      import_event_bus.GlobalEventBus.refreshMap.value =
-          !import_event_bus.GlobalEventBus.refreshMap.value;
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tugas berhasil diselesaikan! Terima kasih atas dedikasi Anda.'),
-          backgroundColor: primaryTeal,
-        ),
-      );
-      _initVolunteerData();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menyelesaikan tugas: $e')),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -664,48 +691,6 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                         ),
                       ],
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isVerified
-                            ? const Color(0xFFE8F5E9)
-                            : const Color(0xFFFFF3E0),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isVerified
-                              ? const Color(0xFFA5D6A7)
-                              : const Color(0xFFFFCC80),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isVerified
-                                ? CupertinoIcons.checkmark_seal_fill
-                                : CupertinoIcons.clock_fill,
-                            size: 13,
-                            color: isVerified
-                                ? const Color(0xFF2E7D32)
-                                : const Color(0xFFEF6C00),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            isVerified ? 'Terverifikasi' : 'Pending',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: isVerified
-                                  ? const Color(0xFF2E7D32)
-                                  : const Color(0xFFEF6C00),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -737,13 +722,63 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Halo, $_userName 👋',
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  'Halo, $_userName 👋',
+                                  style: const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isVerified
+                                      ? const Color(0xFFE8F5E9)
+                                      : const Color(0xFFFFF3E0),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isVerified
+                                        ? const Color(0xFFA5D6A7)
+                                        : const Color(0xFFFFCC80),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      isVerified
+                                          ? CupertinoIcons.checkmark_seal_fill
+                                          : CupertinoIcons.clock_fill,
+                                      size: 12,
+                                      color: isVerified
+                                          ? const Color(0xFF2E7D32)
+                                          : const Color(0xFFEF6C00),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      isVerified ? 'Terverifikasi' : 'Pending',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: isVerified
+                                            ? const Color(0xFF2E7D32)
+                                            : const Color(0xFFEF6C00),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -803,9 +838,13 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              _isReady
-                                  ? 'Radar aktif. Anda dapat menerima panggilan darurat otomatis.'
-                                  : 'Sedang istirahat. Sistem tidak akan mengirim panggilan darurat.',
+                              !isVerified
+                                  ? (_verificationStatus == 'ditolak'
+                                      ? 'Akun ditolak. Hubungi admin untuk verifikasi ulang.'
+                                      : 'Menunggu verifikasi admin. Radar darurat belum dapat diaktifkan.')
+                                  : (_isReady
+                                      ? 'Radar aktif. Anda dapat menerima panggilan darurat otomatis.'
+                                      : 'Sedang istirahat. Sistem tidak akan mengirim panggilan darurat.'),
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey.shade700,
@@ -817,11 +856,26 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                       const SizedBox(width: 8),
                       Switch(
                         value: _isReady,
-                        onChanged: _toggleReadyStatus,
+                        onChanged: isVerified
+                            ? _toggleReadyStatus
+                            : (val) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      _verificationStatus == 'ditolak'
+                                          ? 'Akun relawan Anda telah ditolak oleh admin.'
+                                          : 'Akun relawan Anda belum diverifikasi oleh admin.',
+                                    ),
+                                    backgroundColor: Colors.orange.shade800,
+                                  ),
+                                );
+                              },
                         activeThumbColor: Colors.white,
                         activeTrackColor: primaryTeal,
                         inactiveThumbColor: Colors.white,
-                        inactiveTrackColor: Colors.grey.shade400,
+                        inactiveTrackColor: isVerified
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade300,
                         trackOutlineColor: WidgetStateProperty.all(
                           Colors.transparent,
                         ),
@@ -909,7 +963,9 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                'Koordinat: ${_activeTask!['latitude']}, ${_activeTask!['longitude']}',
+                                _activeTaskLokasi.isNotEmpty
+                                    ? _activeTaskLokasi
+                                    : 'Memuat lokasi...',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 13,
@@ -948,35 +1004,6 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                                 ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white,
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: _completeActiveTask,
-                                icon: const Icon(
-                                  CupertinoIcons.checkmark_circle_fill,
-                                  size: 16,
-                                  color: Color(0xFF2E7D32),
-                                ),
-                                label: const Text(
-                                  'Selesaikan Tugas',
-                                  style: TextStyle(
-                                    color: Color(0xFF2E7D32),
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFE8F5E9),
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(10),
