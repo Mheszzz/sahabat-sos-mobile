@@ -10,6 +10,8 @@ import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
+import 'package:sahabat_sos_mobile/core/utils/device_info_helper.dart';
+import 'package:sahabat_sos_mobile/core/widgets/app_loading_indicator.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/data/services/tuya_channel_service.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/data/models/tuya_device_model.dart';
 
@@ -49,13 +51,16 @@ class _DashboardPageState extends State<DashboardPage>
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
     _fetchBeranda();
-    
+
     // Dengarkan perubahan real-time dari Tuya
     final tuyaService = sl<TuyaChannelService>();
     _deviceSubscription = tuyaService.dpEventStream.listen((event) {
-      if (mounted && _tuyaDevice != null && event.deviceId == _tuyaDevice!.deviceId) {
+      if (mounted &&
+          _tuyaDevice != null &&
+          event.deviceId == _tuyaDevice!.deviceId) {
         setState(() {
-          final newDps = Map<String, dynamic>.from(_tuyaDevice!.dps)..addAll(event.dps);
+          final newDps = Map<String, dynamic>.from(_tuyaDevice!.dps)
+            ..addAll(event.dps);
           _tuyaDevice = _tuyaDevice!.copyWith(dps: newDps);
         });
       }
@@ -71,16 +76,18 @@ class _DashboardPageState extends State<DashboardPage>
       // Ambil data user
       final response = await sl<Dio>().get(
         ApiConstants.beranda,
-        options: Options(headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        }),
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
       );
 
       // Ambil data device Tuya
       final tuyaService = sl<TuyaChannelService>();
       var devices = await tuyaService.getDeviceList();
-      
+
       if (devices.isEmpty) {
         try {
           await tuyaService.initTuya();
@@ -93,7 +100,7 @@ class _DashboardPageState extends State<DashboardPage>
         setState(() {
           _userName = data['user']?['name'] ?? '';
           if (devices.isNotEmpty) {
-             _tuyaDevice = devices.first;
+            _tuyaDevice = devices.first;
           }
           _isBerandaLoading = false;
         });
@@ -116,57 +123,61 @@ class _DashboardPageState extends State<DashboardPage>
 
   @override
   Widget build(BuildContext context) {
+    if (_isBerandaLoading) {
+      return const AppLoadingScreen();
+    }
+
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF5F6F8),
       appBar: _buildAppBar(context),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F7FA), // Light blue/teal
-              Color(0xFFF5F6F8), // Greyish white
-              Color(0xFFE0F2F1), // Light teal
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 16),
-                Expanded(flex: 10, child: _buildSosButton()),
-                const SizedBox(height: 12),
-                const Text(
-                  'Tekan tombol 5 kali dengan cepat\nuntuk meminta bantuan.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.black54,
-                    height: 1.3,
+      body: Stack(
+        children: [
+          
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 16),
+                  Expanded(flex: 10, child: _buildSosButton()),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Tekan tombol 5 kali dengan cepat\nuntuk meminta bantuan.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.black54,
+                      height: 1.3,
+                    ),
                   ),
-                ),
-                const Spacer(flex: 1),
-                _buildDeviceStatusCard(),
-                const SizedBox(height: 12),
-                _buildMenuGrid(),
-                const SizedBox(height: 120), // Reserve enough space for the floating navbar
-              ],
+                  const Spacer(flex: 1),
+                  _buildDeviceStatusCard(),
+                  const SizedBox(height: 12),
+                  _buildMenuGrid(),
+                  const SizedBox(
+                    height: 120,
+                  ), // Reserve enough space for the floating navbar
+                ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 
   PreferredSizeWidget _buildAppBar(BuildContext context) {
     return AppBar(
-      backgroundColor: Colors.transparent, // Glassy look for app bar
+      backgroundColor: Colors.white.withValues(alpha: 0.15),
       elevation: 0,
+      flexibleSpace: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(color: Colors.transparent),
+        ),
+      ),
       centerTitle: false,
       titleSpacing: 16,
       title: Row(
@@ -241,15 +252,16 @@ class _DashboardPageState extends State<DashboardPage>
             _tapCount++;
             if (_tapCount >= 5) {
               _tapCount = 0;
-              
+
               try {
                 // Show a loading indicator
                 showDialog(
                   context: context,
                   barrierDismissible: false,
-                  builder: (context) => const Center(child: CircularProgressIndicator()),
+                  builder: (context) =>
+                      const Center(child: CupertinoActivityIndicator(radius: 16)),
                 );
-                
+
                 // Get location
                 final locationService = sl<LocationService>();
                 bool hasPermission = await locationService.requestPermission();
@@ -257,14 +269,18 @@ class _DashboardPageState extends State<DashboardPage>
                   if (!mounted) return;
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Izin lokasi dibutuhkan untuk mengirim SOS')),
+                    const SnackBar(
+                      content: Text(
+                        'Izin lokasi dibutuhkan untuk mengirim SOS',
+                      ),
+                    ),
                   );
                   return;
                 }
-                
+
                 double latitude = 0.0;
                 double longitude = 0.0;
-                
+
                 try {
                   final cachedPos = locationService.currentPosition.value;
                   if (cachedPos != null) {
@@ -277,7 +293,9 @@ class _DashboardPageState extends State<DashboardPage>
                       longitude = lastPos.longitude;
                     } else {
                       final pos = await Geolocator.getCurrentPosition(
-                        locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
+                        locationSettings: const LocationSettings(
+                          accuracy: LocationAccuracy.low,
+                        ),
                       ).timeout(const Duration(seconds: 2));
                       latitude = pos.latitude;
                       longitude = pos.longitude;
@@ -286,10 +304,13 @@ class _DashboardPageState extends State<DashboardPage>
                 } catch (e) {
                   // Fallback ke 0.0 jika gagal mendapatkan lokasi dalam 2 detik agar SOS tetap terkirim
                 }
-                
+
                 final prefs = sl<SharedPreferences>();
                 final token = prefs.getString('auth_token');
-                
+
+                final telemetryData =
+                    await DeviceInfoHelper.getSosTelemetryData();
+
                 // Call API
                 final response = await sl<Dio>().post(
                   ApiConstants.emergencyTrigger,
@@ -297,20 +318,25 @@ class _DashboardPageState extends State<DashboardPage>
                     'latitude': latitude,
                     'longitude': longitude,
                     'lokasi_user': locationService.lastGeocodedAddress,
+                    ...telemetryData,
                   },
-                  options: Options(headers: {
-                    'Authorization': 'Bearer $token',
-                    'Accept': 'application/json',
-                  }),
+                  options: Options(
+                    headers: {
+                      'Authorization': 'Bearer $token',
+                      'Accept': 'application/json',
+                    },
+                  ),
                 );
-                
+
                 // Hide loading
                 if (!mounted) return;
                 Navigator.pop(context);
-                
+
                 if (response.statusCode == 201) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Sinyal SOS berhasil dikirim.')),
+                    const SnackBar(
+                      content: Text('Sinyal SOS berhasil dikirim.'),
+                    ),
                   );
                   context.push('/sos-status');
                 }
@@ -318,11 +344,15 @@ class _DashboardPageState extends State<DashboardPage>
                 // Hide loading
                 if (!mounted) return;
                 Navigator.pop(context);
-                
+
                 if (e is DioException && e.response?.statusCode == 422) {
                   // SOS still active
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(e.response?.data['message'] ?? 'SOS masih aktif')),
+                    SnackBar(
+                      content: Text(
+                        e.response?.data['message'] ?? 'SOS masih aktif',
+                      ),
+                    ),
                   );
                   context.push('/sos-status');
                 } else {
@@ -341,7 +371,8 @@ class _DashboardPageState extends State<DashboardPage>
           child: ScaleTransition(
             scale: _scaleAnimation,
             child: FittedBox(
-              fit: BoxFit.contain, // This allows it to grow or shrink perfectly to fill the flex space
+              fit: BoxFit
+                  .contain, // This allows it to grow or shrink perfectly to fill the flex space
               child: Padding(
                 padding: const EdgeInsets.all(
                   16.0,
@@ -466,13 +497,16 @@ class _DashboardPageState extends State<DashboardPage>
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
             ),
             child: _isBerandaLoading
                 ? const Center(
                     child: Padding(
                       padding: EdgeInsets.all(8.0),
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CupertinoActivityIndicator(radius: 12),
                     ),
                   )
                 : Row(
@@ -480,17 +514,29 @@ class _DashboardPageState extends State<DashboardPage>
                       _buildStatItem(
                         icon: CupertinoIcons.battery_100,
                         label: 'Baterai',
-                        value: _tuyaDevice?.batteryLevel != null ? '${_tuyaDevice!.batteryLevel}%' : 'N/A',
+                        value: _tuyaDevice?.batteryLevel != null
+                            ? '${_tuyaDevice!.batteryLevel}%'
+                            : 'N/A',
                         color: Colors.green,
                       ),
-                      Container(width: 1, height: 40, color: Colors.grey.withValues(alpha: 0.3)),
+                      Container(
+                        width: 1,
+                        height: 40,
+                        color: Colors.grey.withValues(alpha: 0.3),
+                      ),
                       _buildStatItem(
                         icon: CupertinoIcons.wifi,
                         label: 'Koneksi',
-                        value: _tuyaDevice != null ? (_tuyaDevice!.isOnline ? 'Terhubung' : 'Terputus') : 'N/A',
+                        value: _tuyaDevice != null
+                            ? (_tuyaDevice!.isOnline ? 'Terhubung' : 'Terputus')
+                            : 'N/A',
                         color: primaryTeal,
                       ),
-                      Container(width: 1, height: 40, color: Colors.grey.withValues(alpha: 0.3)),
+                      Container(
+                        width: 1,
+                        height: 40,
+                        color: Colors.grey.withValues(alpha: 0.3),
+                      ),
                       _buildStatItem(
                         icon: CupertinoIcons.antenna_radiowaves_left_right,
                         label: 'Sinyal',
@@ -556,8 +602,16 @@ class _DashboardPageState extends State<DashboardPage>
         label: 'Kirim Laporan',
         route: '/quick-report',
       ),
-      _MenuItemData(icon: CupertinoIcons.antenna_radiowaves_left_right, label: 'Perangkat Saya', route: '/tuya-devices'),
-      _MenuItemData(icon: CupertinoIcons.phone, label: 'Kontak Darurat', route: '/emergency-contacts'),
+      _MenuItemData(
+        icon: CupertinoIcons.antenna_radiowaves_left_right,
+        label: 'Perangkat Saya',
+        route: '/tuya-devices',
+      ),
+      _MenuItemData(
+        icon: CupertinoIcons.phone,
+        label: 'Kontak Darurat',
+        route: '/emergency-contacts',
+      ),
       _MenuItemData(icon: CupertinoIcons.clock, label: 'Riwayat Bantuan'),
     ];
 
@@ -598,7 +652,10 @@ class _DashboardPageState extends State<DashboardPage>
             color: Colors.white.withValues(alpha: 0.4),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+              side: BorderSide(
+                color: Colors.white.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
@@ -640,4 +697,3 @@ class _MenuItemData {
   final String? route;
   _MenuItemData({required this.icon, required this.label, this.route});
 }
-

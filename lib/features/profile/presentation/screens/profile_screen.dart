@@ -1,6 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import '../../../../core/services/accessibility_service.dart';
+import '../../../../core/widgets/accessible_wrapper.dart';
+import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +12,8 @@ import '../../../../routing/routes.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../data/datasources/profile_remote_data_source.dart';
+import '../../../../features/history/presentation/sos_history_screen.dart' as sahabat_sos_mobile_history;
+import '../../../../core/utils/global_event_bus.dart' as event_bus;
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -22,7 +27,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _isLoading = true;
   Map<String, dynamic>? _fullUserData;
-  
+
   String _name = 'Memuat...';
   String _email = '-';
   String _category = 'Umum';
@@ -36,6 +41,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _highContrast = false; // Local state only based on requirements
   bool _largeText = true;
 
+
+
   Dio get _dio => GetIt.instance<Dio>();
 
   @override
@@ -44,15 +51,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _fetchProfile();
   }
 
-
-
   Future<void> _fetchProfile() async {
+    final prefs = GetIt.instance<SharedPreferences>();
+    if (prefs.getString('user_role') == 'relawan') {
+      if (mounted) {
+        context.go(AppRoutes.homeVolunteer);
+      }
+      return;
+    }
+
     try {
       final profileDataSource = GetIt.instance<ProfileRemoteDataSource>();
       final response = await profileDataSource.getProfile();
 
       final userData = response['data'] ?? response['user'];
       if (userData != null) {
+        // Jika ternyata data profil menunjukkan role relawan, alihkan
+        if (userData['role'] != null && userData['role'].toString().toLowerCase() == 'relawan') {
+          await prefs.setString('user_role', 'relawan');
+          if (mounted) {
+            context.go(AppRoutes.homeVolunteer);
+          }
+          return;
+        }
+
         setState(() {
           _fullUserData = userData;
           _name = userData['name'] ?? 'Pengguna';
@@ -60,23 +82,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _phone = userData['no_telp'] ?? 'Belum diatur';
           _location = userData['lokasi_user'] ?? 'Lokasi belum tersedia';
           _address = userData['alamat'] ?? 'Alamat belum diatur';
-          
+
           String cat = userData['kategori_user'] ?? 'umum';
           if (cat.isEmpty) cat = 'umum';
           _category = cat.substring(0, 1).toUpperCase() + cat.substring(1);
-          
+
           // The API returns aksesibilitas as an object if hit via /pengguna/profile
           if (userData['aksesibilitas'] != null) {
             _voiceGuide = userData['aksesibilitas']['panduan_suara'] == true;
+            AccessibilityService.instance.isVoiceGuideEnabled = _voiceGuide;
             _haptic = userData['aksesibilitas']['getaran'] == true;
             _largeText = userData['aksesibilitas']['text_besar'] == true;
           } else {
             _voiceGuide = (userData['panduan_suara'] == 1 || userData['panduan_suara'] == true);
+            AccessibilityService.instance.isVoiceGuideEnabled = _voiceGuide;
             _haptic = (userData['getaran'] == 1 || userData['getaran'] == true);
-            _largeText = (userData['text_besar'] == 1 || userData['text_besar'] == true);
+            _largeText =
+                (userData['text_besar'] == 1 || userData['text_besar'] == true);
           }
-          
-          if (userData['foto_profile'] != null && userData['foto_profile'].toString().isNotEmpty) {
+
+          if (userData['foto_profile'] != null &&
+              userData['foto_profile'].toString().isNotEmpty) {
             String foto = userData['foto_profile'];
             if (foto.startsWith('http://') || foto.startsWith('https://')) {
               _avatarUrl = foto;
@@ -85,26 +111,83 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _avatarUrl = '${ApiConstants.baseUrl}/storage-file/$foto';
             }
           }
-          
+
           _isLoading = false;
         });
       }
     } catch (e) {
       debugPrint("Error fetching profile: $e");
-      setState(() { _isLoading = false; });
+      try {
+        final token = prefs.getString('auth_token');
+        if (token != null) {
+          final dio = GetIt.instance<Dio>();
+          final meRes = await dio.get(
+            ApiConstants.me,
+            options: Options(
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Accept': 'application/json',
+              },
+            ),
+          );
+          if (meRes.statusCode == 200) {
+            final uData = meRes.data['user'];
+            if (uData != null && uData['role'] != null) {
+              final role = uData['role'].toString().toLowerCase();
+              await prefs.setString('user_role', role);
+              if (role == 'relawan') {
+                if (uData['id'] != null) {
+                  await prefs.setInt(
+                    'volunteer_id',
+                    (uData['id'] is int)
+                        ? uData['id']
+                        : int.tryParse(uData['id'].toString()) ?? 0,
+                  );
+                }
+                final verificationStatus =
+                    (uData['status_verifikasi'] ?? 'pending')
+                        .toString()
+                        .toLowerCase();
+                await prefs.setString(
+                    'verification_status', verificationStatus);
+                event_bus.GlobalEventBus.volunteerVerificationStatus.value =
+                    (verificationStatus == 'terverifikasi');
+                final isActive = (uData['is_active'] == true ||
+                    uData['is_active'] == 1 ||
+                    uData['is_active'] == '1');
+                await prefs.setBool('user_is_active', isActive);
+                event_bus.GlobalEventBus.volunteerActiveStatus.value = isActive;
+                if (mounted) {
+                  context.go(AppRoutes.homeVolunteer);
+                  return;
+                }
+              }
+            }
+          }
+        }
+      } catch (meError) {
+        debugPrint("Error resolving user/me in ProfileScreen: $meError");
+      }
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _updateSetting(String key, bool value) async {
     if (_fullUserData == null) return;
-    
+
+    if (_haptic) {
+      HapticFeedback.lightImpact();
+    }
+
     // Update local map
     _fullUserData![key] = value ? 1 : 0;
-    
+
     try {
-      Map<String, dynamic> dataToUpdate = {
-        key: value ? 1 : 0,
-      };
+      Map<String, dynamic> dataToUpdate = {key: value ? 1 : 0};
 
       final profileDataSource = GetIt.instance<ProfileRemoteDataSource>();
       await profileDataSource.updateProfile(dataToUpdate);
@@ -118,7 +201,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       case 'tunanetra':
         return CupertinoIcons.eye_slash;
       case 'tunarungu':
-        return Icons.hearing_disabled_outlined;
+        return CupertinoIcons.ear;
       case 'tunawicara':
         return CupertinoIcons.mic_slash;
       case 'umum':
@@ -129,109 +212,131 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final double textScale = _largeText ? 1.3 : 1.0;
+    final Color bgColor = _highContrast ? Colors.black : const Color(0xFFF5F6F8);
+
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        textScaler: TextScaler.linear(textScale),
+      ),
+      child: Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: bgColor,
       appBar: _buildAppBar(),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F7FA), // Light blue/teal
-              Color(0xFFF5F6F8), // Greyish white
-              Color(0xFFE0F2F1), // Light teal
-            ],
-          ),
-        ),
-        child: _isLoading 
-          ? const Center(child: CircularProgressIndicator(color: primaryTeal))
-          : SafeArea(
-              child: RefreshIndicator(
-                onRefresh: _fetchProfile,
-                color: primaryTeal,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.only(bottom: 120),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildProfileHeader(),
-                    const SizedBox(height: 24),
-                    
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildSectionHeader(
-                            icon: CupertinoIcons.hand_raised,
-                            title: 'Aksesibilitas',
-                          ),
-                          const SizedBox(height: 12),
-                          _buildSettingsCard(),
-                          const SizedBox(height: 24),
+        color: bgColor,
+        child: _isLoading
+            ? const Center(child: CupertinoActivityIndicator(radius: 16))
+            : SafeArea(
+                child: RefreshIndicator(
+                  onRefresh: _fetchProfile,
+                  color: primaryTeal,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 120),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildProfileHeader(),
+                        const SizedBox(height: 24),
 
-                          _buildSectionHeader(
-                            icon: CupertinoIcons.shield,
-                            title: 'Privasi & Lokasi',
-                          ),
-                          const SizedBox(height: 12),
-                          _buildPrivacyCard(),
-                          const SizedBox(height: 24),
-
-                          _buildSectionHeader(
-                            icon: CupertinoIcons.bluetooth,
-                            title: 'Perangkat Pintar',
-                          ),
-                          const SizedBox(height: 12),
-                          _buildGlassContainer(
-                            child: _buildHelpTile(
-                              icon: CupertinoIcons.antenna_radiowaves_left_right,
-                              iconColor: primaryTeal,
-                              iconBg: primaryTeal.withValues(alpha: 0.1),
-                              title: 'Kelola Tombol SOS (Tuya)',
-                              subtitle: 'Hubungkan dan atur tombol fisik bluetooth',
-                              onTap: () => context.push(AppRoutes.tuyaDevices),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          _buildSectionHeader(
-                            icon: CupertinoIcons.question_circle,
-                            title: 'Bantuan',
-                          ),
-                          const SizedBox(height: 12),
-                          _buildHelpCard(),
-                          const SizedBox(height: 32),
-
-                          _buildLogoutButton(),
-                          const SizedBox(height: 8),
-                          const Center(
-                            child: Text(
-                              'versi 1.0 Beta',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.black54,
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildSectionHeader(
+                                icon: CupertinoIcons.hand_raised,
+                                title: 'Aksesibilitas',
                               ),
-                            ),
+                              const SizedBox(height: 12),
+                              _buildSettingsCard(),
+                              const SizedBox(height: 24),
+
+                              _buildSectionHeader(
+                                icon: CupertinoIcons.shield,
+                                title: 'Privasi & Lokasi',
+                              ),
+                              const SizedBox(height: 12),
+                              _buildPrivacyCard(),
+                              const SizedBox(height: 24),
+
+                              _buildSectionHeader(
+                                icon: CupertinoIcons.bluetooth,
+                                title: 'Perangkat Pintar',
+                              ),
+                              const SizedBox(height: 12),
+                              _buildGlassContainer(
+                                child: _buildHelpTile(
+                                  icon: CupertinoIcons
+                                      .antenna_radiowaves_left_right,
+                                  iconColor: primaryTeal,
+                                  iconBg: primaryTeal.withValues(alpha: 0.1),
+                                  title: 'Kelola Tombol SOS (Tuya)',
+                                  subtitle:
+                                      'Hubungkan dan atur tombol fisik bluetooth',
+                                  onTap: () =>
+                                      context.push(AppRoutes.tuyaDevices),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+
+                              _buildSectionHeader(
+                                icon: CupertinoIcons.clock,
+                                title: 'Riwayat Khusus',
+                              ),
+                              const SizedBox(height: 12),
+                              _buildGlassContainer(
+                                child: _buildHelpTile(
+                                  icon: CupertinoIcons.exclamationmark_triangle,
+                                  iconColor: Colors.red,
+                                  iconBg: Colors.red.withValues(alpha: 0.1),
+                                  title: 'Riwayat Darurat (SOS)',
+                                  subtitle: 'Lihat catatan riwayat SOS spesifik Anda',
+                                  onTap: () {
+                                    Navigator.of(context).push(MaterialPageRoute(
+                                      builder: (context) => const sahabat_sos_mobile_history.SosHistoryScreen(),
+                                    ));
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+
+                              _buildSectionHeader(
+                                icon: CupertinoIcons.question_circle,
+                                title: 'Bantuan',
+                              ),
+                              const SizedBox(height: 12),
+                              _buildHelpCard(),
+                              const SizedBox(height: 32),
+
+                              _buildLogoutButton(),
+                              const SizedBox(height: 8),
+                              const Center(
+                                child: Text(
+                                  'versi 1.0 Beta',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
+      ),
       ),
     );
   }
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: Colors.transparent,
+      backgroundColor: _highContrast ? Colors.black : const Color(0xFFF5F6F8),
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
@@ -254,7 +359,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         IconButton(
           onPressed: () async {
             if (_fullUserData != null) {
-              final result = await context.push<bool>(AppRoutes.editProfile, extra: _fullUserData);
+              final result = await context.push<bool>(
+                AppRoutes.editProfile,
+                extra: _fullUserData,
+              );
               if (result == true) {
                 _fetchProfile(); // Refresh profile when returning from edit page
               }
@@ -268,7 +376,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildGlassContainer({required Widget child, BorderRadius? borderRadius}) {
+  Widget _buildGlassContainer({
+    required Widget child,
+    BorderRadius? borderRadius,
+  }) {
     final radius = borderRadius ?? BorderRadius.circular(16);
     return Container(
       decoration: BoxDecoration(
@@ -289,7 +400,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.4),
               borderRadius: radius,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
             ),
             child: child,
           ),
@@ -303,131 +417,176 @@ class _ProfileScreenState extends State<ProfileScreen> {
       borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.only(top: 24, bottom: 32, left: 16, right: 16),
+        padding: const EdgeInsets.only(
+          top: 24,
+          bottom: 32,
+          left: 16,
+          right: 16,
+        ),
         child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: primaryTeal.withValues(alpha: 0.3), width: 3),
-            ),
-            child: CircleAvatar(
-              radius: 46,
-              backgroundColor: Colors.grey.shade200,
-              backgroundImage: NetworkImage(_avatarUrl),
-              onBackgroundImageError: (_, _) {
-                // Fallback when image fails to load (e.g. 429 Too Many Requests)
-                // No-op here, flutter handles it by showing background color
-              },
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Flexible(
-                child: Text(
-                  _name,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: primaryTeal.withValues(alpha: 0.3),
+                  width: 3,
                 ),
               ),
-              const SizedBox(width: 6),
-              const Icon(CupertinoIcons.checkmark_seal_fill, color: primaryTeal, size: 20),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _email,
-            style: const TextStyle(fontSize: 14, color: Colors.black54),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFE0B2),
-              borderRadius: BorderRadius.circular(20),
+              child: CircleAvatar(
+                radius: 46,
+                backgroundColor: Colors.grey.shade200,
+                backgroundImage: NetworkImage(_avatarUrl),
+                onBackgroundImageError: (_, _) {
+                  // Fallback when image fails to load (e.g. 429 Too Many Requests)
+                  // No-op here, flutter handles it by showing background color
+                },
+              ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(_getCategoryIcon(_category), color: const Color(0xFFEF6C00), size: 16),
+                Flexible(
+                  child: Text(
+                    _name,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
                 const SizedBox(width: 6),
-                Text(
-                  _category,
-                  style: const TextStyle(fontSize: 13, color: Color(0xFFEF6C00), fontWeight: FontWeight.bold),
+                const Icon(
+                  CupertinoIcons.checkmark_seal_fill,
+                  color: primaryTeal,
+                  size: 20,
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 24),
-          _buildInfoBox(
-            icon: CupertinoIcons.phone,
-            label: 'Telepon Darurat',
-            value: _phone,
-          ),
-          const SizedBox(height: 6),
-          _buildInfoBox(
-            icon: CupertinoIcons.location_solid,
-            label: 'Lokasi Saat Ini',
-            value: _location,
-          ),
-          const SizedBox(height: 6),
-          _buildInfoBox(
-            icon: CupertinoIcons.house,
-            label: 'Alamat Lengkap',
-            value: _address,
-          ),
-        ],
-      ),
+            const SizedBox(height: 4),
+            Text(
+              _email,
+              style: const TextStyle(fontSize: 14, color: Colors.black54),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFE0B2),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _getCategoryIcon(_category),
+                    color: const Color(0xFFEF6C00),
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _category,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFFEF6C00),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildInfoBox(
+              icon: CupertinoIcons.phone,
+              label: 'Telepon Darurat',
+              value: _phone,
+            ),
+            const SizedBox(height: 6),
+            _buildInfoBox(
+              icon: CupertinoIcons.location_solid,
+              label: 'Lokasi Saat Ini',
+              value: _location,
+            ),
+            const SizedBox(height: 6),
+            _buildInfoBox(
+              icon: CupertinoIcons.house,
+              label: 'Alamat Lengkap',
+              value: _address,
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildInfoBox({required IconData icon, required String label, required String value}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Icon(icon, color: primaryTeal, size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(fontSize: 11, color: Colors.black54)),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87),
-                ),
-              ],
-            ),
+  Widget _buildInfoBox({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return AccessibleWrapper(
+      speakText: "$label, $value",
+      child: MergeSemantics(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
           ),
-        ],
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              ExcludeSemantics(child: Icon(icon, color: primaryTeal, size: 22)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(fontSize: 11, color: Colors.black54),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      value,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildSectionHeader({required IconData icon, required String title}) {
-    return Row(
+    return Semantics(header: true, child: Row(
       children: [
         Icon(icon, color: primaryTeal, size: 22),
         const SizedBox(width: 10),
         Text(
           title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: Colors.black87,
+          ),
         ),
       ],
+      ),
     );
   }
 
@@ -441,8 +600,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             subtitle: 'Narasi suara otomatis aktif.',
             value: _voiceGuide,
             onChanged: (v) {
-              setState(() => _voiceGuide = v);
+              setState(() {
+                 _voiceGuide = v;
+                 AccessibilityService.instance.isVoiceGuideEnabled = v;
+              });
               _updateSetting('panduan_suara', v);
+              if (v) AccessibilityService.instance.speak("Panduan suara diaktifkan");
             },
           ),
           const Divider(height: 1, indent: 56),
@@ -454,6 +617,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onChanged: (v) {
               setState(() => _haptic = v);
               _updateSetting('getaran', v);
+              AccessibilityService.instance.speak("Getaran ${v ? 'diaktifkan' : 'dimatikan'}");
             },
           ),
           const Divider(height: 1, indent: 56),
@@ -464,6 +628,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             value: _highContrast,
             onChanged: (v) {
               setState(() => _highContrast = v);
+              AccessibilityService.instance.speak("Kontras Tinggi ${v ? 'diaktifkan' : 'dimatikan'}");
             },
           ),
           const Divider(height: 1, indent: 56),
@@ -475,6 +640,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onChanged: (v) {
               setState(() => _largeText = v);
               _updateSetting('text_besar', v);
+              AccessibilityService.instance.speak("Teks Besar ${v ? 'diaktifkan' : 'dimatikan'}");
             },
           ),
         ],
@@ -489,14 +655,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return Padding(
+    return MergeSemantics(child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: primaryTeal.withValues(alpha: 0.1), shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: primaryTeal.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
             child: Icon(icon, color: primaryTeal, size: 20),
           ),
           const SizedBox(width: 16),
@@ -504,21 +673,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black87)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: Colors.black87,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
               ],
             ),
           ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: Colors.white,
-            activeTrackColor: primaryTeal,
-            inactiveThumbColor: Colors.white,
-            inactiveTrackColor: Colors.grey.shade300,
+          AccessibleWrapper(
+            speakText: "Tombol $title. Status saat ini ${value ? 'Aktif' : 'Mati'}. Ketuk dua kali untuk mengubah.",
+            onExecute: () => onChanged(!value),
+            child: Semantics(
+              label: title, value: value ? 'Aktif' : 'Mati', child: Switch(
+                value: value,
+                onChanged: onChanged,
+                activeThumbColor: Colors.white,
+                activeTrackColor: primaryTeal,
+                inactiveThumbColor: Colors.white,
+                inactiveTrackColor: Colors.grey.shade300,
+              ),
+            ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -531,19 +717,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12)),
-            child: const Icon(CupertinoIcons.location_fill, color: Color(0xFFEF6C00), size: 24),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              CupertinoIcons.location_fill,
+              color: Color(0xFFEF6C00),
+              size: 24,
+            ),
           ),
           const SizedBox(width: 16),
           const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Perlindungan Pelacakan', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black87)),
+                Text(
+                  'Perlindungan Pelacakan',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: Colors.black87,
+                  ),
+                ),
                 SizedBox(height: 6),
                 Text(
                   'Lokasi hanya dibagikan saat tombol SOS ditekan. Data dienkripsi secara penuh untuk keamanan Anda.',
-                  style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.4),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.black54,
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),
@@ -594,7 +798,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Icon(icon, color: iconColor, size: 22),
             ),
             const SizedBox(width: 16),
@@ -602,9 +809,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black87)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
                 ],
               ),
             ),
@@ -621,16 +838,126 @@ class _ProfileScreenState extends State<ProfileScreen> {
       height: 52,
       child: ElevatedButton.icon(
         onPressed: () async {
+          final confirm = await showModalBottomSheet<bool>(
+            context: context,
+            backgroundColor: Colors.transparent,
+            builder: (ctx) => Container(
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFEBEE),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        CupertinoIcons.arrow_right_square,
+                        color: Color(0xFFD32F2F),
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Keluar Akun',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1A1A2E),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Apakah Anda yakin ingin keluar dari akun ini?',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: primaryTeal,
+                              side: BorderSide(color: primaryTeal.withValues(alpha: 0.3)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: const Text(
+                              'Batal',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFD32F2F),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: const Text(
+                              'Ya, Keluar',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+            ),
+          );
+          if (confirm != true) return;
           final prefs = await SharedPreferences.getInstance();
           final token = prefs.getString('auth_token');
           // Revoke token di server
           try {
             await _dio.post(
               ApiConstants.logout,
-              options: Options(headers: {
-                'Authorization': 'Bearer $token',
-                'Accept': 'application/json',
-              }),
+              options: Options(
+                headers: {
+                  'Authorization': 'Bearer $token',
+                  'Accept': 'application/json',
+                },
+              ),
             );
           } catch (_) {}
           await prefs.remove('auth_token');
@@ -639,17 +966,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           context.go(AppRoutes.login);
         },
         icon: const Icon(CupertinoIcons.arrow_right_square),
-        label: const Text('Keluar Akun', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        label: const Text(
+          'Keluar Akun',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFFFFEBEE),
           foregroundColor: const Color(0xFFD32F2F),
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       ),
     );
   }
 }
-
-
-

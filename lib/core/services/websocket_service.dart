@@ -39,18 +39,19 @@ class WebsocketService {
         // PENTING: Sesuaikan key dengan REVERB_APP_KEY di file .env backend
         // Cek di file .env Laravel kamu, cari: REVERB_APP_KEY=...
         // =====================================================================
-        key: 'app-key',
+        key: 'sahabat-sos-app-key',
         cluster: 'mt1',
-        
+
         // =====================================================================
         // KUNCI UTAMA: Arahkan koneksi ke server Reverb lokal
         // =====================================================================
         host: host,
         wsPort: reverbPort,
         wssPort: reverbPort,
-        encrypted: false, // Set ke true jika menggunakan wss (SSL/HTTPS) di production
+        encrypted:
+            false, // Set ke true jika menggunakan wss (SSL/HTTPS) di production
         autoConnect: false,
-        
+
         // Auth endpoint untuk private channel
         authOptions: PusherAuthOptions(
           '${uri.scheme}://$host:${uri.port}/api/broadcasting/auth',
@@ -62,40 +63,137 @@ class WebsocketService {
       );
 
       _pusher = PusherClient(options: options);
-      
+
       _pusher!.onConnectionStateChange((state) {
         debugPrint("🔌 WebSocket State: $state");
       });
       _pusher!.onConnectionError((error) {
         debugPrint("❌ WebSocket Error: $error");
       });
-      
+
       _pusher!.connect();
 
       echo = Echo(
         broadcaster: EchoBroadcasterType.Pusher,
         client: EchoPusherClientWrapper(_pusher!),
       );
-      
-      debugPrint("✅ Laravel Reverb (WebSocket) Berhasil Terhubung ke $host:$reverbPort");
+
+      debugPrint(
+        "✅ Laravel Reverb (WebSocket) Berhasil Terhubung ke $host:$reverbPort",
+      );
     } catch (e) {
       debugPrint("❌ WebSocket Init Error: $e");
     }
   }
 
   /// Relawan mendengarkan pergerakan lokasi user secara realtime
-  static void listenToEmergencyLocation(int sosId, Function(dynamic) onDataReceived) {
+  static void listenToEmergencyLocation(
+    int sosId,
+    Function(dynamic) onDataReceived,
+  ) {
     if (echo == null) {
       debugPrint("⚠️ listenToEmergencyLocation: echo belum init");
       return;
     }
-    
+
     debugPrint("👂 Listening channel: emergency.tracking.$sosId");
-    echo!.channel('emergency.tracking.$sosId')
-      .listen('.LocationUpdated', (e) {
-        debugPrint("📍 LocationUpdated diterima untuk SOS #$sosId");
-        onDataReceived(e);
-      });
+    echo!.channel('emergency.tracking.$sosId').listen('.LocationUpdated', (e) {
+      debugPrint("📍 LocationUpdated diterima untuk SOS #$sosId");
+      onDataReceived(e);
+    });
+  }
+
+  /// Korban mendengarkan pergerakan lokasi relawan secara realtime
+  static void listenToRelawanLocation(
+    int sosId,
+    Function(dynamic) onDataReceived,
+  ) {
+    if (_pusher == null) {
+      debugPrint("❌ listenToRelawanLocation: pusher belum init");
+      return;
+    }
+
+    final channelName = 'private-sos.$sosId';
+    debugPrint("👂 Listening private channel: $channelName");
+
+    final channel = _pusher!.subscribe(channelName);
+    channel.bind('RelawanLocationUpdate', (event) {
+      debugPrint("📍 RelawanLocationUpdate diterima di $channelName");
+
+      try {
+        dynamic payload;
+        if (event != null) {
+          if (event is Map) {
+            final dataStr = event['data'];
+            if (dataStr is String) {
+              payload = jsonDecode(dataStr);
+            } else {
+              payload = dataStr ?? event;
+            }
+          } else {
+            payload = event;
+          }
+        }
+        onDataReceived(payload);
+      } catch (e) {
+        debugPrint(
+          "❌ Gagal parsing RelawanLocationUpdate event: $e\nData Asli: $event",
+        );
+      }
+    });
+  }
+
+  /// Korban mendengarkan perubahan status SOS secara realtime
+  static void listenToSosStatusUpdate(
+    int sosId,
+    Function(dynamic) onStatusReceived,
+  ) {
+    if (_pusher == null) {
+      debugPrint("❌ listenToSosStatusUpdate: pusher belum init");
+      return;
+    }
+
+    final channelName = 'private-sos.$sosId';
+    debugPrint("👂 Listening private channel status: $channelName");
+
+    final channel = _pusher!.subscribe(channelName);
+    channel.bind('SOSUpdateStatus', (event) {
+      debugPrint("🔄 SOSUpdateStatus diterima di $channelName");
+
+      try {
+        dynamic payload;
+        if (event != null) {
+          if (event is Map) {
+            final dataStr = event['data'];
+            if (dataStr is String) {
+              payload = jsonDecode(dataStr);
+            } else {
+              payload = dataStr ?? event;
+            }
+          } else {
+            payload = event;
+          }
+        }
+        if (payload is Map && payload.containsKey('sos')) {
+          payload = payload['sos'];
+        }
+        onStatusReceived(payload);
+      } catch (e) {
+        debugPrint(
+          "❌ Gagal parsing SOSUpdateStatus event: $e\nData Asli: $event",
+        );
+      }
+    });
+  }
+
+  /// Berhenti mendengarkan status SOS
+  static void stopListeningSosStatusUpdate(int sosId) {
+    _pusher?.unsubscribe('private-sos.$sosId');
+  }
+
+  /// Berhenti mendengarkan lokasi relawan
+  static void stopListeningRelawanLocation(int sosId) {
+    _pusher?.unsubscribe('private-sos.$sosId');
   }
 
   /// Berhenti mendengarkan ketika darurat selesai
@@ -104,16 +202,19 @@ class WebsocketService {
   }
 
   /// Relawan mendengarkan penugasan SOS baru secara realtime
-  static void listenToNewSosForVolunteer(int volunteerId, Function(dynamic) onNewSosReceived) {
+  static void listenToNewSosForVolunteer(
+    int volunteerId,
+    Function(dynamic) onNewSosReceived,
+  ) {
     if (_pusher == null) {
       debugPrint("⚠️ listenToNewSosForVolunteer: pusher belum init");
       return;
     }
-    
+
     void processEvent(dynamic event, String channel) {
       try {
         if (event == null) return;
-        
+
         dynamic payload;
         if (event is Map) {
           // Biasanya Pusher mengirim data di dalam key 'data' (berupa JSON string)
@@ -129,39 +230,58 @@ class WebsocketService {
 
         // Jika event dari Laravel Reverb dibungkus class
         if (payload is Map && payload.containsKey('sos')) {
-          payload = payload['sos'];
+          final sosData = payload['sos'] is Map ? Map<String, dynamic>.from(payload['sos']) : <String, dynamic>{};
+          payload.forEach((key, value) {
+            if (key != 'sos') {
+              sosData[key] = value;
+            }
+          });
+          payload = sosData;
         }
-        
+
         onNewSosReceived(payload);
       } catch (e) {
-        debugPrint("❌ Gagal parsing event dari $channel: $e\nData Asli: $event");
+        debugPrint(
+          "❌ Gagal parsing event dari $channel: $e\nData Asli: $event",
+        );
       }
     }
 
     // ─── Channel spesifik relawan ───
     final privateChannelName = 'private-relawan.$volunteerId';
     debugPrint("👂 Listening private channel: $privateChannelName");
-    
+
     final privateChannel = _pusher!.subscribe(privateChannelName);
-    
+
     privateChannel.bind('SOSCreated', (event) {
       debugPrint("🚨 SOSCreated diterima di $privateChannelName");
       processEvent(event, privateChannelName);
+      // Panggil event bus agar halaman tugas & peta ter-refresh detik itu juga
+      GlobalEventBus.refreshMap.value = !GlobalEventBus.refreshMap.value;
     });
-    
+
+    privateChannel.bind('SOSUpdateStatus', (event) {
+      debugPrint("🔄 SOSUpdateStatus diterima di $privateChannelName - Refreshing Map!");
+      GlobalEventBus.refreshMap.value = !GlobalEventBus.refreshMap.value;
+    });
+
     // ─── Channel umum semua relawan ───
     final publicChannelName = 'private-relawan-channel';
     debugPrint("👂 Listening private channel: $publicChannelName");
-    
+
     final publicChannel = _pusher!.subscribe(publicChannelName);
-    
+
     publicChannel.bind('SOSCreated', (event) {
       debugPrint("🚨 SOSCreated diterima di $publicChannelName");
       processEvent(event, publicChannelName);
+      // Panggil event bus agar halaman tugas ter-refresh detik itu juga
+      GlobalEventBus.refreshMap.value = !GlobalEventBus.refreshMap.value;
     });
 
     publicChannel.bind('SOSUpdateStatus', (event) {
-      debugPrint("🔄 SOSUpdateStatus diterima di $publicChannelName - Refreshing Map!");
+      debugPrint(
+        "🔄 SOSUpdateStatus diterima di $publicChannelName - Refreshing Map!",
+      );
       // Langsung panggil event bus agar peta ter-refresh detik itu juga (hilangkan marker yang batal)
       GlobalEventBus.refreshMap.value = !GlobalEventBus.refreshMap.value;
     });
@@ -173,5 +293,3 @@ class WebsocketService {
     _pusher?.unsubscribe('private-relawan-channel');
   }
 }
-
-

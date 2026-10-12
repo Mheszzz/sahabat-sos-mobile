@@ -4,7 +4,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:get_it/get_it.dart';
+import 'dart:async';
+import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
+import 'package:geocoding/geocoding.dart';
 import 'report_detail_screen.dart';
 
 enum HistoryStatus { selesai, ditangani, aktif, dibatalkan }
@@ -62,18 +65,124 @@ class _HistoryPageState extends State<HistoryPage> {
   List<HistoryItem> _allItems = [];
   String? _errorMessage;
 
-  int _selectedTimeFilter = 0; // 0: Semua Waktu, 1: 1 Minggu, 2: 1 Bulan, 3: Kustom
-  final List<String> _timeFilters = ['Semua Waktu', '1 Minggu', '1 Bulan', 'Kustom'];
+  final Map<int, String> _addressCache = {};
+
+  Future<String> _getAddress(HistoryItem item) async {
+    if (_addressCache.containsKey(item.id)) {
+      return _addressCache[item.id]!;
+    }
+    if (item.latitude != null && item.longitude != null) {
+      try {
+        final placemarks = await Geocoding().placemarkFromCoordinates(item.latitude!, item.longitude!);
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          final addressList = [
+            place.subLocality,
+            place.locality,
+            place.subAdministrativeArea,
+            place.administrativeArea,
+          ].where((e) => e != null && e.isNotEmpty).toList();
+          final address = addressList.join(', ');
+          if (address.isNotEmpty) {
+            _addressCache[item.id] = address;
+            return address;
+          }
+        }
+      } catch (e) {
+        // Fallback to item.location if geocoding fails
+      }
+    }
+    _addressCache[item.id] = item.location;
+    return item.location;
+  }
+
+  int _selectedTimeFilter =
+      0; // 0: Semua Waktu, 1: 1 Minggu, 2: 1 Bulan, 3: Kustom
+  final List<String> _timeFilters = [
+    'Semua Waktu',
+    '1 Minggu',
+    '1 Bulan',
+    'Kustom',
+  ];
   DateTime? _customStartDate;
   DateTime? _customEndDate;
 
   int _currentPage = 1;
   final int _itemsPerPage = 10;
 
+  Timer? _refreshTimer;
+  final List<String> _subscribedChannels = [];
+
   @override
   void initState() {
     super.initState();
     _fetchHistory();
+    
+    // Fallback polling untuk Laporan (karena backend belum ada event LaporanUpdateStatus)
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+      if (mounted && !_isLoading) {
+        _fetchHistorySilently();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    _unsubscribeAll();
+    super.dispose();
+  }
+
+  void _unsubscribeAll() {
+    for (var channel in _subscribedChannels) {
+      WebsocketService.echo?.leave(channel);
+    }
+    _subscribedChannels.clear();
+  }
+
+  Future<void> _fetchHistorySilently() async {
+    // Versi _fetchHistory tanpa setState _isLoading = true agar UI tidak berkedip
+    try {
+      final prefs = GetIt.instance<SharedPreferences>();
+      final token = prefs.getString('auth_token');
+      final role = prefs.getString('user_role');
+      final dio = GetIt.instance<Dio>();
+
+      final headers = {if (token != null) 'Authorization': 'Bearer $token'};
+      String endpoint = role == 'relawan' ? ApiConstants.riwayatRelawan : ApiConstants.riwayatPengguna;
+
+      final response = await dio.get(endpoint, options: Options(headers: headers));
+
+      if (response.statusCode == 200 && mounted) {
+        final data = response.data['data'] is List
+            ? response.data['data']
+            : (response.data['data'] != null && response.data['data']['data'] != null ? response.data['data']['data'] : []);
+        
+        setState(() {
+          _allItems = (data as List).map((item) => _mapToHistoryItem(item)).toList();
+          _allItems.sort((a, b) => b.dateTime.compareTo(a.dateTime));
+        });
+        _updateWebsocketSubscriptions();
+      }
+    } catch (e) {
+      // Abaikan error saat silent refresh
+    }
+  }
+
+  void _updateWebsocketSubscriptions() {
+    if (WebsocketService.echo == null) return;
+    
+    for (var item in _allItems) {
+      if (item.type == HistoryType.sos && item.status != HistoryStatus.selesai) {
+        final channelName = 'sos.${item.id}';
+        if (!_subscribedChannels.contains(channelName)) {
+          _subscribedChannels.add(channelName);
+          WebsocketService.echo?.private(channelName).listen('.SOSUpdateStatus', (e) {
+             if (mounted) _fetchHistorySilently();
+          });
+        }
+      }
+    }
   }
 
   Future<void> _fetchHistory() async {
@@ -85,61 +194,40 @@ class _HistoryPageState extends State<HistoryPage> {
     try {
       final prefs = GetIt.instance<SharedPreferences>();
       final token = prefs.getString('auth_token');
+      final role = prefs.getString('user_role');
       final dio = GetIt.instance<Dio>();
 
       final headers = {if (token != null) 'Authorization': 'Bearer $token'};
 
-      // Fetch Laporan
-      final laporanResponseFuture = dio.get(
-        ApiConstants.laporan,
+      String endpoint = ApiConstants.riwayatPengguna;
+      if (role == 'relawan') {
+        endpoint = ApiConstants.riwayatRelawan;
+      }
+
+      final response = await dio.get(
+        endpoint,
         options: Options(headers: headers),
       );
-      
-      // Fetch SOS User History (safe catch for relawan who might not have access)
-      final sosResponseFuture = dio.get(
-        ApiConstants.sosUserHistory,
-        options: Options(headers: headers),
-      ).catchError((e) {
-        if (e is DioException && e.response?.statusCode == 403) {
-          return Response(requestOptions: e.requestOptions, statusCode: 403, data: {'data': []});
-        }
-        throw e;
-      });
-
-      final results = await Future.wait([laporanResponseFuture, sosResponseFuture]);
-      final laporanResponse = results[0];
-      final sosResponse = results[1];
 
       List<dynamic> allData = [];
 
-      if (laporanResponse.statusCode == 200) {
-        final laporanData = laporanResponse.data['data'] is List
-            ? laporanResponse.data['data']
-            : (laporanResponse.data['data']['data'] ?? []);
-        allData.addAll(laporanData as List);
-      }
-      
-      if (sosResponse.statusCode == 200) {
-        final sosData = sosResponse.data['data'] is List
-            ? sosResponse.data['data']
-            : (sosResponse.data['data']['data'] ?? []);
-        
-        // SOS might not have "kategori_laporan" field, let's inject it so it maps correctly
-        final mappedSos = (sosData as List).map((e) {
-          e['kategori_laporan'] = e['kategori_laporan'] ?? 'SOS';
-          return e;
-        });
-        allData.addAll(mappedSos);
+      if (response.statusCode == 200) {
+        final data = response.data['data'] is List
+            ? response.data['data']
+            : (response.data['data'] != null && response.data['data']['data'] != null ? response.data['data']['data'] : []);
+        allData.addAll(data as List);
       }
 
       setState(() {
         _allItems = allData.map((item) => _mapToHistoryItem(item)).toList();
-        
+
         // Sort items by date descending
         _allItems.sort((a, b) => b.dateTime.compareTo(a.dateTime));
-        
+
         _isLoading = false;
       });
+      
+      _updateWebsocketSubscriptions();
     } on DioException catch (e) {
       setState(() {
         _errorMessage = e.response != null
@@ -156,7 +244,15 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   HistoryItem _mapToHistoryItem(dynamic data) {
-    String rawKategori = data['kategori_laporan'] ?? 'Lainnya';
+    String extractString(dynamic value, [String defaultVal = 'Lainnya']) {
+      if (value == null) return defaultVal;
+      if (value is Map) {
+        return (value['nama_kategori'] ?? value['nama'] ?? value['name'] ?? defaultVal).toString();
+      }
+      return value.toString();
+    }
+    
+    String rawKategori = extractString(data['kategori'] ?? data['kategori_laporan'], 'Lainnya');
     String kategori = rawKategori
         .replaceAll('_', ' ')
         .split(' ')
@@ -165,18 +261,23 @@ class _HistoryPageState extends State<HistoryPage> {
           return word[0].toUpperCase() + word.substring(1).toLowerCase();
         })
         .join(' ');
-    String statusStr = data['status'] ?? data['status_sos'] ?? 'aktif';
+    String statusStr = (data['status'] ?? data['status_sos'] ?? 'aktif').toString().toLowerCase();
 
     HistoryType type = HistoryType.laporan;
-    if (kategori.toLowerCase() == 'sos' ||
-        kategori.toLowerCase() == 'sos darurat') {
+    if (data['tipe']?.toString().toLowerCase() == 'sos' ||
+        data['jenis']?.toString().toLowerCase() == 'sos' ||
+        kategori.toLowerCase() == 'sos' ||
+        kategori.toLowerCase() == 'sos darurat' ||
+        kategori.toLowerCase().contains('sos') ||
+        data['status_sos'] != null ||
+        data['waktu_sos'] != null) {
       type = HistoryType.sos;
     }
 
     HistoryStatus status = HistoryStatus.aktif;
     if (statusStr == 'selesai') {
       status = HistoryStatus.selesai;
-    } else if (statusStr == 'proses') {
+    } else if (statusStr == 'ditangani') {
       status = HistoryStatus.ditangani;
     } else if (statusStr == 'dibatalkan' || statusStr == 'batal') {
       status = HistoryStatus.dibatalkan;
@@ -185,14 +286,16 @@ class _HistoryPageState extends State<HistoryPage> {
     String? relawanName = data['relawan']?['name'];
     String? officerInfo = relawanName != null ? 'Relawan $relawanName' : null;
 
-    String rawDate = data['waktu_laporan'] ?? data['waktu_sos'] ?? data['created_at'] ?? '';
+    String rawDate =
+        (data['waktu'] ?? data['waktu_laporan'] ?? data['waktu_sos'] ?? data['created_at'] ?? '').toString();
     String displayDate = rawDate;
     try {
       if (rawDate.isNotEmpty) {
         String parseableDate = rawDate.replaceAll(' ', 'T');
-        if (!parseableDate.endsWith('Z') && 
-            !parseableDate.contains('+') && 
-            (parseableDate.indexOf('T') == -1 || parseableDate.indexOf('-', parseableDate.indexOf('T')) == -1)) {
+        if (!parseableDate.endsWith('Z') &&
+            !parseableDate.contains('+') &&
+            (!parseableDate.contains('T') ||
+                parseableDate.indexOf('-', parseableDate.indexOf('T')) == -1)) {
           parseableDate += 'Z';
         }
         DateTime parsedDate = DateTime.parse(parseableDate).toLocal();
@@ -213,12 +316,39 @@ class _HistoryPageState extends State<HistoryPage> {
       '/api',
       '/storage/',
     );
-    String? foto = data['foto_laporan'] ?? data['foto'];
+    String? foto = (data['foto_laporan'] ?? data['foto'])?.toString();
     String? audio =
-        data['audio_laporan'] ??
+        (data['audio_laporan'] ??
         data['rekam_suara'] ??
         data['rekaman_suara'] ??
-        data['audio'];
+        data['audio'])?.toString();
+
+    String rawLocationStr = (data['lokasi'] ??
+          data['lokasi_laporan'] ??
+          data['lokasi_user'] ??
+          'Lokasi tidak diketahui').toString();
+
+    String locationStr = rawLocationStr;
+    final alamatMatch = RegExp(r'alamat:\s*([^,}]+)').firstMatch(rawLocationStr);
+    if (alamatMatch != null) {
+      locationStr = alamatMatch.group(1)!.trim();
+    }
+
+    double? lat;
+    if (data['latitude'] != null) {
+      lat = (data['latitude'] is num) ? (data['latitude'] as num).toDouble() : double.tryParse(data['latitude'].toString());
+    } else {
+      final latMatch = RegExp(r'latitude:\s*(-?\d+\.\d+)').firstMatch(rawLocationStr);
+      if (latMatch != null) lat = double.tryParse(latMatch.group(1)!);
+    }
+
+    double? lng;
+    if (data['longitude'] != null) {
+      lng = (data['longitude'] is num) ? (data['longitude'] as num).toDouble() : double.tryParse(data['longitude'].toString());
+    } else {
+      final lngMatch = RegExp(r'longitude:\s*(-?\d+\.\d+)').firstMatch(rawLocationStr);
+      if (lngMatch != null) lng = double.tryParse(lngMatch.group(1)!);
+    }
 
     return HistoryItem(
       id: data['id'],
@@ -228,8 +358,8 @@ class _HistoryPageState extends State<HistoryPage> {
           ? 'SOS Darurat: $kategori'
           : 'Laporan: $kategori',
       dateTime: displayDate,
-      location: data['lokasi_laporan'] ?? data['lokasi_user'] ?? 'Lokasi tidak diketahui',
-      description: data['deskripsi'],
+      location: locationStr,
+      description: data['deskripsi']?.toString(),
       officerInfo: officerInfo,
       detailButtonLabel: type == HistoryType.sos
           ? 'Lihat Detail SOS'
@@ -247,12 +377,8 @@ class _HistoryPageState extends State<HistoryPage> {
                 ? audio
                 : '$baseUrlStorage${audio.replaceFirst('public/', '')}')
           : null,
-      latitude: (data['latitude'] is num)
-          ? (data['latitude'] as num).toDouble()
-          : double.tryParse(data['latitude']?.toString() ?? ''),
-      longitude: (data['longitude'] is num)
-          ? (data['longitude'] as num).toDouble()
-          : double.tryParse(data['longitude']?.toString() ?? ''),
+      latitude: lat,
+      longitude: lng,
     );
   }
 
@@ -274,14 +400,21 @@ class _HistoryPageState extends State<HistoryPage> {
       items = items.where((item) {
         try {
           final itemDate = DateTime.parse(item.dateTime.replaceAll(' ', 'T'));
-          if (_selectedTimeFilter == 1) { // 1 Minggu
+          if (_selectedTimeFilter == 1) {
+            // 1 Minggu
             return now.difference(itemDate).inDays <= 7;
-          } else if (_selectedTimeFilter == 2) { // 1 Bulan
+          } else if (_selectedTimeFilter == 2) {
+            // 1 Bulan
             return now.difference(itemDate).inDays <= 30;
-          } else if (_selectedTimeFilter == 3) { // Kustom
+          } else if (_selectedTimeFilter == 3) {
+            // Kustom
             if (_customStartDate != null && _customEndDate != null) {
-              return itemDate.isAfter(_customStartDate!.subtract(const Duration(days: 1))) && 
-                     itemDate.isBefore(_customEndDate!.add(const Duration(days: 1)));
+              return itemDate.isAfter(
+                    _customStartDate!.subtract(const Duration(days: 1)),
+                  ) &&
+                  itemDate.isBefore(
+                    _customEndDate!.add(const Duration(days: 1)),
+                  );
             }
           }
         } catch (e) {
@@ -299,7 +432,9 @@ class _HistoryPageState extends State<HistoryPage> {
     if (_selectedFilter == 0) {
       final startIndex = (_currentPage - 1) * _itemsPerPage;
       if (startIndex >= items.length) return [];
-      final endIndex = (startIndex + _itemsPerPage < items.length) ? startIndex + _itemsPerPage : items.length;
+      final endIndex = (startIndex + _itemsPerPage < items.length)
+          ? startIndex + _itemsPerPage
+          : items.length;
       return items.sublist(startIndex, endIndex);
     }
     return items;
@@ -322,15 +457,7 @@ class _HistoryPageState extends State<HistoryPage> {
         height: double.infinity,
         width: double.infinity,
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F7FA), // Light blue/teal
-              Color(0xFFF5F6F8), // Greyish white
-              Color(0xFFE0F2F1), // Light teal
-            ],
-          ),
+          color: Colors.white,
         ),
         child: SafeArea(
           child: RefreshIndicator(
@@ -361,7 +488,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   const Center(
                     child: Padding(
                       padding: EdgeInsets.all(40.0),
-                      child: CircularProgressIndicator(color: primaryTeal),
+                      child: CupertinoActivityIndicator(radius: 16),
                     ),
                   )
                 else if (_errorMessage != null)
@@ -370,7 +497,11 @@ class _HistoryPageState extends State<HistoryPage> {
                   _buildEmptyState()
                 else
                   ..._paginatedItems.map((item) => _buildHistoryCard(item)),
-                if (!_isLoading && _errorMessage == null && _filteredItems.isNotEmpty && _selectedFilter == 0 && _totalPages > 1)
+                if (!_isLoading &&
+                    _errorMessage == null &&
+                    _filteredItems.isNotEmpty &&
+                    _selectedFilter == 0 &&
+                    _totalPages > 1)
                   _buildPagination(),
                 const SizedBox(height: 8),
                 _buildEncryptedFooter(),
@@ -450,13 +581,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  gradient: isSelected
-                      ? const LinearGradient(
-                          colors: [Color(0xFF00695C), Color(0xFF004D40)],
-                        )
-                      : const LinearGradient(
-                          colors: [Colors.white, Colors.white],
-                        ),
+                  color: isSelected ? const Color(0xFF00695C) : Colors.white,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
                     color: isSelected
@@ -555,27 +680,24 @@ class _HistoryPageState extends State<HistoryPage> {
                             primary: primaryTeal,
                             onPrimary: Colors.white,
                             onSurface: Colors.black87,
-                            surface: Colors.transparent, // Background of dialog/scaffold
+                            surface: Colors
+                                .transparent, // Background of dialog/scaffold
                             onSurfaceVariant: Colors.black54, // For header text
                           ),
                           datePickerTheme: const DatePickerThemeData(
                             backgroundColor: Colors.transparent,
                             surfaceTintColor: Colors.transparent,
                             headerBackgroundColor: Colors.transparent,
-                          ), dialogTheme: DialogThemeData(backgroundColor: Colors.transparent),
+                          ),
+                          dialogTheme: DialogThemeData(
+                            backgroundColor: Colors.transparent,
+                          ),
                         ),
                         child: BackdropFilter(
                           filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                           child: Container(
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Colors.white.withValues(alpha: 0.7),
-                                  Colors.white.withValues(alpha: 0.4),
-                                ],
-                              ),
+                              color: Colors.white,
                             ),
                             child: child!,
                           ),
@@ -599,9 +721,14 @@ class _HistoryPageState extends State<HistoryPage> {
                 }
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: isSelected ? primaryTeal.withValues(alpha: 0.1) : Colors.white,
+                  color: isSelected
+                      ? primaryTeal.withValues(alpha: 0.1)
+                      : Colors.white,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isSelected ? primaryTeal : Colors.grey.shade300,
@@ -610,9 +737,17 @@ class _HistoryPageState extends State<HistoryPage> {
                 child: Row(
                   children: [
                     if (index == 3 && isSelected && _customStartDate != null)
-                      const Icon(CupertinoIcons.calendar, size: 14, color: primaryTeal)
+                      const Icon(
+                        CupertinoIcons.calendar,
+                        size: 14,
+                        color: primaryTeal,
+                      )
                     else
-                      Icon(CupertinoIcons.time, size: 14, color: isSelected ? primaryTeal : Colors.grey.shade500),
+                      Icon(
+                        CupertinoIcons.time,
+                        size: 14,
+                        color: isSelected ? primaryTeal : Colors.grey.shade500,
+                      ),
                     const SizedBox(width: 6),
                     Text(
                       index == 3 && isSelected && _customStartDate != null
@@ -620,7 +755,9 @@ class _HistoryPageState extends State<HistoryPage> {
                           : _timeFilters[index],
                       style: TextStyle(
                         color: isSelected ? primaryTeal : Colors.grey.shade600,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                         fontSize: 13,
                       ),
                     ),
@@ -651,7 +788,9 @@ class _HistoryPageState extends State<HistoryPage> {
             final page = index + 1;
             // Basic pagination to not overflow screen if too many pages
             if (_totalPages > 5) {
-              if (page != 1 && page != _totalPages && (page < _currentPage - 1 || page > _currentPage + 1)) {
+              if (page != 1 &&
+                  page != _totalPages &&
+                  (page < _currentPage - 1 || page > _currentPage + 1)) {
                 if (page == 2 || page == _totalPages - 1) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 4),
@@ -661,13 +800,16 @@ class _HistoryPageState extends State<HistoryPage> {
                 return const SizedBox.shrink();
               }
             }
-            
+
             final isSelected = _currentPage == page;
             return GestureDetector(
               onTap: () => setState(() => _currentPage = page),
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected ? primaryTeal : Colors.white,
                   borderRadius: BorderRadius.circular(8),
@@ -679,7 +821,9 @@ class _HistoryPageState extends State<HistoryPage> {
                   '$page',
                   style: TextStyle(
                     color: isSelected ? Colors.white : Colors.black87,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                   ),
                 ),
               ),
@@ -709,7 +853,11 @@ class _HistoryPageState extends State<HistoryPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(CupertinoIcons.exclamationmark_circle, color: Colors.red.shade400, size: 48),
+          Icon(
+            CupertinoIcons.exclamationmark_circle,
+            color: Colors.red.shade400,
+            size: 48,
+          ),
           const SizedBox(height: 16),
           Text(
             'Oops! Terjadi Kesalahan',
@@ -788,28 +936,43 @@ class _HistoryPageState extends State<HistoryPage> {
   ) {
     final lowerTitle = title.toLowerCase();
     if (lowerTitle.contains('pendamping')) {
-      return (icon: CupertinoIcons.person_2_fill, color: const Color(0xFF1565C0));
+      return (
+        icon: CupertinoIcons.person_2_fill,
+        color: const Color(0xFF1565C0),
+      );
     } else if (lowerTitle.contains('medis') ||
         lowerTitle.contains('obat') ||
         lowerTitle.contains('ambulans')) {
       return (
-        icon: Icons.local_hospital_rounded,
+        icon: CupertinoIcons.add_circled,
         color: const Color(0xFFD32F2F),
       );
     } else if (lowerTitle.contains('ancaman') ||
         lowerTitle.contains('bahaya')) {
-      return (icon: CupertinoIcons.exclamationmark_triangle_fill, color: const Color(0xFFE65100));
+      return (
+        icon: CupertinoIcons.exclamationmark_triangle_fill,
+        color: const Color(0xFFE65100),
+      );
     } else if (lowerTitle.contains('tersesat')) {
-      return (icon: CupertinoIcons.compass_fill, color: const Color(0xFF00838F));
+      return (
+        icon: CupertinoIcons.compass_fill,
+        color: const Color(0xFF00838F),
+      );
     } else if (lowerTitle.contains('aksesibilitas')) {
-      return (icon: Icons.accessible_rounded, color: const Color(0xFF6A1B9A));
+      return (icon: CupertinoIcons.person_crop_circle, color: const Color(0xFF6A1B9A));
     } else if (lowerTitle.contains('lainnya')) {
-      return (icon: CupertinoIcons.ellipsis_circle_fill, color: const Color(0xFF546E7A));
+      return (
+        icon: CupertinoIcons.ellipsis_circle_fill,
+        color: const Color(0xFF546E7A),
+      );
     }
 
     // Default fallback
     return isSos
-        ? (icon: CupertinoIcons.exclamationmark_triangle_fill, color: Colors.red.shade600)
+        ? (
+            icon: CupertinoIcons.exclamationmark_triangle_fill,
+            color: Colors.red.shade600,
+          )
         : (icon: CupertinoIcons.doc_text, color: primaryTeal);
   }
 
@@ -929,14 +1092,19 @@ class _HistoryPageState extends State<HistoryPage> {
                         ),
                         const SizedBox(width: 6),
                         Expanded(
-                          child: Text(
-                            item.location,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Colors.black87,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                          child: FutureBuilder<String>(
+                            future: _getAddress(item),
+                            builder: (context, snapshot) {
+                              return Text(
+                                snapshot.data ?? item.location,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.black87,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              );
+                            },
                           ),
                         ),
                       ],
@@ -1109,4 +1277,3 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 }
-

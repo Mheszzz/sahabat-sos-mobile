@@ -2,13 +2,17 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/volunteer_dashboard_page.dart';
+import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/volunteer_task_list_page.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/volunteer_map_page.dart';
 import 'package:sahabat_sos_mobile/features/profile/presentation/screens/volunteer_profile_screen.dart';
 
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
+    as event_bus;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sahabat_sos_mobile/features/volunteer_task/data/datasources/volunteer_remote_data_source.dart';
 
 class MainVolunteerScreen extends StatefulWidget {
   final int initialIndex;
@@ -20,16 +24,153 @@ class MainVolunteerScreen extends StatefulWidget {
 
 class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
   late int _selectedIndex;
+  bool? _isVerified;
+  bool _isActive = true;
   final LocationService _locationService = sl<LocationService>();
+
+  // Key untuk akses langsung ke VolunteerMapPage state
+  final GlobalKey<VolunteerMapPageState> _mapPageKey =
+      GlobalKey<VolunteerMapPageState>();
 
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
     _initVolunteerServices();
+    event_bus.GlobalEventBus.navigateToMapWithSos.addListener(_onNavigateToMap);
+    event_bus.GlobalEventBus.changeVolunteerTab.addListener(_onChangeTab);
+    event_bus.GlobalEventBus.volunteerVerificationStatus.addListener(_onVerificationStatusChanged);
+    event_bus.GlobalEventBus.volunteerActiveStatus.addListener(_onActiveStatusChanged);
   }
 
-  Future<void> _initVolunteerServices() async {
+  void _onActiveStatusChanged() {
+    final status = event_bus.GlobalEventBus.volunteerActiveStatus.value;
+    if (status != null && status != _isActive) {
+      setState(() {
+        _isActive = status;
+        if (!_isActive && _selectedIndex != 3) {
+          _selectedIndex = 3;
+        }
+      });
+      if (_isActive && _isVerified == true) {
+        _startOperationalServices();
+      } else {
+        _locationService.stopTracking();
+      }
+    }
+  }
+
+  void _onVerificationStatusChanged() {
+    final status = event_bus.GlobalEventBus.volunteerVerificationStatus.value;
+    if (status == true && _isVerified != true) {
+      setState(() {
+        _isVerified = true;
+      });
+      if (_isActive) {
+        _startOperationalServices();
+      }
+    } else if (status == false && _isVerified != false) {
+      setState(() {
+        _isVerified = false;
+        _selectedIndex = 3;
+      });
+      _locationService.stopTracking();
+    }
+  }
+
+  void _onChangeTab() {
+    final targetIndex = event_bus.GlobalEventBus.changeVolunteerTab.value;
+    if (targetIndex != null) {
+      if ((_isVerified == false || !_isActive) && targetIndex != 3) {
+        if (!_isActive) {
+          _showDeactivatedDialog();
+        } else {
+          _showUnverifiedDialog();
+        }
+      } else {
+        setState(() {
+          _selectedIndex = targetIndex;
+        });
+      }
+      event_bus.GlobalEventBus.changeVolunteerTab.value = null;
+    }
+  }
+
+  void _showDeactivatedDialog() {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Akun Dinonaktifkan'),
+        content: const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: Text(
+            'Akun relawan Anda saat ini telah dinonaktifkan oleh administrator.\n\nFitur Beranda, Tugas, dan Peta tidak dapat diakses selama status akun nonaktif.\n\nSilakan cek status akun Anda di halaman Profil atau hubungi admin.',
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Mengerti'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUnverifiedDialog() {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Akun Dalam Tahap Verifikasi'),
+        content: const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: Text(
+            'Akun relawan Anda sedang dalam peninjauan oleh admin Sahabat SOS.\n\nFitur Beranda, Tugas, dan Peta akan dapat diakses setelah akun Anda diverifikasi oleh admin.\n\nSilakan cek status verifikasi Anda di halaman Profil.',
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Mengerti'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Dipanggil saat relawan menerima tugas → pindah ke tab Peta & tampilkan rute
+  void _onNavigateToMap() {
+    if (_isVerified == false || !_isActive) return;
+    final sosData = event_bus.GlobalEventBus.navigateToMapWithSos.value;
+    if (sosData == null) return;
+
+    setState(() {
+      _selectedIndex = 2; // Tab Peta
+    });
+
+    // Beri sedikit jeda agar tab Peta sudah ter-render
+    Future.delayed(const Duration(milliseconds: 400), () {
+      _mapPageKey.currentState?.acceptSosAndRoute(sosData);
+      // Reset event agar tidak trigger ulang
+      event_bus.GlobalEventBus.navigateToMapWithSos.value = null;
+    });
+  }
+
+  @override
+  void dispose() {
+    event_bus.GlobalEventBus.navigateToMapWithSos.removeListener(
+      _onNavigateToMap,
+    );
+    event_bus.GlobalEventBus.changeVolunteerTab.removeListener(_onChangeTab);
+    event_bus.GlobalEventBus.volunteerVerificationStatus.removeListener(_onVerificationStatusChanged);
+    event_bus.GlobalEventBus.volunteerActiveStatus.removeListener(_onActiveStatusChanged);
+    _locationService.stopTracking();
+    super.dispose();
+  }
+
+  Future<void> _startOperationalServices() async {
     // 1. Start Location Tracking
     final hasPerm = await _locationService.requestPermission();
     if (hasPerm) {
@@ -48,42 +189,116 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
     }
   }
 
+  Future<void> _initVolunteerServices() async {
+    // Cek cache SharedPreferences dulu agar responsif
+    try {
+      final prefs = sl<SharedPreferences>();
+      final cachedStatus = prefs.getString('verification_status');
+      final cachedActive = prefs.getBool('user_is_active') ?? true;
+      if (mounted) {
+        setState(() {
+          _isActive = cachedActive;
+          if (cachedStatus != null) {
+            _isVerified = cachedStatus == 'terverifikasi';
+          }
+          if ((_isVerified == false || !_isActive) && _selectedIndex != 3) {
+            _selectedIndex = 3;
+          }
+        });
+      }
+    } catch (_) {}
+
+    // 0. Check Verification Status ke server
+    try {
+      final volunteerDataSource = sl<VolunteerRemoteDataSource>();
+      final response = await volunteerDataSource.getRelawanProfile();
+      final userData = response['user'];
+      if (userData != null) {
+        final status = (userData['status_verifikasi'] ?? 'pending').toString().toLowerCase();
+        final active = (userData['is_active'] == true || userData['is_active'] == 1);
+        final prefs = sl<SharedPreferences>();
+        await prefs.setString('verification_status', status);
+        await prefs.setBool('user_is_active', active);
+
+        if (mounted) {
+          setState(() {
+            _isVerified = status == 'terverifikasi';
+            _isActive = active;
+            if ((_isVerified == false || !_isActive) && _selectedIndex != 3) {
+              _selectedIndex = 3; // Force to Profile tab
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching verification status: $e');
+      if (mounted && _isVerified == null) {
+        setState(() {
+          _isVerified = false; // default to block
+          if (_selectedIndex != 3) {
+            _selectedIndex = 3;
+          }
+        });
+      }
+    }
+
+    if (_isVerified == true && _isActive == true) {
+      await _startOperationalServices();
+    } else {
+      _locationService.stopTracking();
+    }
+  }
+
   @override
   void didUpdateWidget(MainVolunteerScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.initialIndex != oldWidget.initialIndex) {
-      _selectedIndex = widget.initialIndex;
+      setState(() {
+        _selectedIndex = widget.initialIndex;
+      });
     }
   }
 
   static const Color primaryTeal = Color(0xFF006D77);
-
-  final List<Widget> _pages = [
-    const VolunteerDashboardPage(),
-    const Scaffold(body: Center(child: Text('Tugas Aktif (Segera Hadir)'))),
-    const VolunteerMapPage(),
-    const VolunteerProfileScreen(),
-  ];
-
   static const Color _unselectedColor = Colors.grey;
 
   final List<_NavItem> _navItems = const [
-    _NavItem(icon: CupertinoIcons.house, selectedIcon: CupertinoIcons.house_fill, label: 'Beranda'),
-    _NavItem(icon: CupertinoIcons.doc_text, selectedIcon: CupertinoIcons.doc_text_fill, label: 'Tugas'),
-    _NavItem(icon: CupertinoIcons.map, selectedIcon: CupertinoIcons.map_fill, label: 'Peta'),
-    _NavItem(icon: CupertinoIcons.person, selectedIcon: CupertinoIcons.person_solid, label: 'Profil'),
+    _NavItem(
+      icon: CupertinoIcons.house,
+      selectedIcon: CupertinoIcons.house_fill,
+      label: 'Beranda',
+    ),
+    _NavItem(
+      icon: CupertinoIcons.doc_text,
+      selectedIcon: CupertinoIcons.doc_text_fill,
+      label: 'Tugas',
+    ),
+    _NavItem(
+      icon: CupertinoIcons.map,
+      selectedIcon: CupertinoIcons.map_fill,
+      label: 'Peta',
+    ),
+    _NavItem(
+      icon: CupertinoIcons.person,
+      selectedIcon: CupertinoIcons.person_solid,
+      label: 'Profil',
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final pages = [
+      const VolunteerDashboardPage(),
+      const VolunteerTaskListPage(),
+      VolunteerMapPage(key: _mapPageKey),
+      const VolunteerProfileScreen(),
+    ];
+
     return Scaffold(
       extendBody: true,
       body: Stack(
         children: [
-          IndexedStack(
-            index: _selectedIndex,
-            children: _pages,
-          ),
+          IndexedStack(index: _selectedIndex, children: pages),
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
@@ -112,14 +327,27 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: List.generate(_navItems.length, (index) {
                         final isSelected = _selectedIndex == index;
                         final item = _navItems[index];
+                        final isLocked = (_isVerified == false || !_isActive) && index != 3;
+
                         return GestureDetector(
                           onTap: () {
+                            if (isLocked) {
+                              if (!_isActive) {
+                                _showDeactivatedDialog();
+                              } else {
+                                _showUnverifiedDialog();
+                              }
+                              return;
+                            }
                             setState(() {
                               _selectedIndex = index;
                             });
@@ -139,18 +367,50 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  isSelected ? item.selectedIcon : item.icon,
-                                  color: isSelected ? primaryTeal : _unselectedColor,
-                                  size: 24,
+                                Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Icon(
+                                      isSelected ? item.selectedIcon : item.icon,
+                                      color: isLocked
+                                          ? Colors.grey.withValues(alpha: 0.35)
+                                          : isSelected
+                                              ? primaryTeal
+                                              : _unselectedColor,
+                                      size: 24,
+                                    ),
+                                    if (isLocked)
+                                      Positioned(
+                                        top: -3,
+                                        right: -7,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(2.5),
+                                          decoration: BoxDecoration(
+                                            color: !_isActive ? Colors.red.shade700 : Colors.amber.shade800,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            CupertinoIcons.lock_fill,
+                                            color: Colors.white,
+                                            size: 8,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   item.label,
                                   style: TextStyle(
-                                    color: isSelected ? primaryTeal : _unselectedColor,
+                                    color: isLocked
+                                        ? Colors.grey.withValues(alpha: 0.35)
+                                        : isSelected
+                                            ? primaryTeal
+                                            : _unselectedColor,
                                     fontSize: 11,
-                                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
                                   ),
                                 ),
                               ],

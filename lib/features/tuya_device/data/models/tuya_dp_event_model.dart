@@ -31,7 +31,7 @@ class TuyaDpEvent {
   /// Parse raw event string from native EventChannel
   factory TuyaDpEvent.fromRawEvent(String rawEvent) {
     final json = jsonDecode(rawEvent) as Map<String, dynamic>;
-    
+
     // Parse DPs - can be a JSON string or a Map
     Map<String, dynamic> parsedDps = {};
     if (json['dps'] != null) {
@@ -71,10 +71,9 @@ class TuyaDpEvent {
     }
 
     // For BLE device found events, map the device info fields into dps
-    if (type == TuyaEventType.bleDeviceFound || type == TuyaEventType.wifiPairingSuccess) {
-      parsedDps = {
-        'name': json['name'] as String? ?? 'Tuya Device',
-      };
+    if (type == TuyaEventType.bleDeviceFound ||
+        type == TuyaEventType.wifiPairingSuccess) {
+      parsedDps = {'name': json['name'] as String? ?? 'Tuya Device'};
     } else if (type == TuyaEventType.wifiPairingError) {
       parsedDps = {
         'error_code': json['error_code']?.toString() ?? '',
@@ -98,13 +97,13 @@ class TuyaDpEvent {
   bool get isSosTriggered {
     // Only process DP updates for SOS triggers
     if (eventType != TuyaEventType.dpUpdate) return false;
-    
+
     // Simulation events
     if (isSimulation) return true;
 
     // Real physical SOS button sends DP 23 = true when pressed
     if (dps['23'] == true || dps['23'] == 'true') return true;
-    
+
     // Generic Tuya switch standard DP fallback
     if (dps['1'] == true || dps['1'] == 'true') return true;
 

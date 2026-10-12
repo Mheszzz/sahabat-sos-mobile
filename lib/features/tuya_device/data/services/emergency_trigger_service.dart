@@ -1,15 +1,16 @@
-
-
 import 'package:dio/dio.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/services/location_service.dart';
+import '../../../../core/utils/device_info_helper.dart';
 import '../models/tuya_dp_event_model.dart';
+import 'package:get_it/get_it.dart';
+import 'tuya_channel_service.dart';
 
 /// Service responsible for sending emergency trigger events to the Laravel backend.
-/// 
+///
 /// When an SOS event is detected from a Tuya device, this service:
 /// 1. Fetches the current GPS location
 /// 2. Sends HTTP POST to /emergency/trigger
@@ -29,7 +30,7 @@ class EmergencyTriggerService {
   });
 
   /// Trigger emergency alert to Laravel backend
-  /// 
+  ///
   /// Returns true if the trigger was sent successfully
   Future<bool> triggerEmergency(TuyaDpEvent event) async {
     final token = _prefs.getString('auth_token');
@@ -55,7 +56,9 @@ class EmergencyTriggerService {
         } else {
           // If absolute worst case, try low accuracy for max 1 second
           final quickPosition = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.low,
+            ),
           ).timeout(const Duration(seconds: 1));
           latitude = quickPosition.latitude;
           longitude = quickPosition.longitude;
@@ -63,6 +66,23 @@ class EmergencyTriggerService {
       }
     } catch (e) {
       // Continue without location if GPS fails (it will use 0.0 fallback)
+    }
+
+    final telemetryData = await DeviceInfoHelper.getSosTelemetryData();
+
+    Map<String, dynamic>? tuyaDeviceInfo;
+    try {
+      final tuyaService = GetIt.instance<TuyaChannelService>();
+      final tuyaDevice = await tuyaService.getDeviceStatus(event.deviceId);
+      tuyaDeviceInfo = {
+        'battery_level': tuyaDevice.batteryLevel,
+        'is_online': tuyaDevice.isOnline,
+        'device_id': tuyaDevice.deviceId,
+        'last_seen': tuyaDevice.lastEventAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
+        'location_updated_at': DateTime.now().toIso8601String(),
+      };
+    } catch (e) {
+      // Ignored if failed to get Tuya device info
     }
 
     final payload = {
@@ -74,6 +94,8 @@ class EmergencyTriggerService {
       'latitude': latitude ?? 0.0,
       'longitude': longitude ?? 0.0,
       'lokasi_user': _locationService.lastGeocodedAddress,
+      ...telemetryData,
+      'device_info': ?tuyaDeviceInfo,
     };
 
     // Attempt to send with retries
@@ -89,7 +111,9 @@ class EmergencyTriggerService {
               'Accept': 'application/json',
             },
             // Don't throw exception for 422 so we can read the message
-            validateStatus: (status) => status != null && (status >= 200 && status < 300 || status == 422),
+            validateStatus: (status) =>
+                status != null &&
+                (status >= 200 && status < 300 || status == 422),
           ),
         );
 
@@ -97,7 +121,8 @@ class EmergencyTriggerService {
           return true;
         } else if (response.statusCode == 422) {
           // Check if this is "Anda masih memiliki sinyal SOS aktif..."
-          final message = response.data['message'] ?? 'Data tidak lengkap / Error 422';
+          final message =
+              response.data['message'] ?? 'Data tidak lengkap / Error 422';
           throw EmergencyTriggerException(message.toString());
         }
       } on DioException catch (e) {

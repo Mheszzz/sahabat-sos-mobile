@@ -8,7 +8,9 @@ import 'package:sahabat_sos_mobile/features/profile/presentation/screens/profile
 import 'package:sahabat_sos_mobile/features/reports/presentation/quick_report_screen.dart';
 import 'package:sahabat_sos_mobile/features/history/presentation/history_screen.dart';
 import 'package:sahabat_sos_mobile/features/device/presentation/pages/device_page.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:go_router/go_router.dart';
+import '../../../routing/routes.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialIndex;
@@ -25,6 +27,13 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    final prefs = GetIt.instance<SharedPreferences>();
+    if (prefs.getString('user_role') == 'relawan') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go(AppRoutes.homeVolunteer);
+      });
+      return;
+    }
     _initLocationTracking();
   }
 
@@ -57,11 +66,31 @@ class _MainScreenState extends State<MainScreen> {
   static const Color _unselectedColor = Colors.grey;
 
   final List<_NavItem> _navItems = const [
-    _NavItem(icon: CupertinoIcons.house, selectedIcon: CupertinoIcons.house_fill, label: 'Home'),
-    _NavItem(icon: CupertinoIcons.exclamationmark_bubble, selectedIcon: CupertinoIcons.exclamationmark_bubble_fill, label: 'Report'),
-    _NavItem(icon: CupertinoIcons.antenna_radiowaves_left_right, selectedIcon: CupertinoIcons.antenna_radiowaves_left_right, label: 'Devices'),
-    _NavItem(icon: CupertinoIcons.clock, selectedIcon: CupertinoIcons.clock_fill, label: 'History'),
-    _NavItem(icon: CupertinoIcons.person, selectedIcon: CupertinoIcons.person_solid, label: 'Profile'),
+    _NavItem(
+      icon: CupertinoIcons.house,
+      selectedIcon: CupertinoIcons.house_fill,
+      label: 'Home',
+    ),
+    _NavItem(
+      icon: CupertinoIcons.exclamationmark_bubble,
+      selectedIcon: CupertinoIcons.exclamationmark_bubble_fill,
+      label: 'Report',
+    ),
+    _NavItem(
+      icon: CupertinoIcons.antenna_radiowaves_left_right,
+      selectedIcon: CupertinoIcons.antenna_radiowaves_left_right,
+      label: 'Devices',
+    ),
+    _NavItem(
+      icon: CupertinoIcons.clock,
+      selectedIcon: CupertinoIcons.clock_fill,
+      label: 'History',
+    ),
+    _NavItem(
+      icon: CupertinoIcons.person,
+      selectedIcon: CupertinoIcons.person_solid,
+      label: 'Profile',
+    ),
   ];
 
   @override
@@ -70,10 +99,7 @@ class _MainScreenState extends State<MainScreen> {
       extendBody: true,
       body: Stack(
         children: [
-          IndexedStack(
-            index: _selectedIndex,
-            children: _pages,
-          ),
+          IndexedStack(index: _selectedIndex, children: _pages),
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
@@ -102,7 +128,10 @@ class _MainScreenState extends State<MainScreen> {
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: List.generate(_navItems.length, (index) {
@@ -131,16 +160,22 @@ class _MainScreenState extends State<MainScreen> {
                               children: [
                                 Icon(
                                   isSelected ? item.selectedIcon : item.icon,
-                                  color: isSelected ? primaryTeal : _unselectedColor,
+                                  color: isSelected
+                                      ? primaryTeal
+                                      : _unselectedColor,
                                   size: 24,
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   item.label,
                                   style: TextStyle(
-                                    color: isSelected ? primaryTeal : _unselectedColor,
+                                    color: isSelected
+                                        ? primaryTeal
+                                        : _unselectedColor,
                                     fontSize: 11,
-                                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
                                   ),
                                 ),
                               ],

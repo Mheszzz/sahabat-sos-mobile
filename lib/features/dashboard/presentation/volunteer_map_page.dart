@@ -1,4 +1,5 @@
-import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart' as import_event_bus;
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
+    as import_event_bus;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
@@ -12,19 +13,23 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
+import 'package:sahabat_sos_mobile/features/volunteer_task/data/datasources/volunteer_remote_data_source.dart'
+    as import_volunteer;
+import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/volunteer_active_task_page.dart'
+    as import_active_task;
 
 class VolunteerMapPage extends StatefulWidget {
   const VolunteerMapPage({super.key});
 
   @override
-  State<VolunteerMapPage> createState() => _VolunteerMapPageState();
+  State<VolunteerMapPage> createState() => VolunteerMapPageState();
 }
 
-class _VolunteerMapPageState extends State<VolunteerMapPage>
+class VolunteerMapPageState extends State<VolunteerMapPage>
     with SingleTickerProviderStateMixin {
-  static const Color primaryTeal = Color(0xFF00695C);
   static const Color sosRed = Color(0xFFE50000);
 
   final LocationService _locationService = sl<LocationService>();
@@ -39,6 +44,82 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
   StreamSubscription<ServiceStatus>? _serviceStatusStream;
   bool _isFirstFix = true;
   bool _isLoading = true;
+
+  List<LatLng> _routePoints = [];
+  bool _isFetchingRoute = false;
+  Map<String, dynamic>? _acceptedSos;
+
+  /// Dipanggil dari MainVolunteerScreen saat relawan menerima tugas baru.
+  /// Langsung set SOS yang diterima dan fetch rute menuju lokasi korban.
+  void acceptSosAndRoute(Map<String, dynamic> sosData) {
+    final pos = _locationService.currentPosition.value;
+    final lat = double.tryParse(sosData['latitude']?.toString() ?? '');
+    final lng = double.tryParse(sosData['longitude']?.toString() ?? '');
+
+    if (!mounted) return;
+    setState(() {
+      _acceptedSos = sosData;
+      // Tandai sebagai assigned agar marker berubah warna
+      final idx = _activeSosList.indexWhere((e) => e['id'] == sosData['id']);
+      if (idx != -1) {
+        _activeSosList[idx]['is_assigned'] = true;
+      }
+    });
+
+    if (lat != null && lng != null && pos != null) {
+      _fetchRoute(LatLng(pos.latitude, pos.longitude), LatLng(lat, lng));
+    }
+  }
+
+  Future<void> _fetchRoute(LatLng start, LatLng end) async {
+    setState(() {
+      _isFetchingRoute = true;
+    });
+    try {
+      final dio = Dio();
+      final url =
+          'https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?geometries=geojson';
+      final response = await dio.get(url);
+
+      if (response.statusCode == 200) {
+        final routes = response.data['routes'] as List;
+        if (routes.isNotEmpty) {
+          final geometry = routes[0]['geometry'];
+          final coords = geometry['coordinates'] as List;
+
+          setState(() {
+            _routePoints = coords.map((coord) {
+              return LatLng(coord[1] as double, coord[0] as double);
+            }).toList();
+          });
+
+          // Fit bounds to show the route
+          if (_routePoints.length > 1) {
+            final bounds = LatLngBounds.fromPoints(_routePoints);
+            _mapController.fitCamera(
+              CameraFit.bounds(
+                bounds: bounds,
+                padding: const EdgeInsets.all(80.0),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching route: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal membuat rute: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFetchingRoute = false;
+        });
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -60,8 +141,12 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
   void _onPositionUpdate() {
     final pos = _locationService.currentPosition.value;
     if (pos != null && _isFirstFix) {
-      _mapController.move(LatLng(pos.latitude, pos.longitude), 15.0);
-      _isFirstFix = false;
+      try {
+        _mapController.move(LatLng(pos.latitude, pos.longitude), 15.0);
+        _isFirstFix = false;
+      } catch (e) {
+        debugPrint('MapController belum siap: $e');
+      }
     }
   }
 
@@ -132,22 +217,33 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
   Map<String, dynamic> _getHeaders() {
     final prefs = sl<SharedPreferences>();
     final token = prefs.getString('auth_token');
-    return {
-      'Authorization': 'Bearer $token',
-      'Accept': 'application/json',
-    };
+    return {'Authorization': 'Bearer $token', 'Accept': 'application/json'};
   }
 
   Future<void> _fetchActiveSos() async {
+    final prefs = sl<SharedPreferences>();
+    final cachedStatus = prefs.getString('verification_status');
+    final cachedActive = prefs.getBool('user_is_active') ?? true;
+    if (cachedStatus != 'terverifikasi' || !cachedActive) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
     try {
       final dio = sl<Dio>();
       final options = Options(headers: _getHeaders());
 
       // 1. Fetch SOS yang belum diambil
-      final responseUnassigned = await dio.get(ApiConstants.sosActiveRelawan, options: options);
-      
+      final responseUnassigned = await dio.get(
+        ApiConstants.sosActiveRelawan,
+        options: options,
+      );
+
       // 2. Fetch SOS yang SEDANG diproses oleh relawan ini
-      final responseAssigned = await dio.get(ApiConstants.sosRelawanTasks, options: options);
+      final responseAssigned = await dio.get(
+        ApiConstants.sosRelawanTasks,
+        options: options,
+      );
 
       if (mounted) {
         List<Map<String, dynamic>> combinedList = [];
@@ -156,11 +252,15 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
         if (responseUnassigned.statusCode == 200) {
           final dynamic rawData = responseUnassigned.data['data'];
           if (rawData != null && rawData is Map<String, dynamic>) {
-            combinedList.add(rawData);
+            combinedList.add(Map<String, dynamic>.from(rawData));
           } else if (rawData is List) {
-            combinedList.addAll(rawData.cast<Map<String, dynamic>>());
+            combinedList.addAll(
+              rawData.map((e) => Map<String, dynamic>.from(e as Map)).toList(),
+            );
           }
         }
+
+        bool hasAssigned = false;
 
         // Parse Assigned (yang sudah diterima/diproses relawan ini)
         if (responseAssigned.statusCode == 200) {
@@ -169,12 +269,16 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
             final dataMap = Map<String, dynamic>.from(rawData);
             dataMap['is_assigned'] = true;
             combinedList.add(dataMap);
+            hasAssigned = true;
           } else if (rawData is List) {
-            final assignedList = rawData.cast<Map<String, dynamic>>().map((e) {
-              final map = Map<String, dynamic>.from(e);
+            final assignedList = rawData.map((e) {
+              final map = Map<String, dynamic>.from(e as Map);
               map['is_assigned'] = true;
               return map;
             }).toList();
+            if (assignedList.isNotEmpty) {
+              hasAssigned = true;
+            }
             combinedList.addAll(assignedList);
           }
         }
@@ -193,6 +297,28 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
         setState(() {
           _activeSosList = finalUniqueList;
           _isLoading = false;
+          if (!hasAssigned) {
+            _acceptedSos = null;
+            _routePoints.clear();
+          } else if (_acceptedSos == null) {
+            try {
+              final assignedSos = finalUniqueList.firstWhere((e) => e['is_assigned'] == true);
+              _acceptedSos = assignedSos;
+              
+              final sosLat = double.tryParse(assignedSos['latitude']?.toString() ?? '');
+              final sosLng = double.tryParse(assignedSos['longitude']?.toString() ?? '');
+              final volunteerPos = _locationService.currentPosition.value;
+              
+              if (sosLat != null && sosLng != null && volunteerPos != null && _routePoints.isEmpty) {
+                _fetchRoute(
+                  LatLng(volunteerPos.latitude, volunteerPos.longitude),
+                  LatLng(sosLat, sosLng),
+                );
+              }
+            } catch (e) {
+              debugPrint('Error finding assigned SOS: $e');
+            }
+          }
         });
 
         _subscribeToActiveSos();
@@ -218,10 +344,10 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
         if (idx != -1) {
           _activeSosList[idx]['latitude'] =
               double.tryParse(loc['latitude']?.toString() ?? '') ??
-                  _activeSosList[idx]['latitude'];
+              _activeSosList[idx]['latitude'];
           _activeSosList[idx]['longitude'] =
               double.tryParse(loc['longitude']?.toString() ?? '') ??
-                  _activeSosList[idx]['longitude'];
+              _activeSosList[idx]['longitude'];
           if (loc['lokasi_user'] != null) {
             _activeSosList[idx]['lokasi_user'] = loc['lokasi_user'];
           }
@@ -262,35 +388,29 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+    final isDarkMode = theme.brightness == Brightness.dark;
+
     return Scaffold(
       extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.white.withValues(alpha: 0.5),
-        elevation: 0,
-        centerTitle: true,
-        title: const Text(
-          'Peta Relawan',
-          style: TextStyle(fontWeight: FontWeight.bold, color: primaryTeal),
-        ),
-        flexibleSpace: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(color: Colors.transparent),
-          ),
-        ),
-      ),
       body: ValueListenableBuilder<Position?>(
         valueListenable: _locationService.currentPosition,
         builder: (context, position, _) {
           if (_isLoading || position == null) {
-            return const Center(
+            return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(color: primaryTeal),
-                  SizedBox(height: 16),
-                  Text('Menunggu Sinyal GPS...',
-                      style: TextStyle(color: primaryTeal, fontWeight: FontWeight.w500)),
+                  const CupertinoActivityIndicator(radius: 16),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Menunggu Sinyal GPS...',
+                    style: TextStyle(
+                      color: primaryColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ],
               ),
             );
@@ -303,15 +423,52 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
               // ── Map ──
               FlutterMap(
                 mapController: _mapController,
-                options: MapOptions(
-                  initialCenter: myLatLng,
-                  initialZoom: 15.0,
-                ),
+                options: MapOptions(initialCenter: myLatLng, initialZoom: 15.0),
                 children: [
-                  TileLayer(
-                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.sahabat_sos_mobile.app',
+                  ColorFiltered(
+                    colorFilter: isDarkMode
+                        ? const ColorFilter.matrix([
+                            -1,
+                            0,
+                            0,
+                            0,
+                            255,
+                            0,
+                            -1,
+                            0,
+                            0,
+                            255,
+                            0,
+                            0,
+                            -1,
+                            0,
+                            255,
+                            0,
+                            0,
+                            0,
+                            1,
+                            0,
+                          ])
+                        : const ColorFilter.mode(
+                            Colors.transparent,
+                            BlendMode.multiply,
+                          ),
+                    child: TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.sahabat_sos_mobile.app',
+                    ),
                   ),
+                  if (_routePoints.isNotEmpty)
+                    PolylineLayer(
+                      polylines: [
+                        Polyline(
+                          points: _routePoints,
+                          color: Colors.blueAccent,
+                          strokeWidth: 5.0,
+                        ),
+                      ],
+                    ),
                   MarkerLayer(
                     markers: [
                       // ── Volunteer Marker (Pulsing Blue Dot) ──
@@ -339,10 +496,15 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: Colors.blue,
-                                    border: Border.all(color: Colors.white, width: 3),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 3,
+                                    ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.2),
+                                        color: Colors.black.withValues(
+                                          alpha: 0.2,
+                                        ),
                                         blurRadius: 6,
                                       ),
                                     ],
@@ -355,81 +517,180 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
                       ),
 
                       // ── SOS User Markers ──
-                      ..._activeSosList.map((sos) {
-                        final lat = double.tryParse(sos['latitude'].toString()) ?? 0.0;
-                        final lng = double.tryParse(sos['longitude'].toString()) ?? 0.0;
-                        final name = sos['pengguna']?['name'] ?? 'SOS';
-                        final isAssigned = sos['is_assigned'] == true;
+                      ...(() {
+                        final Map<String, int> coordOffsets = {};
+                        return _activeSosList.map((sos) {
+                          final latRaw =
+                              double.tryParse(sos['latitude'].toString()) ??
+                              0.0;
+                          final lngRaw =
+                              double.tryParse(sos['longitude'].toString()) ??
+                              0.0;
 
-                        return Marker(
-                          point: LatLng(lat, lng),
-                          width: 90,
-                          height: 80,
-                          child: GestureDetector(
-                            onTap: () => _showSosDetails(sos),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: isAssigned ? Colors.amber.shade100 : Colors.white,
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: isAssigned ? Border.all(color: Colors.amber.shade800, width: 1.5) : null,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.15),
-                                        blurRadius: 4,
-                                      ),
-                                    ],
-                                  ),
-                                  child: Text(
-                                    name,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: isAssigned ? Colors.amber.shade900 : sosRed,
+                          final coordKey = "${latRaw}_$lngRaw";
+                          final offsetIndex = coordOffsets[coordKey] ?? 0;
+                          coordOffsets[coordKey] = offsetIndex + 1;
+
+                          // Geser sedikit jika tumpang tindih agar tetap terlihat terpisah
+                          final lat = latRaw + (offsetIndex * 0.00025);
+                          final lng = lngRaw + (offsetIndex * 0.00025);
+
+                          final name = sos['pengguna']?['name'] ?? 'SOS';
+                          final isAssigned = sos['is_assigned'] == true;
+
+                          return Marker(
+                            point: LatLng(lat, lng),
+                            width: 140,
+                            height: 90,
+                            child: GestureDetector(
+                              onTap: () => _showSosDetails(sos),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                    decoration: BoxDecoration(
+                                      color: isAssigned
+                                          ? Colors.amber.shade100
+                                          : Colors.white,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: isAssigned
+                                          ? Border.all(
+                                              color: Colors.amber.shade800,
+                                              width: 1.5,
+                                            )
+                                          : Border.all(
+                                              color: sosRed,
+                                              width: 1.5,
+                                            ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.15,
+                                          ),
+                                          blurRadius: 4,
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          name,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: isAssigned
+                                                ? Colors.amber.shade900
+                                                : sosRed,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                          FutureBuilder<String>(
+                                            future: _getMarkerAddress(sos, latRaw, lngRaw),
+                                            builder: (context, snapshot) {
+                                              return Text(
+                                                snapshot.data ?? 'Memuat...',
+                                                style: TextStyle(
+                                                  fontSize: 9,
+                                                  color: isDarkMode
+                                                      ? Colors.black87
+                                                      : Colors.grey[800],
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              );
+                                            },
+                                          ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 2),
-                                Icon(
-                                  isAssigned ? CupertinoIcons.location_solid : CupertinoIcons.exclamationmark_triangle_fill,
-                                  color: isAssigned ? Colors.amber.shade800 : sosRed,
-                                  size: 32,
-                                ),
-                              ],
+                                  const SizedBox(height: 2),
+                                  Icon(
+                                    isAssigned
+                                        ? CupertinoIcons.location_solid
+                                        : CupertinoIcons
+                                              .exclamationmark_triangle_fill,
+                                    color: isAssigned
+                                        ? Colors.amber.shade800
+                                        : sosRed,
+                                    size: 32,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        );
-                      }),
+                          );
+                        }).toList();
+                      })(),
                     ],
                   ),
                 ],
               ),
 
-              // ── Recenter Button ──
-              Positioned(
-                bottom: 140,
-                right: 16,
-                child: FloatingActionButton(
-                  heroTag: 'recenter_volunteer',
-                  backgroundColor: Colors.white.withValues(alpha: 0.9),
-                  elevation: 2,
-                  onPressed: _recenterMap,
-                  child: const Icon(Icons.my_location, color: primaryTeal),
-                ),
-              ),
-
-              // ── SOS Counter Badge ──
-              if (_activeSosList.isNotEmpty)
+              // ── Top SOS Target Info ──
+              if (_acceptedSos != null)
                 Positioned(
-                  top: MediaQuery.of(context).padding.top + kToolbarHeight + 12,
+                  top: MediaQuery.paddingOf(context).top + 16,
+                  left: 16,
+                  right: 16,
+                  child: _buildGlassContainer(
+                    context,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Menuju Lokasi Darurat',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: sosRed,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        FutureBuilder<String>(
+                          future: _getMarkerAddress(
+                            _acceptedSos!,
+                            double.tryParse(_acceptedSos!['latitude']?.toString() ?? '') ?? 0.0,
+                            double.tryParse(_acceptedSos!['longitude']?.toString() ?? '') ?? 0.0,
+                          ),
+                          builder: (context, snapshot) {
+                            return Text(
+                              snapshot.data ?? 'Memuat...',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: isDarkMode ? Colors.white : Colors.black87,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // ── SOS Counter Badge (Moved down if accepted SOS is shown) ──
+              if (_activeSosList.isNotEmpty && _acceptedSos == null)
+                Positioned(
+                  top: MediaQuery.paddingOf(context).top + 16,
                   left: 16,
                   child: _buildGlassContainer(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    context,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -457,20 +718,25 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
 
               // ── Bottom Info Card ──
               Positioned(
-                bottom: 24,
+                bottom: 100, // Diperbesar agar tidak tertimpa navbar
                 left: 16,
                 right: 16,
                 child: SafeArea(
                   child: _buildGlassContainer(
+                    context,
                     child: Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: primaryTeal.withValues(alpha: 0.1),
+                            color: primaryColor.withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.gps_fixed, color: primaryTeal, size: 22),
+                          child: Icon(
+                            CupertinoIcons.location_fill,
+                            color: primaryColor,
+                            size: 22,
+                          ),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -478,23 +744,49 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Text(
+                              Text(
                                 'Lokasi Anda (Relawan)',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 14,
-                                  color: primaryTeal,
+                                  color: primaryColor,
                                 ),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 '${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}  ·  ±${position.accuracy.toStringAsFixed(0)}m',
-                                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                style: TextStyle(
+                                  color: isDarkMode
+                                      ? Colors.white70
+                                      : Colors.grey[600],
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // ── Bottom Right: Recenter Button ──
+              Positioned(
+                bottom: 180,
+                right: 16,
+                child: SafeArea(
+                  top: false,
+                  child: _buildGlassContainer(
+                    context,
+                    padding: const EdgeInsets.all(4),
+                    borderRadius: BorderRadius.circular(20),
+                    child: IconButton(
+                      icon: const Icon(
+                        CupertinoIcons.location,
+                        color: Colors.blue,
+                      ),
+                      onPressed: _recenterMap,
                     ),
                   ),
                 ),
@@ -508,27 +800,36 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
 
   // ──────────────────── Glass Container ────────────────────
 
-  Widget _buildGlassContainer({
+  Widget _buildGlassContainer(
+    BuildContext context, {
     required Widget child,
     EdgeInsetsGeometry? padding,
     BorderRadius? borderRadius,
   }) {
-    final radius = borderRadius ?? BorderRadius.circular(20);
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final radius = borderRadius ?? BorderRadius.circular(24);
     return ClipRRect(
       borderRadius: radius,
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           padding: padding ?? const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.7),
+            color: isDarkMode
+                ? Colors.black.withValues(alpha: 0.4)
+                : Colors.white.withValues(alpha: 0.5),
             borderRadius: radius,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 1.5),
+            border: Border.all(
+              color: isDarkMode
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : Colors.white.withValues(alpha: 0.3),
+              width: 1,
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
               ),
             ],
           ),
@@ -540,7 +841,49 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
 
   // ──────────────────── SOS Detail Sheet ────────────────────
 
+  final Map<String, String> _addressCache = {};
+  
+  Future<String> _getMarkerAddress(Map<String, dynamic> sos, double lat, double lng) async {
+    final id = sos['id']?.toString() ?? '${lat}_$lng';
+    if (_addressCache.containsKey(id)) return _addressCache[id]!;
+    final address = await _resolveAddress(sos, lat, lng);
+    _addressCache[id] = address;
+    return address;
+  }
+
+  Future<String> _resolveAddress(Map<String, dynamic> sos, double lat, double lng) async {
+    String alamat = sos['lokasi_user']?.toString() ?? sos['lokasi_laporan']?.toString() ?? sos['address']?.toString() ?? '';
+    final alamatMatch = RegExp(r'alamat:\s*([^,}]+)').firstMatch(alamat);
+    if (alamatMatch != null) {
+      alamat = alamatMatch.group(1)!.trim();
+    }
+    
+    if (lat != 0.0 && lng != 0.0) {
+      try {
+        final placemarks = await Geocoding().placemarkFromCoordinates(lat, lng);
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          final addressList = [
+            place.subLocality,
+            place.locality,
+            place.subAdministrativeArea,
+            place.administrativeArea,
+          ].where((e) => e != null && e.isNotEmpty).toList();
+          final address = addressList.join(', ');
+          if (address.isNotEmpty) return address;
+        }
+      } catch (_) {}
+    }
+
+    if (alamat.isNotEmpty) return alamat;
+    return "Lat: ${lat.toStringAsFixed(4)}, Lng: ${lng.toStringAsFixed(4)}";
+  }
+
   void _showSosDetails(Map<String, dynamic> sos) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+    final isDarkMode = theme.brightness == Brightness.dark;
+
     final volunteerPos = _locationService.currentPosition.value;
     final sosLat = double.tryParse(sos['latitude'].toString()) ?? 0.0;
     final sosLng = double.tryParse(sos['longitude'].toString()) ?? 0.0;
@@ -553,144 +896,287 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
       );
     }
 
-    final user = sos['user'] as Map<String, dynamic>? ?? {};
-    final nama = user['nama'] ?? 'User';
-    final noTelp = user['no_telp'] ?? '-';
-    final alamat = sos['lokasi_user'] ?? 'Lokasi tidak diketahui';
+    final pengguna = sos['pengguna'] as Map<String, dynamic>? ?? {};
+    final nama = pengguna['name'] ?? sos['user']?['nama'] ?? 'User';
+    final noTelp =
+        pengguna['phone'] ??
+        pengguna['no_telp'] ??
+        sos['user']?['no_telp'] ??
+        '-';
+
     final status = sos['status_sos'] ?? 'aktif';
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        margin: const EdgeInsets.all(16),
-        child: _buildGlassContainer(
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom:
+              MediaQuery.viewInsetsOf(ctx).bottom +
+              MediaQuery.paddingOf(ctx).bottom,
+        ),
+        child: Container(
+          margin: const EdgeInsets.all(16),
           padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Handle bar
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
+          decoration: BoxDecoration(
+            color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 20,
+                offset: const Offset(0, 5),
               ),
-
-              // Header: Name + Status
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
+            ],
+          ),
+          child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Handle bar
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: sosRed.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(CupertinoIcons.exclamationmark_triangle_fill,
-                        color: sosRed, size: 24),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      nama,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: sosRed.withValues(alpha: 0.1),
+                      color: isDarkMode
+                          ? Colors.white24
+                          : Colors.grey.withValues(alpha: 0.4),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(
-                      status.toString().toUpperCase(),
-                      style: const TextStyle(
+                  ),
+                ),
+
+                // Header: Name + Status
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: sosRed.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        CupertinoIcons.exclamationmark_triangle_fill,
                         color: sosRed,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
+                        size: 24,
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Details
-              _buildDetailRow(CupertinoIcons.phone_fill, 'Telepon', noTelp),
-              const SizedBox(height: 10),
-              _buildDetailRow(
-                CupertinoIcons.location_solid,
-                'Lokasi',
-                alamat,
-              ),
-              if (distanceKm != null) ...[
-                const SizedBox(height: 10),
-                _buildDetailRow(
-                  CupertinoIcons.arrow_right_arrow_left,
-                  'Jarak',
-                  '${distanceKm.toStringAsFixed(1)} km dari Anda',
-                ),
-              ],
-              const SizedBox(height: 20),
-
-              // Accept Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  icon: const Icon(CupertinoIcons.checkmark_circle, size: 20),
-                  label: const Text(
-                    'Terima Tugas',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryTeal,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        nama,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: isDarkMode ? Colors.white : Colors.black87,
+                        ),
+                      ),
                     ),
-                  ),
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Tugas diterima!')),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: sosRed.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        status.toString().toUpperCase(),
+                        style: const TextStyle(
+                          color: sosRed,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Details
+                _buildDetailRow(
+                  context,
+                  CupertinoIcons.phone_fill,
+                  'Telepon',
+                  noTelp,
+                ),
+                const SizedBox(height: 10),
+                FutureBuilder<String>(
+                  future: _resolveAddress(sos, sosLat, sosLng),
+                  builder: (context, snapshot) {
+                    final loc = snapshot.data ?? 'Memuat...';
+                    return _buildDetailRow(
+                      context,
+                      CupertinoIcons.location_solid,
+                      'Lokasi',
+                      loc,
                     );
                   },
                 ),
-              ),
-              const SizedBox(height: 8),
-            ],
+                if (distanceKm != null) ...[
+                  const SizedBox(height: 10),
+                  _buildDetailRow(
+                    context,
+                    CupertinoIcons.arrow_right_arrow_left,
+                    'Jarak',
+                    '${distanceKm.toStringAsFixed(1)} km dari Anda',
+                  ),
+                ],
+                const SizedBox(height: 20),
+
+                // Actions
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: Icon(
+                      (sos['is_assigned'] == true)
+                          ? CupertinoIcons.arrow_right_circle_fill
+                          : CupertinoIcons.checkmark_circle,
+                      size: 20,
+                    ),
+                    label: Text(
+                      (sos['is_assigned'] == true)
+                          ? 'Lihat Detail Tugas'
+                          : 'Terima Tugas',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: _isFetchingRoute
+                        ? null
+                        : () async {
+                            Navigator.pop(ctx);
+
+                            try {
+                              final dataSource =
+                                  sl<
+                                    import_volunteer.VolunteerRemoteDataSource
+                                  >();
+                              final sosId = sos['id'] as int;
+
+                              if (sos['is_assigned'] == true) {
+                                // Navigasi ke halaman detail tugas
+                                if (mounted) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const import_active_task
+                                              .VolunteerActiveTaskPage(),
+                                    ),
+                                  ).then((_) {
+                                    setState(() {
+                                      _acceptedSos = null;
+                                      _routePoints.clear();
+                                    });
+                                    _fetchActiveSos();
+                                  });
+                                }
+                              } else {
+                                // Terima Tugas
+                                await dataSource.updateSosStatus(
+                                  sosId,
+                                  'ditangani',
+                                );
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Tugas diterima! Sedang membuat rute...',
+                                      ),
+                                    ),
+                                  );
+                                }
+                                setState(() {
+                                  _acceptedSos = sos;
+                                });
+                                if (volunteerPos != null) {
+                                  _fetchRoute(
+                                    LatLng(
+                                      volunteerPos.latitude,
+                                      volunteerPos.longitude,
+                                    ),
+                                    LatLng(sosLat, sosLng),
+                                  );
+                                }
+                              }
+
+                              // Refresh map data
+                              import_event_bus.GlobalEventBus.refreshMap.value =
+                                  !import_event_bus
+                                      .GlobalEventBus
+                                      .refreshMap
+                                      .value;
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Terjadi kesalahan: $e'),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         ),
-      ),
-    );
-  }
+      );
+    }
 
-  Widget _buildDetailRow(IconData icon, String label, String value) {
+  Widget _buildDetailRow(
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value, {
+    Widget? valueWidget,
+  }) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: Colors.black54),
+        Icon(
+          icon,
+          size: 18,
+          color: isDarkMode ? Colors.white54 : Colors.black54,
+        ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontSize: 11, color: Colors.black45)),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDarkMode ? Colors.white54 : Colors.black45,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(value,
-                  style: const TextStyle(
-                      fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500)),
+              valueWidget ?? Text(
+                value,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDarkMode ? Colors.white : Colors.black87,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
         ),
@@ -698,6 +1184,3 @@ class _VolunteerMapPageState extends State<VolunteerMapPage>
     );
   }
 }
-
-
-

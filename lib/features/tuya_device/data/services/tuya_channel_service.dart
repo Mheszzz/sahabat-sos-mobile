@@ -6,14 +6,16 @@ import '../models/tuya_device_model.dart';
 import '../models/tuya_dp_event_model.dart';
 
 /// Service that bridges Flutter with native Tuya SDK via Platform Channels.
-/// 
+///
 /// Uses MethodChannel for command/response operations (init, scan, pair, etc.)
 /// and EventChannel for streaming real-time DP updates from Tuya devices.
 class TuyaChannelService {
-  static const MethodChannel _methodChannel =
-      MethodChannel('com.sahabatsos.app/tuya_method');
-  static const EventChannel _eventChannel =
-      EventChannel('com.sahabatsos.app/tuya_events');
+  static const MethodChannel _methodChannel = MethodChannel(
+    'com.sahabatsos.app/tuya_method',
+  );
+  static const EventChannel _eventChannel = EventChannel(
+    'com.sahabatsos.app/tuya_events',
+  );
 
   StreamSubscription<dynamic>? _eventSubscription;
   final StreamController<TuyaDpEvent> _dpEventController =
@@ -63,7 +65,10 @@ class TuyaChannelService {
   }
 
   /// Start Wi-Fi EZ Mode pairing
-  Future<Map<String, dynamic>> startWifiPairing(String ssid, String password) async {
+  Future<Map<String, dynamic>> startWifiPairing(
+    String ssid,
+    String password,
+  ) async {
     try {
       final result = await _methodChannel.invokeMethod('startWifiPairing', {
         'ssid': ssid,
@@ -76,7 +81,10 @@ class TuyaChannelService {
   }
 
   /// Start Wi-Fi AP Mode pairing (more reliable than EZ Mode)
-  Future<Map<String, dynamic>> startWifiPairingAP(String ssid, String password) async {
+  Future<Map<String, dynamic>> startWifiPairingAP(
+    String ssid,
+    String password,
+  ) async {
     try {
       final result = await _methodChannel.invokeMethod('startWifiPairingAP', {
         'ssid': ssid,
@@ -84,7 +92,9 @@ class TuyaChannelService {
       });
       return Map<String, dynamic>.from(result as Map);
     } on PlatformException catch (e) {
-      throw TuyaServiceException('Failed to start Wi-Fi AP pairing: ${e.message}');
+      throw TuyaServiceException(
+        'Failed to start Wi-Fi AP pairing: ${e.message}',
+      );
     }
   }
 
@@ -99,13 +109,16 @@ class TuyaChannelService {
   }
 
   /// Step 2 AP Mode: Start AP pairing with pre-fetched token (no internet needed)
-  Future<Map<String, dynamic>> startApPairingWithToken(String ssid, String password, String token) async {
+  Future<Map<String, dynamic>> startApPairingWithToken(
+    String ssid,
+    String password,
+    String token,
+  ) async {
     try {
-      final result = await _methodChannel.invokeMethod('startApPairingWithToken', {
-        'ssid': ssid,
-        'password': password,
-        'token': token,
-      });
+      final result = await _methodChannel.invokeMethod(
+        'startApPairingWithToken',
+        {'ssid': ssid, 'password': password, 'token': token},
+      );
       return Map<String, dynamic>.from(result as Map);
     } on PlatformException catch (e) {
       throw TuyaServiceException('Failed to start AP pairing: ${e.message}');
@@ -149,8 +162,11 @@ class TuyaChannelService {
       final result = await _methodChannel.invokeMethod('getDeviceList');
       final list = result as List<dynamic>;
       return list
-          .map((item) =>
-              TuyaDeviceModel.fromJson(Map<String, dynamic>.from(item as Map)))
+          .map(
+            (item) => TuyaDeviceModel.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
           .toList();
     } on PlatformException catch (e) {
       throw TuyaServiceException('Failed to get device list: ${e.message}');
@@ -160,9 +176,7 @@ class TuyaChannelService {
   /// Remove a device from Tuya Cloud
   Future<void> removeDevice(String deviceId) async {
     try {
-      await _methodChannel.invokeMethod('removeDevice', {
-        'deviceId': deviceId,
-      });
+      await _methodChannel.invokeMethod('removeDevice', {'deviceId': deviceId});
     } on PlatformException catch (e) {
       throw TuyaServiceException('Failed to remove device: ${e.message}');
     }
@@ -171,9 +185,7 @@ class TuyaChannelService {
   /// Start listening to DP updates from a specific device
   Future<void> listenDevice(String deviceId) async {
     try {
-      await _methodChannel.invokeMethod('listenDevice', {
-        'deviceId': deviceId,
-      });
+      await _methodChannel.invokeMethod('listenDevice', {'deviceId': deviceId});
     } on PlatformException catch (e) {
       throw TuyaServiceException('Failed to listen device: ${e.message}');
     }

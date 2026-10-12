@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,7 +31,7 @@ class _DevicePageState extends State<DevicePage> {
       if (token.isNotEmpty) {
         await _tuyaService.loginAnonymous(token);
       }
-      
+
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -45,8 +46,10 @@ class _DevicePageState extends State<DevicePage> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: Colors.transparent,
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF00695C))),
+        backgroundColor: Color(0xFFF5F6F8),
+        body: Center(
+          child: CupertinoActivityIndicator(radius: 16),
+        ),
       );
     }
 

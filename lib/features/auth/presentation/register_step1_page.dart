@@ -24,74 +24,69 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF5F6F8),
       resizeToAvoidBottomInset: false,
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F7FA), // Light blue/teal
-              Color(0xFFF5F6F8), // Greyish white
-              Color(0xFFE0F2F1), // Light teal
-            ],
-          ),
-        ),
+        color: const Color(0xFFF5F6F8),
         child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: IntrinsicHeight(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildProgressSection(),
-                        const SizedBox(height: 12),
-                        _buildBrandRow(),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Daftar Akun Sahabat SOS',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1A1A2E),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildProgressSection(),
+                          const SizedBox(height: 12),
+                          _buildBrandRow(),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Daftar Akun Sahabat SOS',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1A1A2E),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Lengkapi data untuk perlindungan darurat\nterpadu dan respons relawan cepat.',
-                          style: TextStyle(fontSize: 13.5, color: mutedText, height: 1.4),
-                        ),
-                        const SizedBox(height: 20),
-                        _buildGoogleCard(),
-                        const SizedBox(height: 32),
-                        _buildTermsCheckbox(),
-                        const Spacer(),
-                        const SizedBox(height: 20),
-                        _buildLoginPrompt(),
-                      ],
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Lengkapi data untuk perlindungan darurat\nterpadu dan respons relawan cepat.',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              color: mutedText,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          _buildGoogleCard(),
+                          const SizedBox(height: 32),
+                          _buildTermsCheckbox(),
+                          const Spacer(),
+                          const SizedBox(height: 20),
+                          _buildLoginPrompt(),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
-      ),
       ),
     );
   }
 
   Widget _buildBrandRow() {
     return Row(
-      children: [
-        Image.asset('assets/images/logo_full.png', height: 40),
-      ],
+      children: [Image.asset('assets/images/logo_full.png', height: 40)],
     );
   }
 
@@ -138,46 +133,52 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
 
   Widget _buildGoogleCard() {
     return InkWell(
-      onTap: _isLoading ? null : () async {
-        setState(() {
-          _isLoading = true;
-        });
-        try {
-          final authDataSource = get_it.GetIt.instance<AuthRemoteDataSource>();
-          final result = await authDataSource.signInWithGoogle();
+      onTap: _isLoading
+          ? null
+          : () async {
+              setState(() {
+                _isLoading = true;
+              });
+              try {
+                final authDataSource =
+                    get_it.GetIt.instance<AuthRemoteDataSource>();
+                final result = await authDataSource.signInWithGoogle();
 
-          if (!mounted) return;
+                if (!mounted) return;
 
-          setState(() {
-            _isLoading = false;
-          });
+                setState(() {
+                  _isLoading = false;
+                });
 
-          if (result != null) {
-            final bool isProfileComplete = result['is_profile_complete'] ?? false;
+                if (result != null) {
+                  final bool isProfileComplete =
+                      result['is_profile_complete'] ?? false;
 
-            if (isProfileComplete) {
-              if (!mounted) return;
-              context.go(AppRoutes.dashboard);
-            } else {
-              if (!mounted) return;
-              context.push(AppRoutes.registerStep2);
-            }
-          } else {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Registrasi dibatalkan oleh user.')),
-            );
-          }
-        } catch (e) {
-          if (!mounted) return;
-          setState(() {
-            _isLoading = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Gagal Registrasi: $e')),
-          );
-        }
-      },
+                  if (isProfileComplete) {
+                    if (!mounted) return;
+                    context.go(AppRoutes.dashboard);
+                  } else {
+                    if (!mounted) return;
+                    context.push(AppRoutes.registerStep2);
+                  }
+                } else {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Registrasi dibatalkan oleh user.'),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (!mounted) return;
+                setState(() {
+                  _isLoading = false;
+                });
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('Gagal Registrasi: $e')));
+              }
+            },
       borderRadius: BorderRadius.circular(16),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
@@ -188,7 +189,10 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
             ),
             child: Row(
               children: [
@@ -196,10 +200,7 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
                     ? const SizedBox(
                         width: 26,
                         height: 26,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(primaryDark),
-                        ),
+                        child: CupertinoActivityIndicator(radius: 12),
                       )
                     : Image.network(
                         'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png',
@@ -227,7 +228,11 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
                       SizedBox(height: 3),
                       Text(
                         'Otomatis terhubung dengan email & nama\nterverifikasi',
-                        style: TextStyle(fontSize: 12.5, color: mutedText, height: 1.3),
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: mutedText,
+                          height: 1.3,
+                        ),
                       ),
                     ],
                   ),
@@ -251,14 +256,20 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
             value: _agreedToTerms,
             onChanged: (v) => setState(() => _agreedToTerms = v ?? false),
             activeColor: primaryDark,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+            ),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: RichText(
             text: const TextSpan(
-              style: TextStyle(fontSize: 13, color: Color(0xFF1A1A2E), height: 1.4),
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(0xFF1A1A2E),
+                height: 1.4,
+              ),
               children: [
                 TextSpan(text: 'Saya menyetujui '),
                 TextSpan(
@@ -312,4 +323,3 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
     );
   }
 }
-

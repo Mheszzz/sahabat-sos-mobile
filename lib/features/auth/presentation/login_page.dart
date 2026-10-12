@@ -8,6 +8,7 @@ import 'package:sahabat_sos_mobile/features/auth/data/datasources/auth_remote_da
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart' as event_bus;
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -23,71 +24,67 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF5F6F8),
       resizeToAvoidBottomInset: false,
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE0F7FA), // Light blue/teal
-              Color(0xFFF5F6F8), // Greyish white
-              Color(0xFFE0F2F1), // Light teal
-            ],
-          ),
-        ),
+        color: const Color(0xFFF5F6F8),
         child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                  child: IntrinsicHeight(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildTopBar(),
-                        const SizedBox(height: 24),
-                        Center(
-                          child: Image.asset('assets/images/logo_full.png', height: 80),
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'Selamat Datang Kembali',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1B1B2F),
-                          ),
-                        ),
-                        const SizedBox(height: 60),
-                        _buildGoogleButton(),
-                        const Spacer(),
-                        const SizedBox(height: 20),
-                        _buildFooter(),
-                        const SizedBox(height: 12),
-                        const Center(
-                          child: Text(
-                            'versi 1.0 Beta',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF6B7080),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 20,
+                    ),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildTopBar(),
+                          const SizedBox(height: 24),
+                          Center(
+                            child: Image.asset(
+                              'assets/images/logo_full.png',
+                              height: 80,
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Selamat Datang Kembali',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1B1B2F),
+                            ),
+                          ),
+                          const SizedBox(height: 60),
+                          _buildGoogleButton(),
+                          const Spacer(),
+                          const SizedBox(height: 20),
+                          _buildFooter(),
+                          const SizedBox(height: 12),
+                          const Center(
+                            child: Text(
+                              'versi 1.0 Beta',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF6B7080),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
-      ),
       ),
     );
   }
@@ -145,85 +142,133 @@ class _LoginPageState extends State<LoginPage> {
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: _isLoading ? null : () async {
-            setState(() {
-              _isLoading = true;
-            });
-            try {
-              // Panggil remote data source dari GetIt
-              final authDataSource = get_it.GetIt.instance<AuthRemoteDataSource>();
-              final result = await authDataSource.signInWithGoogle();
-              if (!mounted) return;
-
-              setState(() {
-                _isLoading = false;
-              });
-
-              if (result != null) {
-                final bool isProfileComplete = result['is_profile_complete'] ?? false;
-                
-                if (isProfileComplete) {
+          onTap: _isLoading
+              ? null
+              : () async {
+                  setState(() {
+                    _isLoading = true;
+                  });
                   try {
-                    final prefs = get_it.GetIt.instance<SharedPreferences>();
-                    final token = result['token'];
-                    final dio = get_it.GetIt.instance<Dio>();
-                    final profileRes = await dio.get(
-                      ApiConstants.me,
-                      options: Options(headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'}),
-                    );
-                    if (profileRes.statusCode == 200) {
-                      final userData = profileRes.data['user'];
-                      if (userData != null && userData['role'] != null) {
-                        await prefs.setString('user_role', userData['role']);
+                    // Panggil remote data source dari GetIt
+                    final authDataSource =
+                        get_it.GetIt.instance<AuthRemoteDataSource>();
+                    final result = await authDataSource.signInWithGoogle();
+                    if (!mounted) return;
+
+                    setState(() {
+                      _isLoading = false;
+                    });
+
+                    if (result != null) {
+                      final bool isProfileComplete =
+                          result['is_profile_complete'] ?? false;
+
+                      if (isProfileComplete) {
+                        try {
+                          final prefs =
+                              get_it.GetIt.instance<SharedPreferences>();
+                          final token = result['token'];
+                          Map<String, dynamic>? userData =
+                              result['user'] is Map<String, dynamic>
+                                  ? result['user'] as Map<String, dynamic>
+                                  : (result['user'] != null
+                                      ? Map<String, dynamic>.from(result['user'])
+                                      : null);
+
+                          if (userData == null) {
+                            final dio = get_it.GetIt.instance<Dio>();
+                            final profileRes = await dio.get(
+                              ApiConstants.me,
+                              options: Options(
+                                headers: {
+                                  'Authorization': 'Bearer $token',
+                                  'Accept': 'application/json',
+                                },
+                              ),
+                            );
+                            if (profileRes.statusCode == 200) {
+                              userData = profileRes.data['user'];
+                            }
+                          }
+
+                          if (userData != null && userData['role'] != null) {
+                            final role = userData['role'].toString().toLowerCase();
+                            await prefs.setString('user_role', role);
+                            if (role == 'relawan') {
+                              if (userData['id'] != null) {
+                                await prefs.setInt(
+                                  'volunteer_id',
+                                  (userData['id'] is int)
+                                      ? userData['id']
+                                      : int.tryParse(userData['id'].toString()) ?? 0,
+                                );
+                              }
+                              final verificationStatus =
+                                  (userData['status_verifikasi'] ?? 'pending')
+                                      .toString()
+                                      .toLowerCase();
+                              await prefs.setString(
+                                  'verification_status', verificationStatus);
+                              event_bus.GlobalEventBus.volunteerVerificationStatus
+                                  .value = (verificationStatus == 'terverifikasi');
+                              final isActive = (userData['is_active'] == true ||
+                                  userData['is_active'] == 1 ||
+                                  userData['is_active'] == '1');
+                              await prefs.setBool('user_is_active', isActive);
+                              event_bus.GlobalEventBus.volunteerActiveStatus
+                                  .value = isActive;
+                            }
+                          }
+                        } catch (e) {
+                          debugPrint("Error fetching user on login: $e");
+                        }
+                        if (!mounted) return;
+
+                        final userRole =
+                            get_it.GetIt.instance<SharedPreferences>()
+                                .getString('user_role');
+                        if (userRole == 'relawan') {
+                          context.go(AppRoutes.homeVolunteer);
+                        } else {
+                          context.go(AppRoutes.dashboard);
+                        }
+                      } else {
+                        if (!mounted) return;
+                        context.push(AppRoutes.registerStep2);
                       }
+                    } else {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Login dibatalkan oleh user.'),
+                        ),
+                      );
                     }
-                  } catch (_) {}
-                  if (!mounted) return;
-                  
-                  final userRole = get_it.GetIt.instance<SharedPreferences>().getString('user_role');
-                  if (userRole == 'relawan') {
-                    context.go(AppRoutes.homeVolunteer);
-                  } else {
-                    context.go(AppRoutes.dashboard);
+                  } catch (e) {
+                    if (!mounted) return;
+                    setState(() {
+                      _isLoading = false;
+                    });
+                    final errorMessage = e.toString().replaceFirst('Exception: ', '');
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text('Gagal Login: $errorMessage')));
                   }
-                } else {
-                  if (!mounted) return;
-                  context.push(AppRoutes.registerStep2);
-                }
-              } else {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Login dibatalkan oleh user.')),
-                );
-              }
-            } catch (e) {
-              if (!mounted) return;
-              setState(() {
-                _isLoading = false;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Gagal Login: $e')),
-              );
-            }
-          },
+                },
           child: Container(
             width: double.infinity,
             height: 60,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
             ),
             child: _isLoading
                 ? const Center(
-                    child: SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        valueColor: AlwaysStoppedAnimation<Color>(primaryDark),
-                      ),
-                    ),
+                    child: CupertinoActivityIndicator(radius: 12),
                   )
                 : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
