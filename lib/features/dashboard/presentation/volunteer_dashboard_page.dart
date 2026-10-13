@@ -8,7 +8,6 @@ import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
     as import_event_bus;
 import '../../volunteer_task/presentation/volunteer_active_task_page.dart'
     as import_active_task;
-import '../../volunteer_task/presentation/widgets/new_assignment_dialog.dart';
 import '../../volunteer_task/presentation/widgets/glass_container.dart';
 import '../../volunteer_task/data/datasources/volunteer_remote_data_source.dart';
 import '../../../core/services/websocket_service.dart';
@@ -48,28 +47,6 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
   void initState() {
     super.initState();
     _initVolunteerData();
-    import_event_bus.GlobalEventBus.showSosAssignmentPopup.addListener(
-      _onShowSosAssignmentPopup,
-    );
-
-    // Gunakan addPostFrameCallback agar showDialog dipanggil setelah build selesai
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _onShowSosAssignmentPopup();
-    });
-  }
-
-  void _onShowSosAssignmentPopup() {
-    final sosData =
-        import_event_bus.GlobalEventBus.showSosAssignmentPopup.value;
-    if (sosData != null) {
-      if (!_isReady) {
-        debugPrint("⛔ Relawan sedang tidak aktif (off-duty), mengabaikan popup.");
-        import_event_bus.GlobalEventBus.showSosAssignmentPopup.value = null;
-        return;
-      }
-      _showNewAssignmentDialog(sosData);
-      import_event_bus.GlobalEventBus.showSosAssignmentPopup.value = null; // reset
-    }
   }
 
   Future<void> _initVolunteerData() async {
@@ -179,7 +156,9 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
 
           final statusKetersediaan =
               userData['status_ketersediaan']?.toString().toLowerCase();
-          _isReady = (statusKetersediaan == 'tersedia');
+          _isReady = (statusKetersediaan == 'tersedia' ||
+              statusKetersediaan == 'aktif' ||
+              statusKetersediaan == null);
 
           _volunteerId = (userData['id'] is int)
               ? userData['id'] as int
@@ -223,117 +202,15 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
   }
 
   void _onNewSosReceived(dynamic eventData) {
-    debugPrint("SOS Baru Masuk via Websocket: $eventData");
-    if (!mounted) return;
-    if (!_isReady) {
-      debugPrint("⛔ Relawan sedang tidak aktif (off-duty), mengabaikan event SOS.");
-      return;
-    }
-    _showNewAssignmentDialog(eventData);
+    debugPrint("SOS Baru Masuk via Websocket di Dashboard: $eventData");
   }
 
   @override
   void dispose() {
-    import_event_bus.GlobalEventBus.showSosAssignmentPopup.removeListener(
-      _onShowSosAssignmentPopup,
-    );
-    if (_volunteerId != null) {
-      WebsocketService.stopListeningNewSosForVolunteer(_volunteerId!);
-    }
     super.dispose();
   }
 
-  bool _isDialogShowing = false;
-  final List<int> _rejectedSosIds = [];
 
-  void _showNewAssignmentDialog(dynamic eventData) {
-    if (_isDialogShowing) return;
-    if (!_isReady) {
-      debugPrint("⛔ Relawan sedang tidak aktif (off-duty), dialog tidak ditampilkan.");
-      return;
-    }
-    if (eventData == null) return;
-
-    Map<String, dynamic> sosData;
-    if (eventData is Map) {
-      sosData = Map<String, dynamic>.from(eventData);
-    } else {
-      return;
-    }
-
-    final dynamic rawId = sosData['id'];
-    final sosId =
-        (rawId is int) ? rawId : int.tryParse(rawId?.toString() ?? '0') ?? 0;
-    if (_rejectedSosIds.contains(sosId)) {
-      debugPrint('SOS #$sosId diabaikan karena sudah pernah ditolak.');
-      return;
-    }
-
-    _isDialogShowing = true;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => NewAssignmentDialog(
-        sosData: sosData,
-        onAccept: () async {
-          _isDialogShowing = false;
-          Navigator.pop(ctx);
-          try {
-            await _volunteerDataSource.updateSosStatus(sosId, 'ditangani');
-
-            if (!mounted) return;
-            import_event_bus.GlobalEventBus.refreshMap.value =
-                !import_event_bus.GlobalEventBus.refreshMap.value;
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) =>
-                    const import_active_task.VolunteerActiveTaskPage(),
-              ),
-            ).then((_) => _initVolunteerData());
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Tugas diterima! Menuju lokasi korban...'),
-                backgroundColor: primaryTeal,
-              ),
-            );
-            _initVolunteerData();
-          } catch (e) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Gagal menerima tugas: $e')),
-            );
-          }
-        },
-        onReject: () async {
-          _isDialogShowing = false;
-          _rejectedSosIds.add(sosId);
-          Navigator.pop(ctx);
-
-          try {
-            await _volunteerDataSource.rejectSos(sosId);
-
-            import_event_bus.GlobalEventBus.refreshMap.value =
-                !import_event_bus.GlobalEventBus.refreshMap.value;
-
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Tugas dialihkan ke relawan lain.'),
-              ),
-            );
-          } catch (e) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Gagal mengalihkan tugas: $e')),
-            );
-          }
-        },
-      ),
-    );
-  }
 
   /// Resolve lokasi item menjadi teks dukuh/desa/kecamatan/kabupaten.
   Future<String> _parseLokasiDisplay(Map<String, dynamic> item) async {

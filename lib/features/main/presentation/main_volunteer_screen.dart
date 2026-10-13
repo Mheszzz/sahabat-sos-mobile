@@ -13,6 +13,9 @@ import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
     as event_bus;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sahabat_sos_mobile/features/volunteer_task/data/datasources/volunteer_remote_data_source.dart';
+import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/widgets/new_assignment_dialog.dart';
+import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/volunteer_active_task_page.dart';
+import 'package:sahabat_sos_mobile/core/services/notification_service.dart';
 
 class MainVolunteerScreen extends StatefulWidget {
   final int initialIndex;
@@ -26,6 +29,8 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
   late int _selectedIndex;
   bool? _isVerified;
   bool _isActive = true;
+  bool _isSosDialogShowing = false;
+  final List<int> _rejectedSosIds = [];
   final LocationService _locationService = sl<LocationService>();
 
   // Key untuk akses langsung ke VolunteerMapPage state
@@ -41,6 +46,11 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
     event_bus.GlobalEventBus.changeVolunteerTab.addListener(_onChangeTab);
     event_bus.GlobalEventBus.volunteerVerificationStatus.addListener(_onVerificationStatusChanged);
     event_bus.GlobalEventBus.volunteerActiveStatus.addListener(_onActiveStatusChanged);
+    event_bus.GlobalEventBus.showSosAssignmentPopup.addListener(_onShowSosAssignmentPopup);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _onShowSosAssignmentPopup();
+    });
   }
 
   void _onActiveStatusChanged() {
@@ -158,8 +168,99 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
     });
   }
 
+  void _onShowSosAssignmentPopup() {
+    final sosData = event_bus.GlobalEventBus.showSosAssignmentPopup.value;
+    if (sosData == null) return;
+    if (_isSosDialogShowing) return;
+    if (_isVerified != true || !_isActive) {
+      debugPrint("⛔ Akun relawan tidak aktif atau belum terverifikasi, mengabaikan popup.");
+      event_bus.GlobalEventBus.showSosAssignmentPopup.value = null;
+      return;
+    }
+
+    final dynamic rawId = sosData['id'];
+    final int sosId =
+        (rawId is int) ? rawId : int.tryParse(rawId?.toString() ?? '0') ?? 0;
+    if (_rejectedSosIds.contains(sosId)) {
+      debugPrint("ℹ️ SOS #$sosId sudah pernah ditolak.");
+      event_bus.GlobalEventBus.showSosAssignmentPopup.value = null;
+      return;
+    }
+
+    _isSosDialogShowing = true;
+    event_bus.GlobalEventBus.showSosAssignmentPopup.value = null;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => NewAssignmentDialog(
+        sosData: sosData,
+        onAccept: () async {
+          _isSosDialogShowing = false;
+          Navigator.pop(ctx);
+          try {
+            final volunteerDataSource = sl<VolunteerRemoteDataSource>();
+            await volunteerDataSource.updateSosStatus(sosId, 'ditangani');
+
+            if (!mounted) return;
+            event_bus.GlobalEventBus.refreshMap.value =
+                !event_bus.GlobalEventBus.refreshMap.value;
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const VolunteerActiveTaskPage(),
+              ),
+            );
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Tugas diterima! Menuju lokasi korban...'),
+                backgroundColor: primaryTeal,
+              ),
+            );
+          } catch (e) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Gagal menerima tugas: $e')),
+            );
+          }
+        },
+        onReject: () async {
+          _isSosDialogShowing = false;
+          _rejectedSosIds.add(sosId);
+          Navigator.pop(ctx);
+
+          try {
+            final volunteerDataSource = sl<VolunteerRemoteDataSource>();
+            await volunteerDataSource.rejectSos(sosId);
+
+            event_bus.GlobalEventBus.refreshMap.value =
+                !event_bus.GlobalEventBus.refreshMap.value;
+
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Tugas dialihkan ke relawan lain.'),
+              ),
+            );
+          } catch (e) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Gagal mengalihkan tugas: $e')),
+            );
+          }
+        },
+      ),
+    ).then((_) {
+      _isSosDialogShowing = false;
+    });
+  }
+
   @override
   void dispose() {
+    event_bus.GlobalEventBus.showSosAssignmentPopup.removeListener(
+      _onShowSosAssignmentPopup,
+    );
     event_bus.GlobalEventBus.navigateToMapWithSos.removeListener(
       _onNavigateToMap,
     );
@@ -177,12 +278,15 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
       _locationService.startTracking();
     }
 
-    // 2. Initialize WebSocket so popup notifications can arrive
+    // 2. Initialize Notification & WebSocket so popup notifications can arrive
     try {
+      await NotificationService().init();
       final prefs = sl<SharedPreferences>();
       final token = prefs.getString('auth_token');
+      final volunteerId = prefs.getInt('volunteer_id') ?? 0;
       if (token != null) {
         await WebsocketService.init(token);
+        WebsocketService.listenToNewSosForVolunteer(volunteerId, (payload) {});
       }
     } catch (e) {
       debugPrint('WebSocket init error in MainVolunteer: $e');

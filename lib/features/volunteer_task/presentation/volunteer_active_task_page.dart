@@ -353,6 +353,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
     }
 
     final idSos = _activeTask!['id'] ?? '-';
+    final idKasus = _activeTask!['id_kasus'] ?? _activeTask!['nomor_kasus'] ?? 'SOS-$idSos';
     final pengguna = _activeTask!['pengguna'] ?? {};
     final nama = pengguna['name'] ?? 'Korban';
     final noTelp = pengguna['no_telp'] ?? '-';
@@ -470,7 +471,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              'ID: #SOS-$idSos',
+                              'ID: $idKasus',
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 12,

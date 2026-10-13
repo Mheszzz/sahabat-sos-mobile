@@ -39,6 +39,20 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   String? _freshStatus;
   String? _userRole;
   String? _readableAddress;
+  String? _freshImageUrl;
+  String? _freshAudioUrl;
+  String? _freshDescription;
+  String? _freshOfficerInfo;
+  String? _freshLocation;
+  double? _freshLatitude;
+  double? _freshLongitude;
+
+  String? get _effectiveImageUrl => _freshImageUrl ?? widget.item.imageUrl;
+  String? get _effectiveAudioUrl => _freshAudioUrl ?? widget.item.audioUrl;
+  String? get _effectiveDescription => _freshDescription ?? widget.item.description;
+  String? get _effectiveOfficerInfo => _freshOfficerInfo ?? widget.item.officerInfo;
+  double? get _effectiveLatitude => _freshLatitude ?? widget.item.latitude;
+  double? get _effectiveLongitude => _freshLongitude ?? widget.item.longitude;
 
   @override
   void initState() {
@@ -50,10 +64,11 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   }
 
   Future<void> _resolveAddress() async {
-    if (widget.item.latitude != null && widget.item.longitude != null) {
+    final lat = _effectiveLatitude;
+    final lng = _effectiveLongitude;
+    if (lat != null && lng != null) {
       try {
-        final placemarks = await Geocoding().placemarkFromCoordinates(
-            widget.item.latitude!, widget.item.longitude!);
+        final placemarks = await Geocoding().placemarkFromCoordinates(lat, lng);
         if (placemarks.isNotEmpty) {
           final place = placemarks.first;
           final addressList = [
@@ -122,10 +137,76 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
       if (response.statusCode == 200 && mounted) {
         final data = response.data['data'];
-        if (data != null) {
+        if (data != null && data is Map) {
+          final statusVal = (data['status'] ?? data['status_sos'])?.toString().toLowerCase();
+
+          // Foto URL
+          String? photo = (data['foto_laporan_url'] ?? data['foto_sos_url'] ?? data['foto_url'])?.toString();
+          if (photo == null && (data['foto_laporan'] ?? data['foto_sos']) != null) {
+            final raw = (data['foto_laporan'] ?? data['foto_sos']).toString();
+            photo = raw.startsWith('http') ? raw : '${ApiConstants.storageUrl}/${raw.replaceFirst('public/', '')}';
+          }
+
+          // Audio URL
+          String? audio = (data['rekam_suara_url'] ?? data['audio_sos_url'] ?? data['audio_url'])?.toString();
+          if (audio == null && (data['rekam_suara'] ?? data['rekam_suara_sos']) != null) {
+            final raw = (data['rekam_suara'] ?? data['rekam_suara_sos']).toString();
+            audio = raw.startsWith('http') ? raw : '${ApiConstants.storageUrl}/${raw.replaceFirst('public/', '')}';
+          }
+
+          // Officer / Relawan
+          String? officer;
+          if (data['relawan'] != null && data['relawan'] is Map) {
+            officer = 'Relawan ${data['relawan']['name']}';
+          }
+
+          // Description
+          final desc = data['deskripsi']?.toString() ??
+              data['deskripsi_sos']?.toString() ??
+              (data['alasan_batal'] != null ? 'Alasan Batal: ${data['alasan_batal']}' : null);
+
+          // Location
+          String? loc;
+          if (data['lokasi'] is Map) {
+            loc = data['lokasi']['alamat']?.toString();
+          } else {
+            loc = (data['lokasi_laporan'] ?? data['lokasi_sos'] ?? data['lokasi'] ?? data['lokasi_user'])?.toString();
+          }
+
+          // Coordinates
+          double? lat;
+          if (data['latitude'] != null) {
+            lat = (data['latitude'] is num) ? (data['latitude'] as num).toDouble() : double.tryParse(data['latitude'].toString());
+          } else if (data['lokasi'] is Map && data['lokasi']['latitude'] != null) {
+            lat = (data['lokasi']['latitude'] is num) ? (data['lokasi']['latitude'] as num).toDouble() : double.tryParse(data['lokasi']['latitude'].toString());
+          }
+
+          double? lng;
+          if (data['longitude'] != null) {
+            lng = (data['longitude'] is num) ? (data['longitude'] as num).toDouble() : double.tryParse(data['longitude'].toString());
+          } else if (data['lokasi'] is Map && data['lokasi']['longitude'] != null) {
+            lng = (data['lokasi']['longitude'] is num) ? (data['lokasi']['longitude'] as num).toDouble() : double.tryParse(data['lokasi']['longitude'].toString());
+          }
+
           setState(() {
-            _freshStatus = (data['status'] ?? data['status_sos'])?.toString().toLowerCase();
+            _freshStatus = statusVal;
+            if (photo != null) _freshImageUrl = photo;
+            if (audio != null) {
+              _freshAudioUrl = audio;
+              if (_playerStateSub == null) {
+                _initAudioPlayer();
+              }
+            }
+            if (desc != null && desc.isNotEmpty) _freshDescription = desc;
+            if (officer != null) _freshOfficerInfo = officer;
+            if (loc != null) _freshLocation = loc;
+            if (lat != null) _freshLatitude = lat;
+            if (lng != null) _freshLongitude = lng;
           });
+
+          if (lat != null && lng != null && _readableAddress == null) {
+            _resolveAddress();
+          }
         }
       }
     } catch (e) {
@@ -186,7 +267,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   bool _isCompleted = false;
 
   void _initAudioPlayer() {
-    if (widget.item.audioUrl != null) {
+    final audio = _effectiveAudioUrl;
+    if (audio != null && _playerStateSub == null) {
       _playerStateSub = _audioPlayer.onPlayerStateChanged.listen((state) {
         if (mounted) {
           setState(() {
@@ -243,7 +325,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   String? _localAudioPath;
 
   void _togglePlayPause() async {
-    if (widget.item.audioUrl == null) return;
+    final audioUrl = _effectiveAudioUrl;
+    if (audioUrl == null) return;
 
     try {
       if (_isPlaying) {
@@ -256,12 +339,19 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         if (!_isPlayerInitialized) {
           if (_localAudioPath == null) {
             final tempDir = await getTemporaryDirectory();
-            final filePath = '${tempDir.path}/temp_audio_${widget.item.id}.wav';
+            String ext = 'm4a';
+            try {
+              final uriPath = Uri.parse(audioUrl).path;
+              if (uriPath.contains('.')) {
+                ext = uriPath.split('.').last;
+              }
+            } catch (_) {}
+            final filePath = '${tempDir.path}/temp_audio_${widget.item.id}.$ext';
 
             if (await File(filePath).exists()) {
               _localAudioPath = filePath;
             } else {
-              await sl<Dio>().download(widget.item.audioUrl!, filePath);
+              await sl<Dio>().download(audioUrl, filePath);
               _localAudioPath = filePath;
             }
           }
@@ -405,9 +495,22 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         _freshStatus ?? widget.item.status.toString().split('.').last;
     final statusColor = _getStatusColor(statusString);
     final statusIcon = _getStatusIcon(statusString);
-    final hasImage = widget.item.imageUrl != null;
+    final hasImage = _effectiveImageUrl != null;
     final isSos = widget.item.type == HistoryType.sos;
     final detailTitle = isSos ? 'Detail Kasus SOS' : 'Detail Laporan';
+
+    String currentSosVal = (statusString == 'aktif' ? 'belum ditangani' : (statusString == 'dibatalkan' ? 'batal' : statusString));
+    if (!const ['belum ditangani', 'ditangani', 'selesai', 'batal'].contains(currentSosVal)) {
+      currentSosVal = 'belum ditangani';
+    }
+
+    String currentLaporanVal = (statusString == 'aktif' ? 'menunggu' : (statusString == 'batal' ? 'dibatalkan' : statusString));
+    if (!const ['menunggu', 'proses', 'selesai', 'dibatalkan'].contains(currentLaporanVal)) {
+      currentLaporanVal = 'menunggu';
+    }
+
+    final lat = _effectiveLatitude;
+    final lng = _effectiveLongitude;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -516,16 +619,10 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                           ),
                           const Spacer(),
                           DropdownButton<String>(
-                            value: isSos
-                                ? (['belum ditangani', 'ditangani', 'selesai', 'batal'].contains(statusString)
-                                    ? statusString
-                                    : 'belum ditangani')
-                                : (['menunggu', 'proses', 'selesai', 'dibatalkan', 'batal'].contains(statusString)
-                                    ? statusString
-                                    : 'menunggu'),
+                            value: isSos ? currentSosVal : currentLaporanVal,
                             items: (isSos
                                     ? const ['belum ditangani', 'ditangani', 'selesai', 'batal']
-                                    : const ['menunggu', 'proses', 'selesai', 'dibatalkan', 'batal'])
+                                    : const ['menunggu', 'proses', 'selesai', 'dibatalkan'])
                                 .map(
                                   (e) => DropdownMenuItem(
                                     value: e,
@@ -560,7 +657,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                                 height: 220,
                                 color: Colors.black,
                                 child: Image.network(
-                                  widget.item.imageUrl!,
+                                  _effectiveImageUrl!,
                                   fit: BoxFit.contain,
                                   errorBuilder: (context, error, stackTrace) =>
                                       Container(
@@ -596,7 +693,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                                     borderRadius: BorderRadius.circular(30),
                                     onTap: () => _showFullScreenImage(
                                       context,
-                                      widget.item.imageUrl!,
+                                      _effectiveImageUrl!,
                                     ),
                                     child: const Padding(
                                       padding: EdgeInsets.all(8.0),
@@ -698,7 +795,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    _readableAddress ?? widget.item.location,
+                                    _readableAddress ?? _freshLocation ?? widget.item.location,
                                     style: const TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
@@ -710,8 +807,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                             ),
                           ],
                         ),
-                        if (widget.item.latitude != null &&
-                            widget.item.longitude != null) ...[
+                        if (lat != null && lng != null) ...[
                           const SizedBox(height: 16),
                           ClipRRect(
                             borderRadius: BorderRadius.circular(12),
@@ -720,10 +816,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                               width: double.infinity,
                               child: FlutterMap(
                                 options: MapOptions(
-                                  initialCenter: LatLng(
-                                    widget.item.latitude!,
-                                    widget.item.longitude!,
-                                  ),
+                                  initialCenter: LatLng(lat, lng),
                                   initialZoom: 16.0,
                                   interactionOptions: const InteractionOptions(
                                     flags: InteractiveFlag
@@ -740,10 +833,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                                   MarkerLayer(
                                     markers: [
                                       Marker(
-                                        point: LatLng(
-                                          widget.item.latitude!,
-                                          widget.item.longitude!,
-                                        ),
+                                        point: LatLng(lat, lng),
                                         width: 40,
                                         height: 40,
                                         child: const Icon(
@@ -765,7 +855,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                 ),
 
                 // Officer Info Card
-                if (widget.item.officerInfo != null) ...[
+                if (_effectiveOfficerInfo != null) ...[
                   const SizedBox(height: 16),
                   _buildGlassContainer(
                     child: Padding(
@@ -793,7 +883,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  widget.item.officerInfo!,
+                                  _effectiveOfficerInfo!,
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -810,8 +900,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                 ],
 
                 // Description Card
-                if (widget.item.description != null &&
-                    widget.item.description!.isNotEmpty) ...[
+                if (_effectiveDescription != null &&
+                    _effectiveDescription!.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   _buildGlassContainer(
                     child: Padding(
@@ -838,7 +928,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            widget.item.description!,
+                            _effectiveDescription!,
                             style: const TextStyle(
                               fontSize: 14,
                               height: 1.5,
@@ -852,7 +942,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                 ],
 
                 // Audio Section
-                if (widget.item.audioUrl != null) ...[
+                if (_effectiveAudioUrl != null) ...[
                   const SizedBox(height: 16),
                   _buildGlassContainer(
                     child: Container(
