@@ -40,7 +40,7 @@ class WebsocketService {
         // PENTING: Sesuaikan key dengan REVERB_APP_KEY di file .env backend
         // Cek di file .env Laravel kamu, cari: REVERB_APP_KEY=...
         // =====================================================================
-        key: 'sahabat-sos-app-key',
+        key: '17f3f162540b4a538b928863a3b5d1aa8795f05a7d2adeaa0b2f24bc070324cc',
         cluster: 'mt1',
 
         // =====================================================================
