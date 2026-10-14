@@ -267,7 +267,7 @@ class _DashboardPageState extends State<DashboardPage>
                 bool hasPermission = await locationService.requestPermission();
                 if (!hasPermission) {
                   if (!mounted) return;
-                  Navigator.pop(context);
+                  Navigator.of(context, rootNavigator: true).pop();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
@@ -283,26 +283,33 @@ class _DashboardPageState extends State<DashboardPage>
 
                 try {
                   final cachedPos = locationService.currentPosition.value;
-                  if (cachedPos != null) {
+                  if (cachedPos != null && cachedPos.latitude != 0.0) {
                     latitude = cachedPos.latitude;
                     longitude = cachedPos.longitude;
                   } else {
                     final lastPos = await Geolocator.getLastKnownPosition();
-                    if (lastPos != null) {
+                    if (lastPos != null && lastPos.latitude != 0.0) {
                       latitude = lastPos.latitude;
                       longitude = lastPos.longitude;
                     } else {
                       final pos = await Geolocator.getCurrentPosition(
                         locationSettings: const LocationSettings(
-                          accuracy: LocationAccuracy.low,
+                          accuracy: LocationAccuracy.medium,
                         ),
-                      ).timeout(const Duration(seconds: 2));
+                      ).timeout(const Duration(seconds: 5));
                       latitude = pos.latitude;
                       longitude = pos.longitude;
                     }
                   }
                 } catch (e) {
-                  // Fallback ke 0.0 jika gagal mendapatkan lokasi dalam 2 detik agar SOS tetap terkirim
+                  // Fallback: coba ambil last known position jika getCurrentPosition timeout
+                  try {
+                    final fallbackPos = await Geolocator.getLastKnownPosition();
+                    if (fallbackPos != null) {
+                      latitude = fallbackPos.latitude;
+                      longitude = fallbackPos.longitude;
+                    }
+                  } catch (_) {}
                 }
 
                 final prefs = sl<SharedPreferences>();
@@ -330,9 +337,9 @@ class _DashboardPageState extends State<DashboardPage>
 
                 // Hide loading
                 if (!mounted) return;
-                Navigator.pop(context);
+                Navigator.of(context, rootNavigator: true).pop();
 
-                if (response.statusCode == 201) {
+                if (response.statusCode == 200 || response.statusCode == 201) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Sinyal SOS berhasil dikirim.'),
@@ -343,7 +350,7 @@ class _DashboardPageState extends State<DashboardPage>
               } catch (e) {
                 // Hide loading
                 if (!mounted) return;
-                Navigator.pop(context);
+                Navigator.of(context, rootNavigator: true).pop();
 
                 if (e is DioException && e.response?.statusCode == 422) {
                   // SOS still active

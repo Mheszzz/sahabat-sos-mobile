@@ -9,6 +9,7 @@ import 'package:sahabat_sos_mobile/core/services/background_service.dart';
 import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart';
 import 'package:sahabat_sos_mobile/core/widgets/permission_gate.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/data/services/tuya_background_listener.dart';
+import 'package:sahabat_sos_mobile/core/services/notification_service.dart';
 import 'package:sahabat_sos_mobile/routing/app_router.dart';
 
 void main() async {
@@ -20,26 +21,10 @@ void main() async {
   // Initialize Dependency Injection (GetIt)
   await initInjection();
 
-  // Inisialisasi notifikasi untuk menangani klik notifikasi SOS
+  // Inisialisasi notifikasi untuk menangani banner alert dan klik notifikasi SOS
+  final notificationService = NotificationService();
+  await notificationService.init();
   final FlutterLocalNotificationsPlugin localNotif = FlutterLocalNotificationsPlugin();
-  const AndroidInitializationSettings initializationSettingsAndroid =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
-  const InitializationSettings initializationSettings =
-      InitializationSettings(android: initializationSettingsAndroid);
-      
-  await localNotif.initialize(
-    settings: initializationSettings,
-    onDidReceiveNotificationResponse: (NotificationResponse response) {
-      if (response.payload != null && response.payload!.isNotEmpty) {
-        try {
-          final sosData = jsonDecode(response.payload!);
-          GlobalEventBus.showSosAssignmentPopup.value = sosData;
-        } catch (e) {
-          debugPrint('Error parsing notification payload: $e');
-        }
-      }
-    },
-  );
 
   // Cek apakah aplikasi diluncurkan (cold start) dari klik notifikasi
   final NotificationAppLaunchDetails? launchDetails =

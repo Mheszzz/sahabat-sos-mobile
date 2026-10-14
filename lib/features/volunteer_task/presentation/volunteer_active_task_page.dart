@@ -31,6 +31,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
   final _locationService = sl<LocationService>();
   Map<String, dynamic>? _activeTask;
   bool _isLoading = true;
+  bool _isCompleting = false;
 
   LatLng? _effectiveVolPos;
   List<LatLng> _routePoints = [];
@@ -139,7 +140,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
   }
 
   Future<void> _fetchTask() async {
-    if (!mounted) return;
+    if (!mounted || _isCompleting) return;
     setState(() {
       _isLoading = true;
       _routePoints.clear();
@@ -353,6 +354,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
     }
 
     final idSos = _activeTask!['id'] ?? '-';
+    final idKasus = _activeTask!['id_kasus'] ?? _activeTask!['nomor_kasus'] ?? 'SOS-$idSos';
     final pengguna = _activeTask!['pengguna'] ?? {};
     final nama = pengguna['name'] ?? 'Korban';
     final noTelp = pengguna['no_telp'] ?? '-';
@@ -470,7 +472,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              'ID: #SOS-$idSos',
+                              'ID: $idKasus',
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 12,
@@ -1042,31 +1044,36 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                     child: SlideToCompleteButton(
                       label: 'Kasus Telah Selesai',
                       onCompleted: () async {
+                        final navigator = Navigator.of(context);
+                        final messenger = ScaffoldMessenger.of(context);
                         try {
+                          _isCompleting = true;
                           await _dataSource.updateSosStatus(
                             int.parse(idSos.toString()),
                             'selesai',
                           );
+                          // Otomatis arahkan ke tab Tugas Relawan (index 1)
+                          import_event_bus.GlobalEventBus.changeVolunteerTab
+                              .value = 1;
                           import_event_bus.GlobalEventBus.refreshMap.value =
                               !import_event_bus.GlobalEventBus.refreshMap.value;
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Tugas telah diselesaikan.'),
-                              ),
-                            );
-                            Navigator.pop(context);
-                          }
+                          if (!mounted) return;
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('Tugas telah diselesaikan.'),
+                            ),
+                          );
+                          navigator.popUntil((route) => route.isFirst);
                         } catch (e) {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Gagal menyelesaikan: $e',
-                                ),
+                          _isCompleting = false;
+                          if (!mounted) return;
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Gagal menyelesaikan: $e',
                               ),
-                            );
-                          }
+                            ),
+                          );
                         }
                       },
                     ),

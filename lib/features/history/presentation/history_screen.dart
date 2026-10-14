@@ -20,6 +20,7 @@ class HistoryItem {
   final HistoryStatus status;
   final String title;
   final String dateTime;
+  final DateTime? rawDateTime;
   final String location;
   final String? officerInfo;
   final String? description;
@@ -36,6 +37,7 @@ class HistoryItem {
     required this.status,
     required this.title,
     required this.dateTime,
+    this.rawDateTime,
     required this.location,
     this.officerInfo,
     this.description,
@@ -49,7 +51,8 @@ class HistoryItem {
 }
 
 class HistoryPage extends StatefulWidget {
-  const HistoryPage({super.key});
+  final int initialTypeFilter;
+  const HistoryPage({super.key, this.initialTypeFilter = 0});
 
   @override
   State<HistoryPage> createState() => _HistoryPageState();
@@ -58,8 +61,17 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> {
   static const Color primaryTeal = Color(0xFF00695C);
 
-  int _selectedFilter = 0;
-  final List<String> _filters = ['Semua', 'SOS', 'Laporan', 'Selesai'];
+  late int _selectedTypeFilter;
+  final List<String> _typeFilters = ['Semua', 'SOS', 'Laporan'];
+
+  int _selectedStatusFilter = 0;
+  final List<String> _statusFilters = [
+    'Semua Status',
+    'Menunggu',
+    'Ditangani',
+    'Selesai',
+    'Dibatalkan',
+  ];
 
   bool _isLoading = true;
   List<HistoryItem> _allItems = [];
@@ -71,6 +83,16 @@ class _HistoryPageState extends State<HistoryPage> {
     if (_addressCache.containsKey(item.id)) {
       return _addressCache[item.id]!;
     }
+    // Jika lokasi sudah berupa teks alamat yang jelas, gunakan langsung tanpa geocoding
+    if (item.location.isNotEmpty &&
+        item.location != 'Lokasi tidak diketahui' &&
+        !item.location.startsWith('Koordinat GPS') &&
+        !item.location.startsWith('-') &&
+        !item.location.startsWith('latitude')) {
+      _addressCache[item.id] = item.location;
+      return item.location;
+    }
+
     if (item.latitude != null && item.longitude != null) {
       try {
         final placemarks = await Geocoding().placemarkFromCoordinates(item.latitude!, item.longitude!);
@@ -96,8 +118,7 @@ class _HistoryPageState extends State<HistoryPage> {
     return item.location;
   }
 
-  int _selectedTimeFilter =
-      0; // 0: Semua Waktu, 1: 1 Minggu, 2: 1 Bulan, 3: Kustom
+  int _selectedTimeFilter = 0; // 0: Semua Waktu, 1: 1 Minggu, 2: 1 Bulan, 3: Kustom
   final List<String> _timeFilters = [
     'Semua Waktu',
     '1 Minggu',
@@ -108,6 +129,8 @@ class _HistoryPageState extends State<HistoryPage> {
   DateTime? _customEndDate;
 
   int _currentPage = 1;
+  int _totalPages = 1;
+  int _totalItems = 0;
   final int _itemsPerPage = 10;
 
   Timer? _refreshTimer;
@@ -116,9 +139,10 @@ class _HistoryPageState extends State<HistoryPage> {
   @override
   void initState() {
     super.initState();
-    _fetchHistory();
+    _selectedTypeFilter = widget.initialTypeFilter;
+    _fetchHistory(page: 1);
     
-    // Fallback polling untuk Laporan (karena backend belum ada event LaporanUpdateStatus)
+    // Fallback polling untuk Laporan
     _refreshTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
       if (mounted && !_isLoading) {
         _fetchHistorySilently();
@@ -141,7 +165,6 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Future<void> _fetchHistorySilently() async {
-    // Versi _fetchHistory tanpa setState _isLoading = true agar UI tidak berkedip
     try {
       final prefs = GetIt.instance<SharedPreferences>();
       final token = prefs.getString('auth_token');
@@ -151,16 +174,42 @@ class _HistoryPageState extends State<HistoryPage> {
       final headers = {if (token != null) 'Authorization': 'Bearer $token'};
       String endpoint = role == 'relawan' ? ApiConstants.riwayatRelawan : ApiConstants.riwayatPengguna;
 
-      final response = await dio.get(endpoint, options: Options(headers: headers));
+      final response = await dio.get(
+        '$endpoint?page=$_currentPage&per_page=$_itemsPerPage',
+        options: Options(headers: headers),
+      );
 
       if (response.statusCode == 200 && mounted) {
-        final data = response.data['data'] is List
-            ? response.data['data']
-            : (response.data['data'] != null && response.data['data']['data'] != null ? response.data['data']['data'] : []);
+        final resData = response.data;
+        List<dynamic> allData = [];
+        int lastPage = _totalPages;
+        int total = _totalItems;
+
+        if (resData is Map) {
+          lastPage = resData['last_page'] ?? _totalPages;
+          total = resData['total'] ?? _totalItems;
+          final d = resData['data'];
+          if (d is List) {
+            allData.addAll(d);
+          } else if (d is Map && d['data'] is List) {
+            allData.addAll(d['data']);
+            lastPage = d['last_page'] ?? lastPage;
+            total = d['total'] ?? total;
+          }
+        }
         
+        final items = allData.map((item) => _mapToHistoryItem(item)).toList();
+        items.sort((a, b) {
+          if (a.rawDateTime != null && b.rawDateTime != null) {
+            return b.rawDateTime!.compareTo(a.rawDateTime!);
+          }
+          return b.dateTime.compareTo(a.dateTime);
+        });
+
         setState(() {
-          _allItems = (data as List).map((item) => _mapToHistoryItem(item)).toList();
-          _allItems.sort((a, b) => b.dateTime.compareTo(a.dateTime));
+          _allItems = items;
+          _totalPages = lastPage > 0 ? lastPage : 1;
+          _totalItems = total > 0 ? total : items.length;
         });
         _updateWebsocketSubscriptions();
       }
@@ -185,7 +234,7 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
-  Future<void> _fetchHistory() async {
+  Future<void> _fetchHistory({int page = 1}) async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -205,25 +254,45 @@ class _HistoryPageState extends State<HistoryPage> {
       }
 
       final response = await dio.get(
-        endpoint,
+        '$endpoint?page=$page&per_page=$_itemsPerPage',
         options: Options(headers: headers),
       );
 
       List<dynamic> allData = [];
+      int lastPage = 1;
+      int total = 0;
 
       if (response.statusCode == 200) {
-        final data = response.data['data'] is List
-            ? response.data['data']
-            : (response.data['data'] != null && response.data['data']['data'] != null ? response.data['data']['data'] : []);
-        allData.addAll(data as List);
+        final resData = response.data;
+        if (resData is Map) {
+          lastPage = resData['last_page'] ?? 1;
+          total = resData['total'] ?? 0;
+          final d = resData['data'];
+          if (d is List) {
+            allData.addAll(d);
+          } else if (d is Map && d['data'] is List) {
+            allData.addAll(d['data']);
+            lastPage = d['last_page'] ?? lastPage;
+            total = d['total'] ?? total;
+          }
+        }
       }
 
+      final items = allData.map((item) => _mapToHistoryItem(item)).toList();
+
+      // Sort items by date descending (menggunakan DateTime)
+      items.sort((a, b) {
+        if (a.rawDateTime != null && b.rawDateTime != null) {
+          return b.rawDateTime!.compareTo(a.rawDateTime!);
+        }
+        return b.dateTime.compareTo(a.dateTime);
+      });
+
       setState(() {
-        _allItems = allData.map((item) => _mapToHistoryItem(item)).toList();
-
-        // Sort items by date descending
-        _allItems.sort((a, b) => b.dateTime.compareTo(a.dateTime));
-
+        _allItems = items;
+        _currentPage = page;
+        _totalPages = lastPage > 0 ? lastPage : 1;
+        _totalItems = total > 0 ? total : items.length;
         _isLoading = false;
       });
       
@@ -289,6 +358,7 @@ class _HistoryPageState extends State<HistoryPage> {
     String rawDate =
         (data['waktu'] ?? data['waktu_laporan'] ?? data['waktu_sos'] ?? data['created_at'] ?? '').toString();
     String displayDate = rawDate;
+    DateTime? rawParsedDate;
     try {
       if (rawDate.isNotEmpty) {
         String parseableDate = rawDate.replaceAll(' ', 'T');
@@ -298,12 +368,12 @@ class _HistoryPageState extends State<HistoryPage> {
                 parseableDate.indexOf('-', parseableDate.indexOf('T')) == -1)) {
           parseableDate += 'Z';
         }
-        DateTime parsedDate = DateTime.parse(parseableDate).toLocal();
-        String year = parsedDate.year.toString().padLeft(4, '0');
-        String month = parsedDate.month.toString().padLeft(2, '0');
-        String day = parsedDate.day.toString().padLeft(2, '0');
-        String hour = parsedDate.hour.toString().padLeft(2, '0');
-        String minute = parsedDate.minute.toString().padLeft(2, '0');
+        rawParsedDate = DateTime.parse(parseableDate).toLocal();
+        String year = rawParsedDate.year.toString().padLeft(4, '0');
+        String month = rawParsedDate.month.toString().padLeft(2, '0');
+        String day = rawParsedDate.day.toString().padLeft(2, '0');
+        String hour = rawParsedDate.hour.toString().padLeft(2, '0');
+        String minute = rawParsedDate.minute.toString().padLeft(2, '0');
         displayDate = '$year-$month-$day $hour:$minute';
       }
     } catch (e) {
@@ -312,52 +382,80 @@ class _HistoryPageState extends State<HistoryPage> {
       }
     }
 
-    String baseUrlStorage = ApiConstants.baseUrl.replaceAll(
-      '/api',
-      '/storage/',
-    );
-    String? foto = (data['foto_laporan'] ?? data['foto'])?.toString();
-    String? audio =
+    // Resolusi media foto & audio
+    String? foto = data['foto_laporan_url']?.toString() ??
+        (data['foto_laporan'] ?? data['foto'] ?? data['foto_url'])?.toString();
+    String? audio = data['rekam_suara_url']?.toString() ??
         (data['audio_laporan'] ??
-        data['rekam_suara'] ??
-        data['rekaman_suara'] ??
-        data['audio'])?.toString();
+            data['rekam_suara'] ??
+            data['rekaman_suara'] ??
+            data['audio'])?.toString();
 
-    String rawLocationStr = (data['lokasi'] ??
-          data['lokasi_laporan'] ??
-          data['lokasi_user'] ??
-          'Lokasi tidak diketahui').toString();
+    String? resolvedImageUrl = foto != null
+        ? (foto.startsWith('http')
+            ? foto
+            : '${ApiConstants.storageUrl}/${foto.replaceFirst('public/', '')}')
+        : null;
 
-    String locationStr = rawLocationStr;
-    final alamatMatch = RegExp(r'alamat:\s*([^,}]+)').firstMatch(rawLocationStr);
-    if (alamatMatch != null) {
-      locationStr = alamatMatch.group(1)!.trim();
-    }
+    String? resolvedAudioUrl = audio != null
+        ? (audio.startsWith('http')
+            ? audio
+            : '${ApiConstants.storageUrl}/${audio.replaceFirst('public/', '')}')
+        : null;
 
+    // Parsing lokasi bersih (dukung Map atau String tanpa regex potong koma)
+    String locationStr = 'Lokasi tidak diketahui';
     double? lat;
-    if (data['latitude'] != null) {
-      lat = (data['latitude'] is num) ? (data['latitude'] as num).toDouble() : double.tryParse(data['latitude'].toString());
-    } else {
-      final latMatch = RegExp(r'latitude:\s*(-?\d+\.\d+)').firstMatch(rawLocationStr);
-      if (latMatch != null) lat = double.tryParse(latMatch.group(1)!);
+    double? lng;
+
+    if (data['lokasi'] is Map) {
+      locationStr = data['lokasi']['alamat']?.toString() ?? 'Lokasi tidak diketahui';
+      if (data['lokasi']['latitude'] != null) {
+        lat = (data['lokasi']['latitude'] is num)
+            ? (data['lokasi']['latitude'] as num).toDouble()
+            : double.tryParse(data['lokasi']['latitude'].toString());
+      }
+      if (data['lokasi']['longitude'] != null) {
+        lng = (data['lokasi']['longitude'] is num)
+            ? (data['lokasi']['longitude'] as num).toDouble()
+            : double.tryParse(data['lokasi']['longitude'].toString());
+      }
+    } else if (data['lokasi'] != null || data['lokasi_laporan'] != null || data['lokasi_user'] != null) {
+      locationStr = (data['lokasi_laporan'] ?? data['lokasi'] ?? data['lokasi_user']).toString();
     }
 
-    double? lng;
-    if (data['longitude'] != null) {
+    if (lat == null && data['latitude'] != null) {
+      lat = (data['latitude'] is num) ? (data['latitude'] as num).toDouble() : double.tryParse(data['latitude'].toString());
+    }
+    if (lng == null && data['longitude'] != null) {
       lng = (data['longitude'] is num) ? (data['longitude'] as num).toDouble() : double.tryParse(data['longitude'].toString());
+    }
+
+    // Judul kasus asli
+    String title;
+    if (type == HistoryType.sos) {
+      String customTitle = (data['judul_sos'] ?? data['sub_judul'] ?? data['jenis_laporan'] ?? '').toString();
+      if (customTitle.isNotEmpty && customTitle != 'Darurat' && customTitle != 'SOS') {
+        title = customTitle;
+      } else {
+        title = 'SOS Darurat: $kategori';
+      }
     } else {
-      final lngMatch = RegExp(r'longitude:\s*(-?\d+\.\d+)').firstMatch(rawLocationStr);
-      if (lngMatch != null) lng = double.tryParse(lngMatch.group(1)!);
+      String customTitle = (data['sub_judul'] ?? data['jenis_laporan'] ?? data['judul'] ?? '').toString();
+      if (customTitle.isNotEmpty) {
+        title = customTitle;
+      } else {
+        title = 'Laporan: $kategori';
+      }
     }
 
     return HistoryItem(
-      id: data['id'],
+      id: data['id'] is int ? data['id'] : int.tryParse(data['id'].toString()) ?? 0,
       type: type,
       status: status,
-      title: type == HistoryType.sos
-          ? 'SOS Darurat: $kategori'
-          : 'Laporan: $kategori',
+      title: title,
       dateTime: displayDate,
+      rawDateTime: rawParsedDate,
       location: locationStr,
       description: data['deskripsi']?.toString(),
       officerInfo: officerInfo,
@@ -367,16 +465,8 @@ class _HistoryPageState extends State<HistoryPage> {
       imagePlaceholderIcon: type == HistoryType.sos
           ? CupertinoIcons.map
           : CupertinoIcons.doc_text,
-      imageUrl: foto != null
-          ? (foto.startsWith('http')
-                ? foto
-                : '$baseUrlStorage${foto.replaceFirst('public/', '')}')
-          : null,
-      audioUrl: audio != null
-          ? (audio.startsWith('http')
-                ? audio
-                : '$baseUrlStorage${audio.replaceFirst('public/', '')}')
-          : null,
+      imageUrl: resolvedImageUrl,
+      audioUrl: resolvedAudioUrl,
       latitude: lat,
       longitude: lng,
     );
@@ -385,40 +475,46 @@ class _HistoryPageState extends State<HistoryPage> {
   List<HistoryItem> get _filteredItems {
     List<HistoryItem> items = _allItems;
 
-    // Kategori Filter
-    if (_selectedFilter == 1) {
+    // Filter Tipe (0: Semua, 1: SOS, 2: Laporan)
+    if (_selectedTypeFilter == 1) {
       items = items.where((i) => i.type == HistoryType.sos).toList();
-    } else if (_selectedFilter == 2) {
+    } else if (_selectedTypeFilter == 2) {
       items = items.where((i) => i.type == HistoryType.laporan).toList();
-    } else if (_selectedFilter == 3) {
-      items = items.where((i) => i.status == HistoryStatus.selesai).toList();
     }
 
-    // Waktu Filter
+    // Filter Status (0: Semua Status, 1: Menunggu, 2: Ditangani, 3: Selesai, 4: Dibatalkan)
+    if (_selectedStatusFilter == 1) {
+      items = items.where((i) => i.status == HistoryStatus.aktif).toList();
+    } else if (_selectedStatusFilter == 2) {
+      items = items.where((i) => i.status == HistoryStatus.ditangani).toList();
+    } else if (_selectedStatusFilter == 3) {
+      items = items.where((i) => i.status == HistoryStatus.selesai).toList();
+    } else if (_selectedStatusFilter == 4) {
+      items = items.where((i) => i.status == HistoryStatus.dibatalkan).toList();
+    }
+
+    // Filter Waktu
     if (_selectedTimeFilter != 0) {
       final now = DateTime.now();
       items = items.where((item) {
-        try {
-          final itemDate = DateTime.parse(item.dateTime.replaceAll(' ', 'T'));
-          if (_selectedTimeFilter == 1) {
-            // 1 Minggu
-            return now.difference(itemDate).inDays <= 7;
-          } else if (_selectedTimeFilter == 2) {
-            // 1 Bulan
-            return now.difference(itemDate).inDays <= 30;
-          } else if (_selectedTimeFilter == 3) {
-            // Kustom
-            if (_customStartDate != null && _customEndDate != null) {
-              return itemDate.isAfter(
-                    _customStartDate!.subtract(const Duration(days: 1)),
-                  ) &&
-                  itemDate.isBefore(
-                    _customEndDate!.add(const Duration(days: 1)),
-                  );
-            }
+        final itemDate = item.rawDateTime ?? DateTime.tryParse(item.dateTime.replaceAll(' ', 'T'));
+        if (itemDate == null) return true;
+        if (_selectedTimeFilter == 1) {
+          // 1 Minggu
+          return now.difference(itemDate).inDays <= 7;
+        } else if (_selectedTimeFilter == 2) {
+          // 1 Bulan
+          return now.difference(itemDate).inDays <= 30;
+        } else if (_selectedTimeFilter == 3) {
+          // Kustom
+          if (_customStartDate != null && _customEndDate != null) {
+            return itemDate.isAfter(
+                  _customStartDate!.subtract(const Duration(days: 1)),
+                ) &&
+                itemDate.isBefore(
+                  _customEndDate!.add(const Duration(days: 1)),
+                );
           }
-        } catch (e) {
-          return true; // Jika parsing gagal, biarkan saja
         }
         return true;
       }).toList();
@@ -427,25 +523,7 @@ class _HistoryPageState extends State<HistoryPage> {
     return items;
   }
 
-  List<HistoryItem> get _paginatedItems {
-    final items = _filteredItems;
-    if (_selectedFilter == 0) {
-      final startIndex = (_currentPage - 1) * _itemsPerPage;
-      if (startIndex >= items.length) return [];
-      final endIndex = (startIndex + _itemsPerPage < items.length)
-          ? startIndex + _itemsPerPage
-          : items.length;
-      return items.sublist(startIndex, endIndex);
-    }
-    return items;
-  }
-
-  int get _totalPages {
-    if (_selectedFilter == 0) {
-      return (_filteredItems.length / _itemsPerPage).ceil();
-    }
-    return 1;
-  }
+  List<HistoryItem> get _paginatedItems => _filteredItems;
 
   @override
   Widget build(BuildContext context) {
@@ -461,13 +539,13 @@ class _HistoryPageState extends State<HistoryPage> {
         ),
         child: SafeArea(
           child: RefreshIndicator(
-            onRefresh: _fetchHistory,
+            onRefresh: () => _fetchHistory(page: _currentPage),
             color: primaryTeal,
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               children: [
                 const Text(
-                  'Riwayat Laporan',
+                  'Riwayat Kasus & Laporan',
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -476,11 +554,13 @@ class _HistoryPageState extends State<HistoryPage> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '${_allItems.length} laporan tercatat',
+                  '${_totalItems > 0 ? _totalItems : _allItems.length} catatan riwayat',
                   style: const TextStyle(fontSize: 13, color: Colors.black54),
                 ),
                 const SizedBox(height: 16),
-                _buildFilterChips(),
+                _buildTypeFilterTabs(),
+                const SizedBox(height: 12),
+                _buildStatusFilterChips(),
                 const SizedBox(height: 12),
                 _buildTimeFilterChips(),
                 const SizedBox(height: 16),
@@ -496,11 +576,10 @@ class _HistoryPageState extends State<HistoryPage> {
                 else if (_filteredItems.isEmpty)
                   _buildEmptyState()
                 else
-                  ..._paginatedItems.map((item) => _buildHistoryCard(item)),
+                  ..._filteredItems.map((item) => _buildHistoryCard(item)),
                 if (!_isLoading &&
                     _errorMessage == null &&
                     _filteredItems.isNotEmpty &&
-                    _selectedFilter == 0 &&
                     _totalPages > 1)
                   _buildPagination(),
                 const SizedBox(height: 8),
@@ -516,7 +595,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: Colors.transparent, // Glassy look for app bar
+      backgroundColor: Colors.transparent,
       elevation: 0,
       centerTitle: false,
       titleSpacing: 16,
@@ -537,12 +616,11 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _buildFilterChips() {
+  Widget _buildTypeFilterTabs() {
     final icons = [
       CupertinoIcons.tray_fill,
       CupertinoIcons.exclamationmark_triangle_fill,
       CupertinoIcons.doc_text,
-      CupertinoIcons.checkmark_circle,
     ];
 
     int getCount(int index) {
@@ -553,9 +631,6 @@ class _HistoryPageState extends State<HistoryPage> {
       if (index == 2) {
         return _allItems.where((i) => i.type == HistoryType.laporan).length;
       }
-      if (index == 3) {
-        return _allItems.where((i) => i.status == HistoryStatus.selesai).length;
-      }
       return 0;
     }
 
@@ -563,16 +638,15 @@ class _HistoryPageState extends State<HistoryPage> {
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
       child: Row(
-        children: List.generate(_filters.length, (index) {
-          final isSelected = _selectedFilter == index;
+        children: List.generate(_typeFilters.length, (index) {
+          final isSelected = _selectedTypeFilter == index;
           final count = getCount(index);
 
           return Padding(
             padding: const EdgeInsets.only(right: 10),
             child: GestureDetector(
               onTap: () => setState(() {
-                _selectedFilter = index;
-                _currentPage = 1; // Reset pagination when filter changes
+                _selectedTypeFilter = index;
               }),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
@@ -608,7 +682,7 @@ class _HistoryPageState extends State<HistoryPage> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      _filters[index],
+                      _typeFilters[index],
                       style: TextStyle(
                         color: isSelected ? Colors.white : Colors.black87,
                         fontWeight: isSelected
@@ -639,6 +713,48 @@ class _HistoryPageState extends State<HistoryPage> {
                       ),
                     ),
                   ],
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildStatusFilterChips() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: List.generate(_statusFilters.length, (index) {
+          final isSelected = _selectedStatusFilter == index;
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: () => setState(() {
+                _selectedStatusFilter = index;
+              }),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected ? primaryTeal.withValues(alpha: 0.12) : Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: isSelected ? primaryTeal : Colors.grey.shade300,
+                  ),
+                ),
+                child: Text(
+                  _statusFilters[index],
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? primaryTeal : Colors.grey.shade700,
+                  ),
                 ),
               ),
             ),
@@ -680,23 +796,22 @@ class _HistoryPageState extends State<HistoryPage> {
                             primary: primaryTeal,
                             onPrimary: Colors.white,
                             onSurface: Colors.black87,
-                            surface: Colors
-                                .transparent, // Background of dialog/scaffold
-                            onSurfaceVariant: Colors.black54, // For header text
+                            surface: Colors.transparent,
+                            onSurfaceVariant: Colors.black54,
                           ),
                           datePickerTheme: const DatePickerThemeData(
                             backgroundColor: Colors.transparent,
                             surfaceTintColor: Colors.transparent,
                             headerBackgroundColor: Colors.transparent,
                           ),
-                          dialogTheme: DialogThemeData(
+                          dialogTheme: const DialogThemeData(
                             backgroundColor: Colors.transparent,
                           ),
                         ),
                         child: BackdropFilter(
                           filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                           child: Container(
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               color: Colors.white,
                             ),
                             child: child!,
@@ -710,13 +825,11 @@ class _HistoryPageState extends State<HistoryPage> {
                       _customStartDate = picked.start;
                       _customEndDate = picked.end;
                       _selectedTimeFilter = index;
-                      _currentPage = 1;
                     });
                   }
                 } else {
                   setState(() {
                     _selectedTimeFilter = index;
-                    _currentPage = 1;
                   });
                 }
               },
@@ -780,13 +893,12 @@ class _HistoryPageState extends State<HistoryPage> {
           IconButton(
             icon: const Icon(CupertinoIcons.chevron_left),
             onPressed: _currentPage > 1
-                ? () => setState(() => _currentPage--)
+                ? () => _fetchHistory(page: _currentPage - 1)
                 : null,
             color: _currentPage > 1 ? primaryTeal : Colors.grey,
           ),
           ...List.generate(_totalPages, (index) {
             final page = index + 1;
-            // Basic pagination to not overflow screen if too many pages
             if (_totalPages > 5) {
               if (page != 1 &&
                   page != _totalPages &&
@@ -803,7 +915,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
             final isSelected = _currentPage == page;
             return GestureDetector(
-              onTap: () => setState(() => _currentPage = page),
+              onTap: () => _fetchHistory(page: page),
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 4),
                 padding: const EdgeInsets.symmetric(
@@ -832,7 +944,7 @@ class _HistoryPageState extends State<HistoryPage> {
           IconButton(
             icon: const Icon(CupertinoIcons.chevron_right),
             onPressed: _currentPage < _totalPages
-                ? () => setState(() => _currentPage++)
+                ? () => _fetchHistory(page: _currentPage + 1)
                 : null,
             color: _currentPage < _totalPages ? primaryTeal : Colors.grey,
           ),

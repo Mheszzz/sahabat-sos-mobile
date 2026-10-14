@@ -786,7 +786,7 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
         'alamat': _addressController.text.trim(),
         'no_telp': _userPhoneController.text,
         'role': _selectedRole == _RoleType.relawan ? 'relawan' : 'pengguna',
-        'status_ketersediaan': 'aktif',
+        'status_ketersediaan': _selectedRole == _RoleType.relawan ? 'tersedia' : 'aktif',
       };
 
       if (_selectedRole == _RoleType.relawan) {
