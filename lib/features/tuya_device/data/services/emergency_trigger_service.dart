@@ -75,10 +75,15 @@ class EmergencyTriggerService {
       final tuyaService = GetIt.instance<TuyaChannelService>();
       final tuyaDevice = await tuyaService.getDeviceStatus(event.deviceId);
       tuyaDeviceInfo = {
-        'battery_level': tuyaDevice.batteryLevel,
-        'is_online': tuyaDevice.isOnline,
         'device_id': tuyaDevice.deviceId,
-        'last_seen': tuyaDevice.lastEventAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
+        'device_name': tuyaDevice.name,
+        'product_id': tuyaDevice.productId,
+        'is_online': tuyaDevice.isOnline,
+        'battery_level': tuyaDevice.batteryLevel,
+        'signal_strength': tuyaDevice.signalStrengthFormatted,
+        'trigger_type': 'Tombol Fisik Tuya',
+        'last_seen': tuyaDevice.lastEventAt?.toIso8601String() ??
+            DateTime.now().toIso8601String(),
         'location_updated_at': DateTime.now().toIso8601String(),
       };
     } catch (e) {
@@ -88,14 +93,18 @@ class EmergencyTriggerService {
     final payload = {
       'device_id': event.deviceId,
       'timestamp': event.timestamp.toIso8601String(),
-      'trigger_source': 'tuya_wifi',
+      'trigger_source': 'tuya_physical_button',
       'dps': event.dps,
       'is_simulation': event.isSimulation,
       'latitude': latitude ?? 0.0,
       'longitude': longitude ?? 0.0,
       'lokasi_user': _locationService.lastGeocodedAddress,
-      ...telemetryData,
-      'device_info': ?tuyaDeviceInfo,
+      'battery_level': telemetryData['battery_level'],
+      'signal_strength': telemetryData['signal_strength'],
+      'device_info': {
+        'mobile': telemetryData['device_info'],
+        if (tuyaDeviceInfo != null) 'tuya': tuyaDeviceInfo,
+      },
     };
 
     // Attempt to send with retries
