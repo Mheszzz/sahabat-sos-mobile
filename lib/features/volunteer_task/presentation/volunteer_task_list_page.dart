@@ -71,34 +71,76 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
       final activeRes = await _dataSource.getRelawanTasks();
       _activeTask = activeRes['data'];
 
-      // 2. Daftar tugas tersedia
+      // 2. Daftar tugas tersedia: SOS aktif darurat & Laporan aktif
       final token = prefs.getString('auth_token');
       final dio = sl<Dio>();
-      final response = await dio.get(
-        ApiConstants.tugasRelawan,
-        options: Options(
-          headers: {
-            if (token != null) 'Authorization': 'Bearer $token',
-            'Accept': 'application/json',
-          },
-        ),
-      );
+      final headers = {
+        if (token != null) 'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      };
 
-      if (response.statusCode == 200) {
-        final List<dynamic> allData =
-            response.data['data'] is List ? response.data['data'] : [];
-        // Exclude item yang sedang ditangani (id sama dengan tugas aktif)
-        final activeId = _activeTask?['id'];
-        final filtered = allData.where((e) => e['id'] != activeId).toList();
-        _availableSosList = filtered
-            .where((e) => e['tipe'] == 'sos' || e['kategori_laporan'] == 'SOS')
-            .toList();
-        _availableLaporanList = filtered
-            .where((e) =>
-                e['tipe'] == 'laporan' ||
-                (e['tipe'] != 'sos' && e['kategori_laporan'] != 'SOS'))
-            .toList();
+      // 2a. Fetch SOS darurat yang belum ditangani
+      List<dynamic> sosList = [];
+      try {
+        final sosRes = await dio.get(
+          ApiConstants.sosActiveRelawan,
+          options: Options(headers: headers),
+        );
+        if (sosRes.statusCode == 200 && sosRes.data['data'] is List) {
+          for (var item in sosRes.data['data']) {
+            if (item is Map) {
+              final map = Map<String, dynamic>.from(item);
+              map['tipe'] = 'sos';
+              sosList.add(map);
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Gagal fetch active SOS: $e');
       }
+
+      // 2b. Fetch Laporan warga yang belum ditangani
+      List<dynamic> laporanList = [];
+      try {
+        final lapRes = await dio.get(
+          ApiConstants.laporan,
+          queryParameters: {'status': 'aktif'},
+          options: Options(headers: headers),
+        );
+        if (lapRes.statusCode == 200) {
+          final rawData = lapRes.data['data'];
+          List<dynamic> items = [];
+          if (rawData is Map && rawData['data'] is List) {
+            items = rawData['data'];
+          } else if (rawData is List) {
+            items = rawData;
+          }
+          for (var item in items) {
+            if (item is Map) {
+              final map = Map<String, dynamic>.from(item);
+              map['tipe'] = 'laporan';
+              // Hanya tampilkan laporan yang belum diambil oleh relawan lain
+              if (map['id_relawan'] == null) {
+                laporanList.add(map);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Gagal fetch active laporan: $e');
+      }
+
+      // Filter out item yang sedang menjadi tugas aktif saat ini
+      final activeId = _activeTask?['id'];
+      final activeTipe = _activeTask?['tipe'];
+      _availableSosList = sosList.where((e) {
+        if (activeTipe == 'sos' && e['id'] == activeId) return false;
+        return true;
+      }).toList();
+      _availableLaporanList = laporanList.where((e) {
+        if (activeTipe == 'laporan' && e['id'] == activeId) return false;
+        return true;
+      }).toList();
 
       // 3. Riwayat tugas selesai
       try {
@@ -170,10 +212,14 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
     return _lokasiCache[key] ?? 'Memuat lokasi...';
   }
 
-  void _navigateToDetail() {
+  void _navigateToDetail({Map<String, dynamic>? item}) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const VolunteerActiveTaskPage()),
+      MaterialPageRoute(
+        builder: (context) => VolunteerActiveTaskPage(
+          initialTask: item ?? _activeTask,
+        ),
+      ),
     ).then((_) => _fetchData());
   }
 
@@ -234,7 +280,12 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
     return double.tryParse(val.toString());
   }
 
-  Future<void> _acceptTask(int id) async {
+  Future<void> _acceptTask(Map<String, dynamic> item) async {
+    final id = item['id'];
+    final isLaporan = item['tipe'] == 'laporan' ||
+        (item['tipe'] != 'sos' &&
+            item['kategori_laporan'] != 'SOS' &&
+            item['kategori_laporan'] != null);
     try {
       showDialog(
         context: context,
@@ -242,9 +293,39 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
         builder: (_) =>
             const Center(child: CupertinoActivityIndicator(radius: 16)),
       );
-      await _dataSource.updateSosStatus(id, 'ditangani');
+
+      final dio = sl<Dio>();
+      final prefs = sl<SharedPreferences>();
+      final token = prefs.getString('auth_token');
+      final headers = {
+        if (token != null) 'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      };
+
+      if (isLaporan) {
+        await dio.put(
+          ApiConstants.laporanStatus(id),
+          data: {'status': 'ditangani'},
+          options: Options(headers: headers),
+        );
+      } else {
+        final sosId = id is int ? id : int.parse(id.toString());
+        await _dataSource.updateSosStatus(sosId, 'ditangani');
+      }
+
+      final acceptedTask = Map<String, dynamic>.from(item);
+      acceptedTask['is_assigned'] = true;
+      acceptedTask['status_sos'] = 'ditangani';
+      acceptedTask['status'] = 'ditangani';
+      acceptedTask['tipe'] = isLaporan ? 'laporan' : 'sos';
+
+      import_event_bus.GlobalEventBus.refreshMap.value =
+          !import_event_bus.GlobalEventBus.refreshMap.value;
+
       if (mounted) Navigator.pop(context);
-      _navigateToDetail();
+      if (mounted) {
+        _navigateToDetail(item: acceptedTask);
+      }
     } catch (e) {
       if (mounted) Navigator.pop(context);
       if (mounted) {
@@ -412,7 +493,7 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
             ),
             const SizedBox(height: 10),
             GestureDetector(
-              onTap: _navigateToDetail,
+              onTap: () => _navigateToDetail(item: _activeTask),
               child: GlassContainer(
                 padding: const EdgeInsets.all(16),
                 color: sosRed.withValues(alpha: 0.85),
@@ -626,7 +707,8 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                                           'Selesaikan tugas aktif Anda terlebih dahulu!')),
                                 );
                               } else {
-                                _acceptTask(item['id']);
+                                _acceptTask(
+                                    Map<String, dynamic>.from(item as Map));
                               }
                             },
                             label: Text(

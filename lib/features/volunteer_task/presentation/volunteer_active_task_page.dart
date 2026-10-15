@@ -8,6 +8,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:dio/dio.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
+import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:ui';
 import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/widgets/glass_container.dart';
@@ -1133,10 +1135,28 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                         final messenger = ScaffoldMessenger.of(context);
                         try {
                           _isCompleting = true;
-                          await _dataSource.updateSosStatus(
-                            int.parse(idSos.toString()),
-                            'selesai',
-                          );
+                          final isLaporan = _activeTask?['tipe'] == 'laporan' ||
+                              (_activeTask?['tipe'] != 'sos' &&
+                                  _activeTask?['kategori_laporan'] != 'SOS' &&
+                                  _activeTask?['kategori_laporan'] != null);
+                          if (isLaporan) {
+                            final dio = sl<Dio>();
+                            final prefs = sl<SharedPreferences>();
+                            final token = prefs.getString('auth_token');
+                            await dio.put(
+                              ApiConstants.laporanStatus(idSos),
+                              data: {'status': 'selesai'},
+                              options: Options(headers: {
+                                if (token != null) 'Authorization': 'Bearer $token',
+                                'Accept': 'application/json',
+                              }),
+                            );
+                          } else {
+                            await _dataSource.updateSosStatus(
+                              int.parse(idSos.toString()),
+                              'selesai',
+                            );
+                          }
                           // Otomatis arahkan ke tab Tugas Relawan (index 1)
                           import_event_bus.GlobalEventBus.changeVolunteerTab
                               .value = 1;
