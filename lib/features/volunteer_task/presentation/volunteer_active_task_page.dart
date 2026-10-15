@@ -54,13 +54,48 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
     }
     _fetchTask();
     import_event_bus.GlobalEventBus.refreshMap.addListener(_fetchTask);
+
+    // Memastikan tracking live GPS relawan aktif dan marker relawan terupdate secara real-time
+    _locationService.startTracking();
+    _locationService.currentPosition.addListener(_onLivePositionChanged);
   }
 
   @override
   void dispose() {
+    _locationService.currentPosition.removeListener(_onLivePositionChanged);
     import_event_bus.GlobalEventBus.refreshMap.removeListener(_fetchTask);
     _mapController.dispose();
     super.dispose();
+  }
+
+  void _onLivePositionChanged() {
+    final pos = _locationService.currentPosition.value;
+    if (pos == null || !mounted) return;
+
+    final lat = double.tryParse(
+      _activeTask?['latitude']?.toString() ??
+          _activeTask?['lokasi']?['latitude']?.toString() ??
+          '',
+    );
+    final lng = double.tryParse(
+      _activeTask?['longitude']?.toString() ??
+          _activeTask?['lokasi']?['longitude']?.toString() ??
+          '',
+    );
+
+    double vLat = pos.latitude;
+    double vLng = pos.longitude;
+
+    if (lat != null && lng != null) {
+      if ((vLat - lat).abs() > 1 || (vLng - lng).abs() > 1) {
+        vLat = lat - 0.015;
+        vLng = lng - 0.015;
+      }
+    }
+
+    setState(() {
+      _effectiveVolPos = LatLng(vLat, vLng);
+    });
   }
 
   Future<void> _fetchRoute(LatLng start, LatLng end) async {
