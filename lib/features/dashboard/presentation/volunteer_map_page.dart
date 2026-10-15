@@ -1065,7 +1065,10 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                                   sl<
                                     import_volunteer.VolunteerRemoteDataSource
                                   >();
-                              final sosId = sos['id'] as int;
+                              final dynamic rawSosId = sos['id'];
+                              final int sosId = (rawSosId is int)
+                                  ? rawSosId
+                                  : int.tryParse(rawSosId?.toString() ?? '0') ?? 0;
 
                               if (sos['is_assigned'] == true) {
                                 // Navigasi ke halaman detail tugas
@@ -1074,8 +1077,10 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
-                                          const import_active_task
-                                              .VolunteerActiveTaskPage(),
+                                          import_active_task
+                                              .VolunteerActiveTaskPage(
+                                        initialTask: sos,
+                                      ),
                                     ),
                                   ).then((_) {
                                     setState(() {
@@ -1091,15 +1096,8 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                                   sosId,
                                   'ditangani',
                                 );
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Tugas diterima! Sedang membuat rute...',
-                                      ),
-                                    ),
-                                  );
-                                }
+                                sos['is_assigned'] = true;
+                                sos['status_sos'] = 'ditangani';
                                 setState(() {
                                   _acceptedSos = sos;
                                 });
@@ -1112,14 +1110,38 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                                     LatLng(sosLat, sosLng),
                                   );
                                 }
-                              }
+                                import_event_bus.GlobalEventBus.refreshMap.value =
+                                    !import_event_bus
+                                        .GlobalEventBus
+                                        .refreshMap
+                                        .value;
 
-                              // Refresh map data
-                              import_event_bus.GlobalEventBus.refreshMap.value =
-                                  !import_event_bus
-                                      .GlobalEventBus
-                                      .refreshMap
-                                      .value;
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Tugas diterima! Menuju lokasi tugas...',
+                                      ),
+                                    ),
+                                  );
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          import_active_task
+                                              .VolunteerActiveTaskPage(
+                                        initialTask: sos,
+                                      ),
+                                    ),
+                                  ).then((_) {
+                                    setState(() {
+                                      _acceptedSos = null;
+                                      _routePoints.clear();
+                                    });
+                                    _fetchActiveSos();
+                                  });
+                                }
+                              }
                             } catch (e) {
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(

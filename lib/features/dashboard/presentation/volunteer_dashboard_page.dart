@@ -47,6 +47,13 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
   void initState() {
     super.initState();
     _initVolunteerData();
+    import_event_bus.GlobalEventBus.refreshMap.addListener(_onRefreshMapEvent);
+  }
+
+  void _onRefreshMapEvent() {
+    if (mounted) {
+      _initVolunteerData();
+    }
   }
 
   Future<void> _initVolunteerData() async {
@@ -207,6 +214,7 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
 
   @override
   void dispose() {
+    import_event_bus.GlobalEventBus.refreshMap.removeListener(_onRefreshMapEvent);
     super.dispose();
   }
 
@@ -861,8 +869,10 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
-                                          const import_active_task
-                                              .VolunteerActiveTaskPage(),
+                                          import_active_task
+                                              .VolunteerActiveTaskPage(
+                                        initialTask: _activeTask,
+                                      ),
                                     ),
                                   ).then((_) => _initVolunteerData());
                                 },
