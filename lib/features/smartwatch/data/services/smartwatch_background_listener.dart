@@ -25,31 +25,41 @@ class SmartwatchBackgroundListener {
     if (_isRunning) return;
 
     final token = prefs.getString('auth_token');
-    if (token == null || token.isEmpty) return;
+    if (token == null || token.isEmpty) {
+      debugPrint('SmartwatchBackgroundListener: Tidak ada auth_token, skip start');
+      return;
+    }
 
     try {
       manager.onSosDetected = (event) {
+        debugPrint('🚨 SmartwatchBackgroundListener: SOS detected from ${event.deviceId}');
         onSosDetected?.call(event);
       };
 
       manager.onEmergencySent = (success, event) {
+        debugPrint('📡 SmartwatchBackgroundListener: Emergency sent (success=$success)');
         onEmergencySent?.call(success, event);
       };
 
       manager.onEmergencyError = (err) {
+        debugPrint('❌ SmartwatchBackgroundListener: Emergency error: $err');
         onEmergencyError?.call(err);
       };
 
       await manager.init();
       _isRunning = true;
-      debugPrint('SmartwatchBackgroundListener started successfully');
+      debugPrint('✅ SmartwatchBackgroundListener started successfully');
     } catch (e) {
-      debugPrint('Error starting SmartwatchBackgroundListener: $e');
+      debugPrint('❌ Error starting SmartwatchBackgroundListener: $e');
     }
   }
 
-  void stop() {
+  Future<void> stop() async {
     _isRunning = false;
-    manager.dispose();
+    try {
+      await manager.dispose();
+    } catch (e) {
+      debugPrint('Error stopping SmartwatchBackgroundListener: $e');
+    }
   }
 }

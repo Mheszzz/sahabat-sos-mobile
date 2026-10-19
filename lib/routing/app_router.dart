@@ -109,7 +109,20 @@ class AppRouter {
       ),
       GoRoute(
         path: AppRoutes.sosStatus,
-        builder: (context, state) => const SosStatusPage(),
+        builder: (context, state) {
+          final extra = state.extra;
+          int? sosId;
+          String? status;
+          if (extra is Map<String, dynamic>) {
+            sosId = extra['id'] is int
+                ? extra['id'] as int
+                : int.tryParse(extra['id']?.toString() ?? '');
+            status = extra['status_sos']?.toString();
+          } else if (extra is int) {
+            sosId = extra;
+          }
+          return SosStatusPage(initialSosId: sosId, initialStatus: status);
+        },
       ),
       GoRoute(
         path: AppRoutes.editProfile,

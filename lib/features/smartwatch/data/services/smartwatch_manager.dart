@@ -21,18 +21,25 @@ class SmartwatchManager {
   final ValueNotifier<SmartwatchDeviceModel?> activeDevice = ValueNotifier(null);
   final ValueNotifier<int?> liveHeartRate = ValueNotifier(null);
   final ValueNotifier<bool> isConnecting = ValueNotifier(false);
+  final ValueNotifier<String?> connectingDeviceId = ValueNotifier(null);
   final ValueNotifier<List<SmartwatchDeviceModel>> pairedDevices = ValueNotifier([]);
+  final ValueNotifier<String?> connectionStatus = ValueNotifier(null);
 
   StreamSubscription? _bleEventSub;
   StreamSubscription? _huaweiEventSub;
   StreamSubscription? _bleHrSub;
   StreamSubscription? _huaweiHrSub;
+  Timer? _telemetrySyncTimer;
 
   Function(SmartwatchEventModel)? onSosDetected;
   Function(bool success, SmartwatchEventModel event)? onEmergencySent;
   Function(String error)? onEmergencyError;
 
   static const String _prefKeyActiveDevice = 'active_smartwatch_device';
+  static const Duration _telemetrySyncInterval = Duration(minutes: 5);
+
+  bool _initialized = false;
+  bool _huaweiSupported = false;
 
   SmartwatchManager({
     required this.dio,
@@ -43,6 +50,14 @@ class SmartwatchManager {
   });
 
   Future<void> init() async {
+    if (_initialized) return;
+
+    try {
+      _huaweiSupported = await huaweiService.isSupported();
+    } catch (_) {
+      _huaweiSupported = false;
+    }
+
     _loadCachedDevice();
     _setupListeners();
     await fetchPairedDevicesFromBackend();
@@ -51,6 +66,11 @@ class SmartwatchManager {
     if (activeDevice.value != null) {
       connectDevice(activeDevice.value!);
     }
+
+    // Start periodic telemetry sync
+    _startTelemetrySync();
+
+    _initialized = true;
   }
 
   void _loadCachedDevice() {
@@ -66,8 +86,18 @@ class SmartwatchManager {
   }
 
   void _setupListeners() {
+    _bleHrSub?.cancel();
+    _huaweiHrSub?.cancel();
+    _bleEventSub?.cancel();
+    _huaweiEventSub?.cancel();
+
     _bleHrSub = bleService.heartRateStream.listen((bpm) {
-      liveHeartRate.value = bpm;
+      if (bpm > 0) {
+        liveHeartRate.value = bpm;
+      } else {
+        // bpm == 0 means disconnected/unavailable
+        liveHeartRate.value = null;
+      }
     });
 
     _huaweiHrSub = huaweiService.heartRateStream.listen((bpm) {
@@ -76,6 +106,44 @@ class SmartwatchManager {
 
     _bleEventSub = bleService.eventStream.listen(_handleIncomingEvent);
     _huaweiEventSub = huaweiService.eventStream.listen(_handleIncomingEvent);
+
+    // Monitor BLE connection state changes
+    bleService.connectionState.addListener(_onBleConnectionStateChanged);
+  }
+
+  void _onBleConnectionStateChanged() {
+    final isConnected = bleService.connectionState.value;
+    final dev = activeDevice.value;
+
+    if (dev != null && dev.brand.toLowerCase() != 'huawei') {
+      if (isConnected && !dev.isConnected) {
+        activeDevice.value = dev.copyWith(isConnected: true);
+        connectionStatus.value = 'Terhubung & Siaga';
+        debugPrint('✅ Smartwatch reconnected: ${dev.name}');
+      } else if (!isConnected && dev.isConnected) {
+        activeDevice.value = dev.copyWith(isConnected: false);
+        liveHeartRate.value = null;
+        connectionStatus.value = 'Terputus — mencoba menyambung ulang...';
+        debugPrint('⚠️ Smartwatch disconnected: ${dev.name}');
+      }
+    }
+  }
+
+  /// Periodic sync data telemetry (BPM & baterai) ke backend
+  void _startTelemetrySync() {
+    _telemetrySyncTimer?.cancel();
+    _telemetrySyncTimer = Timer.periodic(_telemetrySyncInterval, (_) {
+      _syncCurrentTelemetry();
+    });
+  }
+
+  Future<void> _syncCurrentTelemetry() async {
+    if (activeDevice.value == null) return;
+    final bpm = liveHeartRate.value;
+    final battery = bleService.currentBattery;
+    if (bpm == null && battery == null) return;
+
+    await syncTelemetryToBackend(battery: battery, heartRate: bpm);
   }
 
   Future<void> _handleIncomingEvent(SmartwatchEventModel event) async {
@@ -99,6 +167,9 @@ class SmartwatchManager {
             title: 'SOS Terkirim',
             message: 'Relawan sedang menuju lokasi Anda',
           );
+
+          // Sync telemetry setelah emergency
+          _syncCurrentTelemetry();
         }
       } catch (e) {
         debugPrint('Failed to trigger smartwatch emergency: $e');
@@ -108,7 +179,7 @@ class SmartwatchManager {
   }
 
   SmartwatchService _getServiceForBrand(String? brand) {
-    if (brand?.toLowerCase() == 'huawei') {
+    if (brand?.toLowerCase() == 'huawei' && _huaweiSupported) {
       return huaweiService;
     }
     return bleService;
@@ -139,6 +210,8 @@ class SmartwatchManager {
 
   Future<bool> pairAndConnectDevice(SmartwatchDeviceModel device) async {
     isConnecting.value = true;
+    connectingDeviceId.value = device.id;
+    connectionStatus.value = 'Menyimpan perangkat...';
     try {
       // 1. Simpan ke Backend
       final token = prefs.getString('auth_token');
@@ -154,36 +227,59 @@ class SmartwatchManager {
       await prefs.setString(_prefKeyActiveDevice, jsonEncode(device.toJson()));
 
       // 3. Sambungkan via service
+      connectionStatus.value = 'Menghubungkan via Bluetooth...';
       final connected = await connectDevice(device);
       await fetchPairedDevicesFromBackend();
       return connected;
     } catch (e) {
       debugPrint('Error pairing device: $e');
+      connectionStatus.value = 'Gagal menyimpan perangkat';
       return false;
     } finally {
       isConnecting.value = false;
+      connectingDeviceId.value = null;
     }
   }
 
   Future<bool> connectDevice(SmartwatchDeviceModel device) async {
     isConnecting.value = true;
+    connectingDeviceId.value = device.id;
+    connectionStatus.value = 'Menghubungkan ke ${device.name}...';
     try {
       final service = _getServiceForBrand(device.brand);
       final ok = await service.connect(device);
       if (ok) {
         activeDevice.value = device.copyWith(isConnected: true);
+        connectionStatus.value = 'Terhubung & Siaga';
         await prefs.setString(
           _prefKeyActiveDevice,
           jsonEncode(activeDevice.value!.toJson()),
         );
+
+        // Update list pairedDevices agar isConnected langsung sinkron di UI
+        final updatedList = pairedDevices.value.map((d) {
+          if (d.id == device.id) {
+            return d.copyWith(isConnected: true);
+          } else {
+            return d.copyWith(isConnected: false);
+          }
+        }).toList();
+        pairedDevices.value = updatedList;
+
+        // Sync telemetry segera setelah connect
+        Future.delayed(const Duration(seconds: 3), () => _syncCurrentTelemetry());
+
         return true;
       }
+      connectionStatus.value = 'Gagal terhubung';
       return false;
     } catch (e) {
       debugPrint('Error connecting device: $e');
+      connectionStatus.value = 'Error: $e';
       return false;
     } finally {
       isConnecting.value = false;
+      connectingDeviceId.value = null;
     }
   }
 
@@ -194,12 +290,22 @@ class SmartwatchManager {
     await service.disconnect(dev.id);
     activeDevice.value = dev.copyWith(isConnected: false);
     liveHeartRate.value = null;
+    connectionStatus.value = 'Terputus';
+
+    final updatedList = pairedDevices.value.map((d) {
+      if (d.id == dev.id) {
+        return d.copyWith(isConnected: false);
+      }
+      return d;
+    }).toList();
+    pairedDevices.value = updatedList;
   }
 
   Future<void> unpairDevice(String deviceId) async {
     await disconnectCurrentDevice();
     await prefs.remove(_prefKeyActiveDevice);
     activeDevice.value = null;
+    connectionStatus.value = null;
 
     final token = prefs.getString('auth_token');
     if (token != null && token.isNotEmpty) {
@@ -229,6 +335,7 @@ class SmartwatchManager {
         },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
+      debugPrint('📡 Telemetry synced: HR=$heartRate, Battery=$battery');
     } catch (e) {
       debugPrint('Error syncing smartwatch telemetry: $e');
     }
@@ -247,9 +354,12 @@ class SmartwatchManager {
   }
 
   Future<void> dispose() async {
+    _telemetrySyncTimer?.cancel();
+    bleService.connectionState.removeListener(_onBleConnectionStateChanged);
     await _bleEventSub?.cancel();
     await _huaweiEventSub?.cancel();
     await _bleHrSub?.cancel();
     await _huaweiHrSub?.cancel();
+    _initialized = false;
   }
 }

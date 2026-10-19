@@ -338,7 +338,7 @@ class _DashboardPageState extends State<DashboardPage>
                       content: Text('Sinyal SOS berhasil dikirim.'),
                     ),
                   );
-                  context.push('/sos-status');
+                  context.push('/sos-status', extra: response.data?['data']);
                 }
               } catch (e) {
                 // Hide loading
@@ -350,11 +350,11 @@ class _DashboardPageState extends State<DashboardPage>
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        e.response?.data['message'] ?? 'SOS masih aktif',
+                        e.response?.data?['message'] ?? 'SOS masih aktif',
                       ),
                     ),
                   );
-                  context.push('/sos-status');
+                  context.push('/sos-status', extra: e.response?.data?['data']);
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Gagal mengirim SOS: $e')),

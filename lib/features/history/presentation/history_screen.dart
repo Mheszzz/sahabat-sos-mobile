@@ -29,6 +29,7 @@ class HistoryItem {
   final String? audioUrl;
   final double? latitude;
   final double? longitude;
+  final Map<String, dynamic>? deviceInfo;
 
   HistoryItem({
     required this.id,
@@ -45,6 +46,7 @@ class HistoryItem {
     this.audioUrl,
     this.latitude,
     this.longitude,
+    this.deviceInfo,
   });
 }
 
@@ -350,6 +352,12 @@ class _HistoryPageState extends State<HistoryPage> {
       if (lngMatch != null) lng = double.tryParse(lngMatch.group(1)!);
     }
 
+    // Parse device_info jika tersedia (untuk data smartwatch/BPM)
+    Map<String, dynamic>? deviceInfo;
+    if (data['device_info'] is Map<String, dynamic>) {
+      deviceInfo = data['device_info'] as Map<String, dynamic>;
+    }
+
     return HistoryItem(
       id: data['id'],
       type: type,
@@ -379,6 +387,7 @@ class _HistoryPageState extends State<HistoryPage> {
           : null,
       latitude: lat,
       longitude: lng,
+      deviceInfo: deviceInfo,
     );
   }
 

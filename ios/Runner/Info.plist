@@ -4,10 +4,20 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>SahabatSOS memerlukan akses Bluetooth untuk terhubung ke smartwatch Anda guna mendeteksi keadaan darurat, detak jantung, dan deteksi jatuh.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>SahabatSOS memerlukan akses Bluetooth untuk terhubung ke smartwatch Anda guna mendeteksi keadaan darurat.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Aplikasi membutuhkan akses lokasi untuk mendeteksi posisi Anda saat ini dan membagikannya ke layanan darurat.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>Aplikasi membutuhkan akses lokasi untuk mendeteksi posisi Anda saat ini dan membagikannya ke layanan darurat.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

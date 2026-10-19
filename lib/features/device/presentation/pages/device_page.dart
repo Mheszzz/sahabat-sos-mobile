@@ -229,7 +229,8 @@ class _DevicePageState extends State<DevicePage> with SingleTickerProviderStateM
                   return ValueListenableBuilder<SmartwatchDeviceModel?>(
                     valueListenable: _smartwatchManager.activeDevice,
                     builder: (context, active, _) {
-                      final isConnected = active != null && active.id == device.id && active.isConnected;
+                      final isThisDevice = active != null && active.id == device.id;
+                      final isConnected = isThisDevice && active.isConnected;
 
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -288,14 +289,38 @@ class _DevicePageState extends State<DevicePage> with SingleTickerProviderStateM
                                             ),
                                           ),
                                           const SizedBox(width: 6),
-                                          Text(
-                                            isConnected ? 'Terhubung (Siaga)' : 'Terputus',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: isConnected ? Colors.green : Colors.grey,
-                                              fontWeight: FontWeight.w600,
+                                          // Hanya tampilkan connectionStatus untuk device yang aktif
+                                          if (isThisDevice)
+                                            Expanded(
+                                              child: ValueListenableBuilder<String?>(
+                                                valueListenable: _smartwatchManager.connectionStatus,
+                                                builder: (context, status, _) {
+                                                  return Text(
+                                                    status ?? (isConnected ? 'Terhubung (Siaga)' : 'Terputus'),
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: isConnected ? Colors.green : Colors.grey,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  );
+                                                },
+                                              ),
+                                            )
+                                          else
+                                            Expanded(
+                                              child: Text(
+                                                'Tidak aktif',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey.shade400,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
                                             ),
-                                          ),
                                           const Text(' • ', style: TextStyle(color: Colors.grey)),
                                           Text(
                                             device.brandDisplay,
@@ -306,7 +331,77 @@ class _DevicePageState extends State<DevicePage> with SingleTickerProviderStateM
                                     ],
                                   ),
                                 ),
-                                const Icon(Icons.chevron_right, color: Colors.grey),
+                                isConnected
+                                    ? Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.green.shade50,
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: Colors.green.shade200),
+                                            ),
+                                            child: const Text(
+                                              'Siaga',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.green,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          const Icon(Icons.chevron_right, color: Colors.grey),
+                                        ],
+                                      )
+                                    : ValueListenableBuilder<String?>(
+                                        valueListenable: _smartwatchManager.connectingDeviceId,
+                                        builder: (context, connectingId, _) {
+                                          final isThisConnecting = connectingId == device.id;
+                                          final isAnyConnecting = connectingId != null;
+
+                                          return ElevatedButton.icon(
+                                            onPressed: isAnyConnecting
+                                                ? null
+                                                : () async {
+                                                    final ok = await _smartwatchManager.connectDevice(device);
+                                                    if (!context.mounted) return;
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(
+                                                          ok
+                                                              ? 'Berhasil terhubung ke ${device.name}'
+                                                              : 'Gagal terhubung ke ${device.name}. Pastikan layar jam menyala & aplikasi bawaan ditutup.',
+                                                        ),
+                                                        backgroundColor: ok ? Colors.green : Colors.red,
+                                                      ),
+                                                    );
+                                                  },
+                                            icon: isThisConnecting
+                                                ? const SizedBox(
+                                                    width: 14,
+                                                    height: 14,
+                                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                                  )
+                                                : const Icon(Icons.bluetooth_connected, size: 16),
+                                            label: Text(
+                                              isThisConnecting ? 'Menghubungkan...' : 'Sambungkan',
+                                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(0xFFE53935),
+                                              foregroundColor: Colors.white,
+                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                              minimumSize: Size.zero,
+                                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(20),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
                               ],
                             ),
                           ),

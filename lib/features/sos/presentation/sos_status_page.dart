@@ -15,7 +15,14 @@ import 'sos_activities_sheet.dart';
 import 'widgets/slide_to_cancel_button.dart';
 
 class SosStatusPage extends StatefulWidget {
-  const SosStatusPage({super.key});
+  final int? initialSosId;
+  final String? initialStatus;
+
+  const SosStatusPage({
+    super.key,
+    this.initialSosId,
+    this.initialStatus,
+  });
 
   @override
   State<SosStatusPage> createState() => _SosStatusPageState();
@@ -42,6 +49,10 @@ class _SosStatusPageState extends State<SosStatusPage> {
   @override
   void initState() {
     super.initState();
+    _sosId = widget.initialSosId;
+    if (widget.initialStatus != null && widget.initialStatus!.isNotEmpty) {
+      _sosStatus = widget.initialStatus!;
+    }
     _fetchSosStatus();
     _initWebSocket();
     // Poll for status every 4 seconds
@@ -268,6 +279,14 @@ class _SosStatusPageState extends State<SosStatusPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFFF5F6F8),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(CupertinoIcons.chevron_left, color: Colors.black87),
+          onPressed: () => context.pop(),
+        ),
+      ),
       body: Container(
         color: const Color(0xFFF5F6F8),
         child: SafeArea(
@@ -277,10 +296,11 @@ class _SosStatusPageState extends State<SosStatusPage> {
                 hasScrollBody: false,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: 48),
+                  child: IntrinsicHeight(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 16),
 
                       // Icon
                       Center(
@@ -537,6 +557,7 @@ class _SosStatusPageState extends State<SosStatusPage> {
                   ),
                 ),
               ),
+            ),
             ],
           ),
         ),

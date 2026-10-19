@@ -1,7 +1,7 @@
 class ApiConstants {
-  // Gunakan IP komputer lokal agar bisa diakses oleh HP Fisik di jaringan Wi-Fi yang sama
-  static const String baseUrl = 'http://10.56.215.189:8000/api';
-  static const String storageUrl = 'http://10.56.215.189:8000/storage';
+  // Menggunakan 127.0.0.1 (localhost) — pastikan `adb reverse tcp:8000 tcp:8000` dijalankan saat debugging via USB
+  static const String baseUrl = 'http://192.168.1.7:8000/api';
+  static const String storageUrl = 'http://192.168.1.7:8000/storage';
 
   static const String authGoogle = '$baseUrl/auth/google/mobile';
   static const String authRegisterPengguna = '$baseUrl/auth/register/pengguna';

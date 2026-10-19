@@ -39,6 +39,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   String? _freshStatus;
   String? _userRole;
   String? _readableAddress;
+  Map<String, dynamic>? _deviceInfo;
 
   @override
   void initState() {
@@ -125,6 +126,10 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         if (data != null) {
           setState(() {
             _freshStatus = (data['status'] ?? data['status_sos'])?.toString().toLowerCase();
+            // Parse device_info dari API response (berisi smartwatch heart_rate, battery, dll)
+            if (data['device_info'] is Map<String, dynamic>) {
+              _deviceInfo = data['device_info'] as Map<String, dynamic>;
+            }
           });
         }
       }
@@ -806,6 +811,294 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                         ],
                       ),
                     ),
+                  ),
+                ],
+
+                // Smartwatch Telemetry Card (BPM & Battery)
+                if (isSos) ...[
+                  Builder(
+                    builder: (context) {
+                      final deviceInfo = _deviceInfo ?? widget.item.deviceInfo;
+                      final smartwatch = deviceInfo?['smartwatch'] as Map<String, dynamic>?;
+
+                      if (smartwatch == null) return const SizedBox.shrink();
+
+                      final heartRate = smartwatch['heart_rate'] as int?;
+                      final batteryLevel = smartwatch['battery_level'] as int?;
+                      final fallDetected = smartwatch['fall_detected'] == true;
+                      final triggerType = smartwatch['trigger_type']?.toString() ?? 'Smartwatch';
+                      final deviceName = smartwatch['device_name']?.toString() ?? 'Smartwatch';
+
+                      final isAnomalousHr = heartRate != null && (heartRate > 120 || heartRate < 50);
+
+                      return Column(
+                        children: [
+                          const SizedBox(height: 16),
+                          _buildGlassContainer(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Header
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFCE4EC),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: const Icon(
+                                          Icons.watch,
+                                          color: Color(0xFFE53935),
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              'Telemetri Smartwatch',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF1E293B),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              '$deviceName · $triggerType',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.grey,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+
+                                  // Warning: Anomali Denyut Nadi
+                                  if (isAnomalousHr) ...[
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFEF2F2),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: const Color(0xFFFECACA)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.warning_amber_rounded,
+                                              color: Color(0xFFDC2626), size: 18),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              heartRate > 120
+                                                  ? 'Anomali: Detak jantung tinggi ($heartRate BPM) — kemungkinan panik/syok'
+                                                  : 'Anomali: Detak jantung rendah ($heartRate BPM) — perlu bantuan medis!',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: Color(0xFF991B1B),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+
+                                  // Warning: Fall Detected
+                                  if (fallDetected) ...[
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFF7ED),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: const Color(0xFFFED7AA)),
+                                      ),
+                                      child: const Row(
+                                        children: [
+                                          Icon(Icons.personal_injury,
+                                              color: Color(0xFFEA580C), size: 18),
+                                          SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'Sensor deteksi jatuh terpicu — waspadai cedera fisik',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: Color(0xFF9A3412),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+
+                                  const SizedBox(height: 14),
+
+                                  // Telemetry Grid: Heart Rate & Battery
+                                  Row(
+                                    children: [
+                                      // Heart Rate
+                                      Expanded(
+                                        child: Container(
+                                          padding: const EdgeInsets.all(14),
+                                          decoration: BoxDecoration(
+                                            color: isAnomalousHr
+                                                ? const Color(0xFFFEF2F2)
+                                                : const Color(0xFFFFF1F2),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: isAnomalousHr
+                                                  ? const Color(0xFFFECACA)
+                                                  : const Color(0xFFFFE4E6),
+                                            ),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.favorite,
+                                                    color: isAnomalousHr
+                                                        ? const Color(0xFFDC2626)
+                                                        : const Color(0xFFE53935),
+                                                    size: 18,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  const Text(
+                                                    'Denyut Nadi',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color: Colors.grey,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                heartRate != null ? '$heartRate BPM' : '— BPM',
+                                                style: TextStyle(
+                                                  fontSize: 22,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: heartRate != null
+                                                      ? (isAnomalousHr
+                                                          ? const Color(0xFFDC2626)
+                                                          : const Color(0xFFE53935))
+                                                      : const Color(0xFF64748B),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                heartRate != null
+                                                    ? (heartRate > 120
+                                                        ? 'Tinggi (Panik)'
+                                                        : (heartRate < 50
+                                                            ? 'Rendah (Bahaya)'
+                                                            : 'Normal'))
+                                                    : 'Tidak tersedia',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: isAnomalousHr
+                                                      ? const Color(0xFFDC2626)
+                                                      : Colors.grey,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      // Battery
+                                      Expanded(
+                                        child: Container(
+                                          padding: const EdgeInsets.all(14),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF0FDF4),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: batteryLevel != null && batteryLevel < 20
+                                                  ? const Color(0xFFFED7AA)
+                                                  : const Color(0xFFBBF7D0),
+                                            ),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.battery_std,
+                                                    color: batteryLevel != null && batteryLevel < 20
+                                                        ? Colors.orange
+                                                        : Colors.green,
+                                                    size: 18,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  const Text(
+                                                    'Baterai Jam',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color: Colors.grey,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                batteryLevel != null
+                                                    ? '$batteryLevel%'
+                                                    : '—',
+                                                style: const TextStyle(
+                                                  fontSize: 22,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Color(0xFF1E293B),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                batteryLevel != null
+                                                    ? (batteryLevel < 20
+                                                        ? 'Kritis'
+                                                        : (batteryLevel < 50 ? 'Sedang' : 'Baik'))
+                                                    : 'Tidak tersedia',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: batteryLevel != null && batteryLevel < 20
+                                                      ? Colors.orange
+                                                      : Colors.grey,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
 
