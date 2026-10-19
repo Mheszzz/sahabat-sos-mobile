@@ -9,6 +9,7 @@ import 'package:sahabat_sos_mobile/core/services/background_service.dart';
 import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart';
 import 'package:sahabat_sos_mobile/core/widgets/permission_gate.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/data/services/tuya_background_listener.dart';
+import 'package:sahabat_sos_mobile/features/smartwatch/data/services/smartwatch_background_listener.dart';
 import 'package:sahabat_sos_mobile/routing/app_router.dart';
 
 void main() async {
@@ -63,6 +64,12 @@ void main() async {
   final tuyaListener = GetIt.instance<TuyaBackgroundListener>();
   
   tuyaListener.onSosDetected = (event) {
+    AppRouter.router.push('/sos-status');
+  };
+
+  // Listen to Smartwatch in UI (foreground) to navigate when app is open
+  final smartwatchListener = GetIt.instance<SmartwatchBackgroundListener>();
+  smartwatchListener.onSosDetected = (event) {
     AppRouter.router.push('/sos-status');
   };
 

@@ -56,6 +56,12 @@ class ApiConstants {
   static const String tuyaDeviceRegister = '$baseUrl/tuya-device/register';
   static const String tuyaDeviceList = '$baseUrl/tuya-device/list';
 
+  // Smartwatch Endpoints
+  static const String smartwatchList = '$baseUrl/pengguna/smartwatch';
+  static const String smartwatchRegister = '$baseUrl/pengguna/smartwatch';
+  static String smartwatchDetail(dynamic id) => '$baseUrl/pengguna/smartwatch/$id';
+  static String smartwatchTelemetry(dynamic id) => '$baseUrl/pengguna/smartwatch/$id/sync-telemetry';
+
   static const String relawanLocationUpdate = '$baseUrl/relawan/location';
   // Riwayat / History Endpoints
   static const String riwayatPengguna = '$baseUrl/pengguna/riwayat';

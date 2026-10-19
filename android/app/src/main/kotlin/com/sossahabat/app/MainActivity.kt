@@ -41,9 +41,12 @@ class MainActivity : FlutterActivity() {
         private const val TAG = "TuyaMainActivity"
         private const val METHOD_CHANNEL = "com.sahabatsos.app/tuya_method"
         private const val EVENT_CHANNEL = "com.sahabatsos.app/tuya_events"
+        private const val HUAWEI_METHOD_CHANNEL = "com.sahabatsos.app/huawei_wear"
+        private const val HUAWEI_EVENT_CHANNEL = "com.sahabatsos.app/huawei_wear_events"
     }
 
     private var eventSink: EventChannel.EventSink? = null
+    private var huaweiEventSink: EventChannel.EventSink? = null
 
     // Active device listeners keyed by deviceId
     private val deviceListeners = mutableMapOf<String, IThingDevice>()
@@ -58,6 +61,43 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         setupMethodChannel(flutterEngine)
         setupEventChannel(flutterEngine)
+        setupHuaweiWearChannel(flutterEngine)
+    }
+
+    private fun setupHuaweiWearChannel(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, HUAWEI_METHOD_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "isWearEngineSupported" -> {
+                        val isHuawei = android.os.Build.MANUFACTURER.equals("HUAWEI", ignoreCase = true) ||
+                                       android.os.Build.BRAND.equals("HUAWEI", ignoreCase = true)
+                        result.success(isHuawei)
+                    }
+                    "getBondedHuaweiDevices" -> {
+                        result.success(emptyList<Map<String, Any>>())
+                    }
+                    "connectDevice" -> {
+                        result.success(true)
+                    }
+                    "disconnectDevice" -> {
+                        result.success(null)
+                    }
+                    "sendFeedbackAlert" -> {
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, HUAWEI_EVENT_CHANNEL)
+            .setStreamHandler(object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    huaweiEventSink = events
+                }
+                override fun onCancel(arguments: Any?) {
+                    huaweiEventSink = null
+                }
+            })
     }
 
     private fun setupMethodChannel(flutterEngine: FlutterEngine) {

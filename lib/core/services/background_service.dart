@@ -7,6 +7,7 @@ import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/data/services/tuya_background_listener.dart';
+import 'package:sahabat_sos_mobile/features/smartwatch/data/services/smartwatch_background_listener.dart';
 import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -166,9 +167,55 @@ void onStart(ServiceInstance service) async {
 
   await tuyaListener.start();
 
+  // 3. Inisialisasi Smartwatch Listener untuk deteksi darurat dari jam tangan
+  final smartwatchListener = sl<SmartwatchBackgroundListener>();
+
+  smartwatchListener.onSosDetected = (event) {
+    debugPrint('Background Smartwatch SOS Detected: ${event.deviceId}');
+  };
+
+  smartwatchListener.onEmergencySent = (success, event) {
+    debugPrint('Background Smartwatch Emergency Sent: $success');
+    if (success) {
+      localNotif.show(
+        id: 1002,
+        title: 'SOS Smartwatch Terkirim!',
+        body: 'Sinyal darurat dari jam tangan Anda telah diteruskan ke relawan.',
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'sos_alert_channel_v2',
+            'Peringatan Darurat SOS',
+            importance: Importance.max,
+            priority: Priority.high,
+          ),
+        ),
+      );
+    }
+  };
+
+  smartwatchListener.onEmergencyError = (errorMsg) {
+    debugPrint('Background Smartwatch Emergency Error: $errorMsg');
+    localNotif.show(
+      id: 1003,
+      title: 'Gagal Mengirim SOS Smartwatch',
+      body: 'Terjadi kesalahan: $errorMsg',
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'sos_alert_channel_v2',
+          'Peringatan Darurat SOS',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+      ),
+    );
+  };
+
+  await smartwatchListener.start();
+
   // Listen to service stop command
   service.on('stopService').listen((event) {
     tuyaListener.stop();
+    smartwatchListener.stop();
     service.stopSelf();
   });
 }

@@ -9,6 +9,10 @@ import '../services/location_service.dart';
 import '../../features/tuya_device/data/services/tuya_channel_service.dart';
 import '../../features/tuya_device/data/services/emergency_trigger_service.dart';
 import '../../features/tuya_device/data/services/tuya_background_listener.dart';
+import '../../features/smartwatch/data/services/ble_smartwatch_service.dart';
+import '../../features/smartwatch/data/services/huawei_wear_service.dart';
+import '../../features/smartwatch/data/services/smartwatch_manager.dart';
+import '../../features/smartwatch/data/services/smartwatch_background_listener.dart';
 
 final sl = GetIt.instance;
 
@@ -55,6 +59,25 @@ Future<void> initInjection() async {
     () => TuyaBackgroundListener(
       tuyaService: sl(),
       emergencyService: sl(),
+      prefs: sl(),
+    ),
+  );
+
+  // Smartwatch Services
+  sl.registerLazySingleton<BleSmartwatchService>(() => BleSmartwatchService());
+  sl.registerLazySingleton<HuaweiWearService>(() => HuaweiWearService());
+  sl.registerLazySingleton<SmartwatchManager>(
+    () => SmartwatchManager(
+      dio: sl(),
+      prefs: sl(),
+      bleService: sl(),
+      huaweiService: sl(),
+      emergencyTriggerService: sl(),
+    ),
+  );
+  sl.registerLazySingleton<SmartwatchBackgroundListener>(
+    () => SmartwatchBackgroundListener(
+      manager: sl(),
       prefs: sl(),
     ),
   );
