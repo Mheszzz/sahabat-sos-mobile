@@ -8,12 +8,15 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:dio/dio.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
+import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:ui';
 import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/widgets/glass_container.dart';
 
 class VolunteerActiveTaskPage extends StatefulWidget {
-  const VolunteerActiveTaskPage({super.key});
+  final Map<String, dynamic>? initialTask;
+  const VolunteerActiveTaskPage({super.key, this.initialTask});
 
   @override
   State<VolunteerActiveTaskPage> createState() =>
@@ -42,15 +45,57 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialTask != null) {
+      _activeTask = Map<String, dynamic>.from(widget.initialTask!);
+      _isLoading = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _initTaskRoute();
+      });
+    }
     _fetchTask();
     import_event_bus.GlobalEventBus.refreshMap.addListener(_fetchTask);
+
+    // Memastikan tracking live GPS relawan aktif dan marker relawan terupdate secara real-time
+    _locationService.startTracking();
+    _locationService.currentPosition.addListener(_onLivePositionChanged);
   }
 
   @override
   void dispose() {
+    _locationService.currentPosition.removeListener(_onLivePositionChanged);
     import_event_bus.GlobalEventBus.refreshMap.removeListener(_fetchTask);
     _mapController.dispose();
     super.dispose();
+  }
+
+  void _onLivePositionChanged() {
+    final pos = _locationService.currentPosition.value;
+    if (pos == null || !mounted) return;
+
+    final lat = double.tryParse(
+      _activeTask?['latitude']?.toString() ??
+          _activeTask?['lokasi']?['latitude']?.toString() ??
+          '',
+    );
+    final lng = double.tryParse(
+      _activeTask?['longitude']?.toString() ??
+          _activeTask?['lokasi']?['longitude']?.toString() ??
+          '',
+    );
+
+    double vLat = pos.latitude;
+    double vLng = pos.longitude;
+
+    if (lat != null && lng != null) {
+      if ((vLat - lat).abs() > 1 || (vLng - lng).abs() > 1) {
+        vLat = lat - 0.015;
+        vLng = lng - 0.015;
+      }
+    }
+
+    setState(() {
+      _effectiveVolPos = LatLng(vLat, vLng);
+    });
   }
 
   Future<void> _fetchRoute(LatLng start, LatLng end) async {
@@ -100,7 +145,9 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
           setState(() {
             _etaText = eta;
             _routePoints = coords.map((coord) {
-              return LatLng(coord[1] as double, coord[0] as double);
+              final num latVal = coord[1] as num;
+              final num lngVal = coord[0] as num;
+              return LatLng(latVal.toDouble(), lngVal.toDouble());
             }).toList();
           });
 
@@ -139,81 +186,116 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
     }
   }
 
+  void _initTaskRoute() {
+    if (_activeTask == null || !mounted) return;
+
+    final lat = double.tryParse(
+      _activeTask!['latitude']?.toString() ??
+          _activeTask!['lokasi']?['latitude']?.toString() ??
+          '',
+    );
+    final lng = double.tryParse(
+      _activeTask!['longitude']?.toString() ??
+          _activeTask!['lokasi']?['longitude']?.toString() ??
+          '',
+    );
+    final volPos = _locationService.currentPosition.value;
+
+    if (lat != null && lng != null) {
+      double vLat;
+      double vLng;
+      if (volPos != null) {
+        vLat = volPos.latitude;
+        vLng = volPos.longitude;
+        if ((vLat - lat).abs() > 1 || (vLng - lng).abs() > 1) {
+          vLat = lat - 0.015;
+          vLng = lng - 0.015;
+        }
+      } else {
+        // Fallback jika GPS belum siap: gunakan offset dekat titik tujuan
+        vLat = lat - 0.008;
+        vLng = lng - 0.008;
+      }
+      _effectiveVolPos = LatLng(vLat, vLng);
+
+      final routeInfo = _activeTask!['route_info'];
+      final polylineData = _activeTask!['polyline'] ??
+          (routeInfo != null ? routeInfo['polyline'] : null);
+      final durationStr = _activeTask!['duration_formatted'] ??
+          (routeInfo != null ? routeInfo['duration_formatted'] : null);
+      final distanceStr = _activeTask!['distance_formatted'] ??
+          (routeInfo != null ? routeInfo['distance_formatted'] : null);
+
+      if (distanceStr != null && polylineData != null) {
+        setState(() {
+          _etaText = '$durationStr ($distanceStr)';
+          final List<dynamic> polyCoords = polylineData;
+          _routePoints = polyCoords.map((coord) {
+            final num latVal = coord[1] as num;
+            final num lngVal = coord[0] as num;
+            return LatLng(latVal.toDouble(), lngVal.toDouble());
+          }).toList();
+        });
+
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted && _routePoints.length > 1) {
+            final bounds = LatLngBounds.fromPoints(_routePoints);
+            _mapController.fitCamera(
+              CameraFit.bounds(
+                bounds: bounds,
+                padding: const EdgeInsets.all(24.0),
+                maxZoom: 16.0,
+              ),
+            );
+          }
+        });
+      } else if (_effectiveVolPos != null) {
+        _fetchRoute(_effectiveVolPos!, LatLng(lat, lng));
+      }
+    } else {
+      setState(() {
+        _etaText = 'Gagal (Lokasi?)';
+      });
+    }
+  }
+
   Future<void> _fetchTask() async {
     if (!mounted || _isCompleting) return;
-    setState(() {
-      _isLoading = true;
-      _routePoints.clear();
-      _etaText = 'Hitung...';
-    });
+    if (_activeTask == null) {
+      setState(() {
+        _isLoading = true;
+        _routePoints.clear();
+        _etaText = 'Hitung...';
+      });
+    }
     try {
       final res = await _dataSource.getRelawanTasks();
       if (mounted) {
-        setState(() {
-          _activeTask = res['data'];
-          _isLoading = false;
-        });
-
-        if (_activeTask != null) {
-          final lat = double.tryParse(
-            _activeTask!['latitude']?.toString() ?? '',
-          );
-          final lng = double.tryParse(
-            _activeTask!['longitude']?.toString() ?? '',
-          );
-          final volPos = _locationService.currentPosition.value;
-
-          if (lat != null && lng != null && volPos != null) {
-            double vLat = volPos.latitude;
-            double vLng = volPos.longitude;
-            // Mock location if too far (e.g., using emulator in USA)
-            if ((vLat - lat).abs() > 1 || (vLng - lng).abs() > 1) {
-              vLat = lat - 0.015;
-              vLng = lng - 0.015;
-            }
-            _effectiveVolPos = LatLng(vLat, vLng);
-
-            final routeInfo = _activeTask!['route_info'];
-            final polylineData = _activeTask!['polyline'] ?? (routeInfo != null ? routeInfo['polyline'] : null);
-            final durationStr = _activeTask!['duration_formatted'] ?? (routeInfo != null ? routeInfo['duration_formatted'] : null);
-            final distanceStr = _activeTask!['distance_formatted'] ?? (routeInfo != null ? routeInfo['distance_formatted'] : null);
-
-            if (distanceStr != null && polylineData != null) {
-              setState(() {
-                _etaText = '$durationStr ($distanceStr)';
-                final List<dynamic> polyCoords = polylineData;
-                _routePoints = polyCoords.map((coord) {
-                  return LatLng(coord[1] as double, coord[0] as double);
-                }).toList();
-              });
-
-              // Tunggu sedikit agar map widget ter-render sebelum fitCamera
-              Future.delayed(const Duration(milliseconds: 300), () {
-                if (mounted && _routePoints.length > 1) {
-                  final bounds = LatLngBounds.fromPoints(_routePoints);
-                  _mapController.fitCamera(
-                    CameraFit.bounds(
-                      bounds: bounds,
-                      padding: const EdgeInsets.all(24.0),
-                      maxZoom: 16.0,
-                    ),
-                  );
-                }
-              });
-            } else {
-              _fetchRoute(_effectiveVolPos!, LatLng(lat, lng));
-            }
-          } else {
-            setState(() {
-              _etaText = 'Gagal (Lokasi?)';
-            });
-          }
+        if (res['data'] != null) {
+          setState(() {
+            _activeTask = Map<String, dynamic>.from(res['data'] as Map);
+            _isLoading = false;
+          });
+          _initTaskRoute();
+        } else if (_activeTask == null) {
+          setState(() {
+            _activeTask = null;
+            _isLoading = false;
+          });
+        } else {
+          // Tetap pertahankan _activeTask yang sudah diisi lewat initialTask
+          setState(() {
+            _isLoading = false;
+          });
         }
       }
     } catch (e) {
+      debugPrint('Error fetch task: $e');
       if (mounted) {
         setState(() {
-          _activeTask = null;
+          if (_activeTask == null) {
+            _activeTask = null;
+          }
           _isLoading = false;
         });
       }
@@ -339,10 +421,50 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                     const Text(
                       'Tidak ada tugas aktif.',
                       style: TextStyle(
-                        color: Colors.black54,
+                        color: Colors.black87,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Belum ada tugas darurat yang sedang Anda tangani saat ini.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.black54,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(CupertinoIcons.arrow_left, size: 16),
+                          label: const Text('Kembali'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: primaryTeal,
+                            side: const BorderSide(color: primaryTeal),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          onPressed: _fetchTask,
+                          icon: const Icon(CupertinoIcons.refresh, size: 16),
+                          label: const Text('Muat Ulang'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryTeal,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1048,10 +1170,28 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                         final messenger = ScaffoldMessenger.of(context);
                         try {
                           _isCompleting = true;
-                          await _dataSource.updateSosStatus(
-                            int.parse(idSos.toString()),
-                            'selesai',
-                          );
+                          final isLaporan = _activeTask?['tipe'] == 'laporan' ||
+                              (_activeTask?['tipe'] != 'sos' &&
+                                  _activeTask?['kategori_laporan'] != 'SOS' &&
+                                  _activeTask?['kategori_laporan'] != null);
+                          if (isLaporan) {
+                            final dio = sl<Dio>();
+                            final prefs = sl<SharedPreferences>();
+                            final token = prefs.getString('auth_token');
+                            await dio.put(
+                              ApiConstants.laporanStatus(idSos),
+                              data: {'status': 'selesai'},
+                              options: Options(headers: {
+                                if (token != null) 'Authorization': 'Bearer $token',
+                                'Accept': 'application/json',
+                              }),
+                            );
+                          } else {
+                            await _dataSource.updateSosStatus(
+                              int.parse(idSos.toString()),
+                              'selesai',
+                            );
+                          }
                           // Otomatis arahkan ke tab Tugas Relawan (index 1)
                           import_event_bus.GlobalEventBus.changeVolunteerTab
                               .value = 1;

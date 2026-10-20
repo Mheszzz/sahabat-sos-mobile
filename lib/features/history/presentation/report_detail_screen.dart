@@ -46,6 +46,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   String? _freshLocation;
   double? _freshLatitude;
   double? _freshLongitude;
+  Map<String, dynamic>? _freshDeviceInfo;
 
   String? get _effectiveImageUrl => _freshImageUrl ?? widget.item.imageUrl;
   String? get _effectiveAudioUrl => _freshAudioUrl ?? widget.item.audioUrl;
@@ -188,6 +189,16 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
             lng = (data['lokasi']['longitude'] is num) ? (data['lokasi']['longitude'] as num).toDouble() : double.tryParse(data['lokasi']['longitude'].toString());
           }
 
+          Map<String, dynamic>? devInfo;
+          if (data['device_info'] != null && data['device_info'] is Map) {
+            devInfo = Map<String, dynamic>.from(data['device_info'] as Map);
+          } else if (data['battery_level'] != null || data['signal_strength'] != null) {
+            devInfo = {
+              'battery_level': data['battery_level'],
+              'signal_strength': data['signal_strength'],
+            };
+          }
+
           setState(() {
             _freshStatus = statusVal;
             if (photo != null) _freshImageUrl = photo;
@@ -202,6 +213,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
             if (loc != null) _freshLocation = loc;
             if (lat != null) _freshLatitude = lat;
             if (lng != null) _freshLongitude = lng;
+            if (devInfo != null) _freshDeviceInfo = devInfo;
           });
 
           if (lat != null && lng != null && _readableAddress == null) {
@@ -484,6 +496,261 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildDeviceInfoCard() {
+    if (_freshDeviceInfo == null) return const SizedBox.shrink();
+
+    final mobile = _freshDeviceInfo!['mobile'] is Map
+        ? Map<String, dynamic>.from(_freshDeviceInfo!['mobile'] as Map)
+        : null;
+    final tuya = _freshDeviceInfo!['tuya'] is Map
+        ? Map<String, dynamic>.from(_freshDeviceInfo!['tuya'] as Map)
+        : null;
+
+    final batteryLevel = mobile?['battery_level'] ?? _freshDeviceInfo!['battery_level'];
+    final isCharging = mobile?['is_charging'] ?? false;
+    final isCritical = batteryLevel != null && (batteryLevel as num) < 20 && !isCharging;
+    final modelName = mobile?['model'] ?? _freshDeviceInfo!['device_model'] ?? 'Ponsel Korban';
+    final signal = mobile?['signal_strength'] ?? _freshDeviceInfo!['signal_strength'] ?? '4G';
+
+    return _buildGlassContainer(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2F1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    CupertinoIcons.device_phone_portrait,
+                    color: primaryTeal,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Telemetri Perangkat Korban',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      Text(
+                        tuya != null ? 'Ponsel & Tombol IoT Tuya' : 'Ponsel Mobile Korban',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (tuya != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(CupertinoIcons.radiowaves_right, size: 12, color: Colors.green.shade700),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Tuya IoT',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green.shade800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            if (isCritical) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(CupertinoIcons.exclamationmark_triangle_fill, color: Colors.red.shade700, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Baterai HP Korban Kritis ($batteryLevel%) - Segera hubungi sebelum kontak terputus!',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Divider(height: 1),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDeviceStatTile(
+                    icon: isCharging ? CupertinoIcons.battery_charging : CupertinoIcons.battery_25_percent,
+                    label: 'Baterai HP',
+                    value: batteryLevel != null ? '$batteryLevel%' : '—',
+                    subValue: isCharging ? 'Charging' : 'Discharge',
+                    color: (batteryLevel != null && (batteryLevel as num) < 20)
+                        ? Colors.red
+                        : ((batteryLevel != null && (batteryLevel as num) < 50) ? Colors.orange : Colors.green),
+                  ),
+                ),
+                Container(width: 1, height: 36, color: Colors.grey.shade200),
+                Expanded(
+                  child: _buildDeviceStatTile(
+                    icon: CupertinoIcons.wifi,
+                    label: 'Sinyal HP',
+                    value: signal.toString(),
+                    subValue: 'Jaringan Seluler',
+                    color: primaryTeal,
+                  ),
+                ),
+                Container(width: 1, height: 36, color: Colors.grey.shade200),
+                Expanded(
+                  child: _buildDeviceStatTile(
+                    icon: CupertinoIcons.device_phone_portrait,
+                    label: 'Perangkat',
+                    value: modelName.toString(),
+                    subValue: mobile?['os_version']?.toString() ?? 'Android',
+                    color: Colors.blueGrey,
+                  ),
+                ),
+              ],
+            ),
+            if (tuya != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7FDF9),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.teal.shade100),
+                ),
+                child: Row(
+                  children: [
+                    Icon(CupertinoIcons.antenna_radiowaves_left_right, size: 18, color: primaryTeal),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            tuya['device_name']?.toString() ?? 'Tombol Fisik Tuya',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          Text(
+                            'Baterai IoT: ${tuya['battery_level'] ?? 'Normal'}% • Sinyal: ${tuya['signal_strength'] ?? 'Bagus'}',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: Colors.teal.shade800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.teal.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        tuya['trigger_type']?.toString() ?? 'Tombol Fisik',
+                        style: const TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.bold,
+                          color: primaryTeal,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeviceStatTile({
+    required IconData icon,
+    required String label,
+    required String value,
+    required String subValue,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: Colors.black54,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 1),
+        Text(
+          subValue,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 9,
+            color: Colors.black45,
+          ),
+        ),
+      ],
     );
   }
 
@@ -853,6 +1120,12 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                     ),
                   ),
                 ),
+
+                // Device Telemetry Card (Khusus Kasus SOS)
+                if (isSos && _freshDeviceInfo != null) ...[
+                  const SizedBox(height: 16),
+                  _buildDeviceInfoCard(),
+                ],
 
                 // Officer Info Card
                 if (_effectiveOfficerInfo != null) ...[

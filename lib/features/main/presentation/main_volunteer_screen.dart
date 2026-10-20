@@ -208,7 +208,9 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => const VolunteerActiveTaskPage(),
+                builder: (context) => VolunteerActiveTaskPage(
+                  initialTask: sosData,
+                ),
               ),
             );
 

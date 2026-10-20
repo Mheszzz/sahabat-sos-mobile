@@ -150,6 +150,36 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
     }
   }
 
+  /// Memusatkan kamera peta untuk menampilkan semua titik darurat SOS dan posisi relawan
+  void _fitAllSosMarkers() {
+    final points = <LatLng>[];
+    final myPos = _locationService.currentPosition.value;
+    if (myPos != null) {
+      points.add(LatLng(myPos.latitude, myPos.longitude));
+    }
+    for (final sos in _activeSosList) {
+      final lat = double.tryParse(sos['latitude']?.toString() ?? '');
+      final lng = double.tryParse(sos['longitude']?.toString() ?? '');
+      if (lat != null && lng != null && lat != 0.0 && lng != 0.0) {
+        points.add(LatLng(lat, lng));
+      }
+    }
+    if (points.isNotEmpty) {
+      if (points.length == 1) {
+        _mapController.move(points.first, 15.0);
+      } else {
+        final bounds = LatLngBounds.fromPoints(points);
+        _mapController.fitCamera(
+          CameraFit.bounds(
+            bounds: bounds,
+            padding: const EdgeInsets.all(70.0),
+            maxZoom: 16.0,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _initMap() async {
     final hasPermission = await _locationService.requestPermission();
     if (hasPermission) {
@@ -286,12 +316,22 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
         // Filter duplicates just in case
         final uniqueMap = <int, Map<String, dynamic>>{};
         for (var item in combinedList) {
-          final id = item['id'] as int;
-          uniqueMap[id] = item;
+          final rawId = item['id'];
+          final id = (rawId is int)
+              ? rawId
+              : int.tryParse(rawId?.toString() ?? '0') ?? 0;
+          if (id != 0) {
+            uniqueMap[id] = item;
+          }
         }
         final finalUniqueList = uniqueMap.values.toList();
 
-        final newIds = finalUniqueList.map((e) => e['id'] as int).toList();
+        final newIds = finalUniqueList.map((e) {
+          final rawId = e['id'];
+          return (rawId is int)
+              ? rawId
+              : int.tryParse(rawId?.toString() ?? '0') ?? 0;
+        }).where((id) => id != 0).toList();
         _unsubscribeRemovedSos(newIds);
 
         setState(() {
@@ -685,33 +725,42 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                 Positioned(
                   top: MediaQuery.paddingOf(context).top + 16,
                   left: 16,
-                  child: _buildGlassContainer(
-                    context,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 10,
-                          height: 10,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
+                  child: GestureDetector(
+                    onTap: _fitAllSosMarkers,
+                    child: _buildGlassContainer(
+                      context,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: sosRed,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${_activeSosList.length} SOS Aktif',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: sosRed,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            CupertinoIcons.zoom_in,
+                            size: 14,
                             color: sosRed,
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${_activeSosList.length} SOS Aktif',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                            color: sosRed,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -770,6 +819,30 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                   ),
                 ),
               ),
+
+              // ── Bottom Right: Fit All SOS Button ──
+              if (_activeSosList.isNotEmpty)
+                Positioned(
+                  bottom: 236,
+                  right: 16,
+                  child: SafeArea(
+                    top: false,
+                    child: _buildGlassContainer(
+                      context,
+                      padding: const EdgeInsets.all(4),
+                      borderRadius: BorderRadius.circular(20),
+                      child: IconButton(
+                        icon: const Icon(
+                          CupertinoIcons.exclamationmark_triangle_fill,
+                          color: sosRed,
+                          size: 20,
+                        ),
+                        tooltip: 'Lihat Semua Titik SOS',
+                        onPressed: _fitAllSosMarkers,
+                      ),
+                    ),
+                  ),
+                ),
 
               // ── Bottom Right: Recenter Button ──
               Positioned(
@@ -852,7 +925,12 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
   }
 
   Future<String> _resolveAddress(Map<String, dynamic> sos, double lat, double lng) async {
-    String alamat = sos['lokasi_user']?.toString() ?? sos['lokasi_laporan']?.toString() ?? sos['address']?.toString() ?? '';
+    String alamat = sos['pengguna']?['alamat']?.toString() ??
+        sos['pengguna']?['lokasi_user']?.toString() ??
+        sos['lokasi_user']?.toString() ??
+        sos['lokasi_laporan']?.toString() ??
+        sos['address']?.toString() ??
+        '';
     final alamatMatch = RegExp(r'alamat:\s*([^,}]+)').firstMatch(alamat);
     if (alamatMatch != null) {
       alamat = alamatMatch.group(1)!.trim();
@@ -1065,7 +1143,10 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                                   sl<
                                     import_volunteer.VolunteerRemoteDataSource
                                   >();
-                              final sosId = sos['id'] as int;
+                              final dynamic rawSosId = sos['id'];
+                              final int sosId = (rawSosId is int)
+                                  ? rawSosId
+                                  : int.tryParse(rawSosId?.toString() ?? '0') ?? 0;
 
                               if (sos['is_assigned'] == true) {
                                 // Navigasi ke halaman detail tugas
@@ -1074,8 +1155,10 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
-                                          const import_active_task
-                                              .VolunteerActiveTaskPage(),
+                                          import_active_task
+                                              .VolunteerActiveTaskPage(
+                                        initialTask: sos,
+                                      ),
                                     ),
                                   ).then((_) {
                                     setState(() {
@@ -1091,15 +1174,8 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                                   sosId,
                                   'ditangani',
                                 );
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Tugas diterima! Sedang membuat rute...',
-                                      ),
-                                    ),
-                                  );
-                                }
+                                sos['is_assigned'] = true;
+                                sos['status_sos'] = 'ditangani';
                                 setState(() {
                                   _acceptedSos = sos;
                                 });
@@ -1112,14 +1188,38 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                                     LatLng(sosLat, sosLng),
                                   );
                                 }
-                              }
+                                import_event_bus.GlobalEventBus.refreshMap.value =
+                                    !import_event_bus
+                                        .GlobalEventBus
+                                        .refreshMap
+                                        .value;
 
-                              // Refresh map data
-                              import_event_bus.GlobalEventBus.refreshMap.value =
-                                  !import_event_bus
-                                      .GlobalEventBus
-                                      .refreshMap
-                                      .value;
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Tugas diterima! Menuju lokasi tugas...',
+                                      ),
+                                    ),
+                                  );
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          import_active_task
+                                              .VolunteerActiveTaskPage(
+                                        initialTask: sos,
+                                      ),
+                                    ),
+                                  ).then((_) {
+                                    setState(() {
+                                      _acceptedSos = null;
+                                      _routePoints.clear();
+                                    });
+                                    _fetchActiveSos();
+                                  });
+                                }
+                              }
                             } catch (e) {
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(

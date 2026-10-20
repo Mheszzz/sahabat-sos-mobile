@@ -318,6 +318,22 @@ class _DashboardPageState extends State<DashboardPage>
                 final telemetryData =
                     await DeviceInfoHelper.getSosTelemetryData();
 
+                Map<String, dynamic>? tuyaDeviceInfo;
+                if (_tuyaDevice != null) {
+                  tuyaDeviceInfo = {
+                    'device_id': _tuyaDevice!.deviceId,
+                    'device_name': _tuyaDevice!.name,
+                    'product_id': _tuyaDevice!.productId,
+                    'is_online': _tuyaDevice!.isOnline,
+                    'battery_level': _tuyaDevice!.batteryLevel,
+                    'signal_strength': _tuyaDevice!.signalStrengthFormatted,
+                    'trigger_type': 'Tombol Aplikasi Layar',
+                    'last_seen': _tuyaDevice!.lastEventAt?.toIso8601String() ??
+                        DateTime.now().toIso8601String(),
+                    'location_updated_at': DateTime.now().toIso8601String(),
+                  };
+                }
+
                 // Call API
                 final response = await sl<Dio>().post(
                   ApiConstants.emergencyTrigger,
@@ -325,7 +341,13 @@ class _DashboardPageState extends State<DashboardPage>
                     'latitude': latitude,
                     'longitude': longitude,
                     'lokasi_user': locationService.lastGeocodedAddress,
-                    ...telemetryData,
+                    'trigger_source': 'app_button',
+                    'battery_level': telemetryData['battery_level'],
+                    'signal_strength': telemetryData['signal_strength'],
+                    'device_info': {
+                      'mobile': telemetryData['device_info'],
+                      if (tuyaDeviceInfo != null) 'tuya': tuyaDeviceInfo,
+                    },
                   },
                   options: Options(
                     headers: {
