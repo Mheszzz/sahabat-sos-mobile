@@ -336,9 +336,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: _highContrast ? Colors.black : const Color(0xFFF5F6F8),
+      backgroundColor: _highContrast ? Colors.black : const Color(0xFFF8FAFC),
       elevation: 0,
       scrolledUnderElevation: 0,
+      iconTheme: const IconThemeData(color: primaryTeal),
       centerTitle: false,
       titleSpacing: 16,
       title: Row(
@@ -350,7 +351,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: TextStyle(
               color: primaryTeal,
               fontWeight: FontWeight.bold,
-              fontSize: 20,
+              fontSize: 18,
             ),
           ),
         ],

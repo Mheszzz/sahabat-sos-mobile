@@ -13,8 +13,8 @@ class EmergencyContactsPage extends StatefulWidget {
 }
 
 class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
-  static const Color bgColor = Color(0xFFF5F6F8);
-  static const Color primaryTeal = Color(0xFF006D77);
+  static const Color bgColor = Color(0xFFF8FAFC);
+  static const Color primaryTeal = Color(0xFF00695C);
   static const Color sosRed = Color(0xFFC62828);
 
   final _dataSource = GetIt.instance<EmergencyContactRemoteDataSource>();
@@ -362,22 +362,30 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
         backgroundColor: bgColor,
         elevation: 0,
         scrolledUnderElevation: 0,
+        iconTheme: const IconThemeData(color: primaryTeal),
         leading: IconButton(
           icon: const Icon(
-            CupertinoIcons.chevron_back,
+            CupertinoIcons.back,
             color: primaryTeal,
           ),
           tooltip: 'Kembali',
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         centerTitle: false,
-        title: const Text(
-          'Kontak Darurat',
-          style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
+        titleSpacing: 0,
+        title: Row(
+          children: [
+            Image.asset('assets/images/logo.png', width: 24, height: 24),
+            const SizedBox(width: 8),
+            const Text(
+              'Kontak Darurat',
+              style: TextStyle(
+                color: primaryTeal,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+          ],
         ),
       ),
       body: SafeArea(

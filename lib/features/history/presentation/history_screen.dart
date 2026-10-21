@@ -595,8 +595,10 @@ class _HistoryPageState extends State<HistoryPage> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF8FAFC),
       elevation: 0,
+      scrolledUnderElevation: 0,
+      iconTheme: const IconThemeData(color: primaryTeal),
       centerTitle: false,
       titleSpacing: 16,
       title: Row(
@@ -608,7 +610,7 @@ class _HistoryPageState extends State<HistoryPage> {
             style: TextStyle(
               color: primaryTeal,
               fontWeight: FontWeight.bold,
-              fontSize: 20,
+              fontSize: 18,
             ),
           ),
         ],

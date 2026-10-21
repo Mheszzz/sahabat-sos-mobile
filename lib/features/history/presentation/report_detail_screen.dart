@@ -783,22 +783,30 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFFF5F6F8),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF5F6F8),
+        backgroundColor: const Color(0xFFF8FAFC),
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleSpacing: 0,
         iconTheme: const IconThemeData(color: primaryTeal),
+        leading: IconButton(
+          icon: const Icon(CupertinoIcons.back, color: primaryTeal),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: Row(
           children: [
             Image.asset('assets/images/logo.png', width: 24, height: 24),
             const SizedBox(width: 8),
-            Text(
-              detailTitle,
-              style: const TextStyle(
-                color: primaryTeal,
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
+            Expanded(
+              child: Text(
+                detailTitle,
+                style: const TextStyle(
+                  color: primaryTeal,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -1182,8 +1190,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: const [
+                          const Row(
+                            children: [
                               Icon(
                                 CupertinoIcons.doc_text,
                                 color: Colors.black54,
@@ -1230,7 +1238,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                             onTap: _isLoadingAudio ? null : _togglePlayPause,
                             child: Container(
                               padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
+                              decoration: const BoxDecoration(
                                 color: primaryTeal,
                                 shape: BoxShape.circle,
                               ),

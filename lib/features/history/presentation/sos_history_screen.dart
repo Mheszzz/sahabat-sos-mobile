@@ -235,8 +235,12 @@ class _SosHistoryScreenState extends State<SosHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F8),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(CupertinoIcons.back, color: primaryTeal),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: Row(
           children: [
             Image.asset('assets/images/logo.png', width: 24, height: 24),
@@ -246,12 +250,12 @@ class _SosHistoryScreenState extends State<SosHistoryScreen> {
               style: TextStyle(
                 color: primaryTeal,
                 fontWeight: FontWeight.bold,
-                fontSize: 20,
+                fontSize: 18,
               ),
             ),
           ],
         ),
-        backgroundColor: const Color(0xFFF5F6F8),
+        backgroundColor: const Color(0xFFF8FAFC),
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,

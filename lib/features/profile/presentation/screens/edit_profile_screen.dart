@@ -242,36 +242,41 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFF8FAFC),
         elevation: 0,
         scrolledUnderElevation: 0,
-        centerTitle: true,
+        centerTitle: false,
+        titleSpacing: 0,
         iconTheme: const IconThemeData(color: primaryTeal),
-        title: const Text(
-          'Edit Profil',
-          style: TextStyle(
-            color: primaryTeal,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
+        leading: IconButton(
+          icon: const Icon(CupertinoIcons.back, color: primaryTeal),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Row(
+          children: [
+            Image.asset('assets/images/logo.png', width: 24, height: 24),
+            const SizedBox(width: 8),
+            const Text(
+              'Edit Profil',
+              style: TextStyle(
+                color: primaryTeal,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+          ],
         ),
       ),
-      body: Container(
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-        ),
-        child: SafeArea(
-          child: _isLoading
-              ? const Center(
-                  child: CupertinoActivityIndicator(radius: 16),
-                )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(
+                child: CupertinoActivityIndicator(radius: 16),
+              )
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Center(
@@ -447,7 +452,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                 ),
         ),
-      ),
     );
   }
 }

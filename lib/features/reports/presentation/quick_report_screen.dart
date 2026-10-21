@@ -593,7 +593,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       titleSpacing: 16,
       title: Row(
         children: [
-          Image.asset('assets/images/logo.png', width: 22, height: 22),
+          Image.asset('assets/images/logo.png', width: 24, height: 24),
           const SizedBox(width: 8),
           const Text(
             'Sahabat SOS',

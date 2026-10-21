@@ -154,11 +154,12 @@ class _DashboardPageState extends State<DashboardPage>
       backgroundColor: bgSurface,
       elevation: 0,
       scrolledUnderElevation: 0,
+      iconTheme: const IconThemeData(color: primaryTeal),
       centerTitle: false,
       titleSpacing: 16,
       title: Row(
         children: [
-          Image.asset('assets/images/logo.png', width: 26, height: 26),
+          Image.asset('assets/images/logo.png', width: 24, height: 24),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

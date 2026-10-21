@@ -432,19 +432,31 @@ class _SosStatusPageState extends State<SosStatusPage>
         backgroundColor: bgSurface,
         elevation: 0,
         scrolledUnderElevation: 0,
+        iconTheme: const IconThemeData(color: primaryTeal),
         leading: IconButton(
-          icon: const Icon(CupertinoIcons.chevron_back, color: Color(0xFF111827)),
+          icon: const Icon(CupertinoIcons.back, color: primaryTeal),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          'Status Keadaan Darurat',
-          style: TextStyle(
-            color: Color(0xFF111827),
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
+        centerTitle: false,
+        titleSpacing: 0,
+        title: Row(
+          children: [
+            Image.asset('assets/images/logo.png', width: 24, height: 24),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Status Keadaan Darurat',
+                style: TextStyle(
+                  color: primaryTeal,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
-        centerTitle: true,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
