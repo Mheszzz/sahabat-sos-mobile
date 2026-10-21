@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:get_it/get_it.dart';
-import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
+import 'package:sahabat_sos_mobile/core/di/injection.dart';
+import 'package:sahabat_sos_mobile/features/sos/data/datasources/sos_remote_data_source.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -45,33 +43,22 @@ class _SosActivitiesSheetState extends State<SosActivitiesSheet> {
     });
 
     try {
-      final prefs = GetIt.instance<SharedPreferences>();
-      final token = prefs.getString('auth_token');
-      final dio = GetIt.instance<Dio>();
+      final sosDataSource = sl<SosRemoteDataSource>();
+      final activities = await sosDataSource.getSosActivities(widget.sosId);
 
-      final response = await dio.get(
-        ApiConstants.sosActivities(widget.sosId),
-        options: Options(headers: {
-          if (token != null) 'Authorization': 'Bearer $token',
-        }),
-      );
-
-      if (response.statusCode == 200) {
+      if (mounted) {
         setState(() {
-          _activities = response.data['data'] ?? [];
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _errorMessage = 'Gagal memuat aktivitas';
+          _activities = activities;
           _isLoading = false;
         });
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Terjadi kesalahan jaringan: $e';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Terjadi kesalahan jaringan: $e';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -158,8 +145,8 @@ class _SosActivitiesSheetState extends State<SosActivitiesSheet> {
                                         Container(
                                           width: 12,
                                           height: 12,
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF00695C),
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFF00695C),
                                             shape: BoxShape.circle,
                                           ),
                                         ),
