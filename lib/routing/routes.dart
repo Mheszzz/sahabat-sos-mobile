@@ -9,6 +9,7 @@ class AppRoutes {
   static const String homeVolunteer = '/home-volunteer';
   static const String quickReport = '/quick-report';
   static const String emergencyContacts = '/emergency-contacts';
+  static const String addEmergencyContact = '/emergency-contacts/add';
   static const String sosStatus = '/sos-status';
   static const String editProfile = '/edit-profile';
 

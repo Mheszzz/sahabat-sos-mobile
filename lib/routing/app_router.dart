@@ -8,6 +8,7 @@ import 'package:sahabat_sos_mobile/features/main/presentation/main_volunteer_scr
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/map_page.dart';
 import 'package:sahabat_sos_mobile/features/reports/presentation/quick_report_screen.dart';
 import 'package:sahabat_sos_mobile/features/sos/presentation/emergency_contacts_page.dart';
+import 'package:sahabat_sos_mobile/features/sos/presentation/add_emergency_contact_page.dart';
 import 'package:sahabat_sos_mobile/features/sos/presentation/sos_status_page.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_list_screen.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_scan_screen.dart';
@@ -106,6 +107,13 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.emergencyContacts,
         builder: (context, state) => const EmergencyContactsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.addEmergencyContact,
+        builder: (context, state) {
+          final contact = state.extra as Map<String, dynamic>?;
+          return AddEmergencyContactPage(contact: contact);
+        },
       ),
       GoRoute(
         path: AppRoutes.sosStatus,

@@ -8,6 +8,7 @@ import '../../features/sos/data/datasources/emergency_contact_remote_data_source
 import '../../features/sos/data/datasources/sos_remote_data_source.dart';
 import '../../features/dashboard/data/datasources/dashboard_remote_data_source.dart';
 import '../../features/reports/data/datasources/report_remote_data_source.dart';
+import '../../features/history/data/datasources/history_remote_data_source.dart';
 import '../services/location_service.dart';
 import '../../features/tuya_device/data/services/tuya_channel_service.dart';
 import '../../features/tuya_device/data/services/emergency_trigger_service.dart';
@@ -50,6 +51,9 @@ Future<void> initInjection() async {
   );
   sl.registerLazySingleton<ReportRemoteDataSource>(
     () => ReportRemoteDataSourceImpl(dio: sl(), prefs: sl()),
+  );
+  sl.registerLazySingleton<HistoryRemoteDataSource>(
+    () => HistoryRemoteDataSourceImpl(dio: sl(), prefs: sl()),
   );
 
   // Services
