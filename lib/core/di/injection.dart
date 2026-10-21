@@ -17,6 +17,8 @@ import '../../features/smartwatch/data/services/smartwatch_background_listener.d
 final sl = GetIt.instance;
 
 Future<void> initInjection() async {
+  if (sl.isRegistered<SharedPreferences>()) return;
+
   // External
   final sharedPreferences = await SharedPreferences.getInstance();
   sl.registerLazySingleton(() => sharedPreferences);
@@ -52,8 +54,11 @@ Future<void> initInjection() async {
   // Tuya Services
   sl.registerLazySingleton<TuyaChannelService>(() => TuyaChannelService());
   sl.registerLazySingleton<EmergencyTriggerService>(
-    () =>
-        EmergencyTriggerService(dio: sl(), prefs: sl(), locationService: sl()),
+    () => EmergencyTriggerService(
+      dio: sl(),
+      prefs: sl(),
+      locationService: sl(),
+    ),
   );
   sl.registerLazySingleton<TuyaBackgroundListener>(
     () => TuyaBackgroundListener(

@@ -15,10 +15,10 @@ Future<void> initializeBackgroundService() async {
   final service = FlutterBackgroundService();
 
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
-    'sos_background_channel', // id
-    'Sahabat SOS Background Service', // title
-    description: 'Menjaga aplikasi tetap berjalan untuk menerima sinyal darurat.', // description
-    importance: Importance.low, // low importance so it doesn't ring constantly for the persistent notif
+    'sos_background_channel',
+    'Sahabat SOS Background Service',
+    description: 'Menjaga aplikasi tetap berjalan untuk menerima sinyal darurat.',
+    importance: Importance.low,
   );
 
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -28,7 +28,9 @@ Future<void> initializeBackgroundService() async {
       AndroidInitializationSettings('@mipmap/ic_launcher');
   const InitializationSettings initializationSettings =
       InitializationSettings(android: initializationSettingsAndroid);
-  await flutterLocalNotificationsPlugin.initialize(settings: initializationSettings);
+  await flutterLocalNotificationsPlugin.initialize(
+    settings: initializationSettings,
+  );
 
   await flutterLocalNotificationsPlugin
       .resolvePlatformSpecificImplementation<
@@ -42,7 +44,8 @@ Future<void> initializeBackgroundService() async {
       isForegroundMode: true,
       notificationChannelId: 'sos_background_channel',
       initialNotificationTitle: 'Sahabat SOS Aktif',
-      initialNotificationContent: 'Mendengarkan sinyal darurat di latar belakang...',
+      initialNotificationContent:
+          'Mendengarkan sinyal darurat di latar belakang...',
       foregroundServiceNotificationId: 888,
     ),
     iosConfiguration: IosConfiguration(
@@ -51,8 +54,8 @@ Future<void> initializeBackgroundService() async {
       onBackground: onIosBackground,
     ),
   );
-  
-  service.startService();
+
+  await service.startService();
 }
 
 @pragma('vm:entry-point')
@@ -64,25 +67,27 @@ Future<bool> onIosBackground(ServiceInstance service) async {
 
 @pragma('vm:entry-point')
 void onStart(ServiceInstance service) async {
+  WidgetsFlutterBinding.ensureInitialized();
   DartPluginRegistrant.ensureInitialized();
 
-  // Inisialisasi dependensi ulang karena ini berjalan di isolate (thread) berbeda
   await initInjection();
 
   final prefs = sl<SharedPreferences>();
+  await prefs.reload();
   final token = prefs.getString('auth_token');
-  final volunteerId = prefs.getInt('volunteer_id'); // Assume relawan ID is saved, check if it exists
+  final volunteerId = prefs.getInt('volunteer_id');
 
-  final FlutterLocalNotificationsPlugin localNotif = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin localNotif =
+      FlutterLocalNotificationsPlugin();
   final alertChannel = AndroidNotificationChannel(
-    'sos_alert_channel_v2', 
+    'sos_alert_channel_v2',
     'Peringatan Darurat SOS',
     description: 'Notifikasi saat ada panggilan SOS masuk',
-    importance: Importance.max, 
+    importance: Importance.max,
     enableVibration: true,
     vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
   );
-  
+
   const AndroidInitializationSettings initializationSettingsAndroid =
       AndroidInitializationSettings('@mipmap/ic_launcher');
   const InitializationSettings initializationSettings =
@@ -90,47 +95,49 @@ void onStart(ServiceInstance service) async {
   await localNotif.initialize(settings: initializationSettings);
 
   await localNotif
-      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
       ?.createNotificationChannel(alertChannel);
 
   // 1. Inisialisasi WebSocket untuk mendengarkan SOS masuk (jika relawan)
   if (token != null && token.isNotEmpty) {
-    await WebsocketService.init(token);
-    
-    // Mendengarkan SOS Baru
-    if (volunteerId != null) {
-      WebsocketService.listenToNewSosForVolunteer(volunteerId, (payload) {
-        // Tampilkan notifikasi saat SOS masuk
-        localNotif.show(
-          id: 999,
-          title: 'DARURAT: Bantuan Dibutuhkan!',
-          body: 'Ada panggilan darurat baru di sekitar Anda.',
-          payload: jsonEncode(payload),
-          notificationDetails: NotificationDetails(
-            android: AndroidNotificationDetails(
-              'sos_alert_channel_v2',
-              'Peringatan Darurat SOS',
-              importance: Importance.max,
-              priority: Priority.high,
-              fullScreenIntent: true,
-              enableVibration: true,
-              vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
+    try {
+      await WebsocketService.init(token);
+
+      if (volunteerId != null) {
+        WebsocketService.listenToNewSosForVolunteer(volunteerId, (payload) {
+          localNotif.show(
+            id: 999,
+            title: 'DARURAT: Bantuan Dibutuhkan!',
+            body: 'Ada panggilan darurat baru di sekitar Anda.',
+            payload: jsonEncode(payload),
+            notificationDetails: NotificationDetails(
+              android: AndroidNotificationDetails(
+                'sos_alert_channel_v2',
+                'Peringatan Darurat SOS',
+                importance: Importance.max,
+                priority: Priority.high,
+                fullScreenIntent: true,
+                enableVibration: true,
+                vibrationPattern:
+                    Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
+              ),
             ),
-          ),
-        );
-      });
+          );
+        });
+      }
+    } catch (e) {
+      debugPrint('Background WebSocket init error: $e');
     }
   }
 
-  // 2. Inisialisasi Tuya Listener untuk alat emergency (Tombol Fisik)
+  // 2. Inisialisasi Tuya Listener
   final tuyaListener = sl<TuyaBackgroundListener>();
-  
   tuyaListener.onSosDetected = (event) {
     debugPrint('Background SOS Detected: ${event.deviceId}');
   };
 
   tuyaListener.onEmergencySent = (success, event) {
-    debugPrint('Background Emergency Sent: $success');
     if (success) {
       localNotif.show(
         id: 1000,
@@ -149,7 +156,6 @@ void onStart(ServiceInstance service) async {
   };
 
   tuyaListener.onEmergencyError = (errorMsg) {
-    debugPrint('Background Emergency Error: $errorMsg');
     localNotif.show(
       id: 1001,
       title: 'Gagal Mengirim SOS',
@@ -165,9 +171,13 @@ void onStart(ServiceInstance service) async {
     );
   };
 
-  await tuyaListener.start();
+  try {
+    await tuyaListener.start();
+  } catch (e) {
+    debugPrint('TuyaBackgroundListener skip di background isolate: $e');
+  }
 
-  // 3. Inisialisasi Smartwatch Listener untuk deteksi darurat dari jam tangan
+  // 3. Inisialisasi Smartwatch Listener
   final smartwatchListener = sl<SmartwatchBackgroundListener>();
 
   smartwatchListener.onSosDetected = (event) {
@@ -175,7 +185,6 @@ void onStart(ServiceInstance service) async {
   };
 
   smartwatchListener.onEmergencySent = (success, event) {
-    debugPrint('Background Smartwatch Emergency Sent: $success');
     if (success) {
       localNotif.show(
         id: 1002,
@@ -194,7 +203,6 @@ void onStart(ServiceInstance service) async {
   };
 
   smartwatchListener.onEmergencyError = (errorMsg) {
-    debugPrint('Background Smartwatch Emergency Error: $errorMsg');
     localNotif.show(
       id: 1003,
       title: 'Gagal Mengirim SOS Smartwatch',
@@ -210,9 +218,10 @@ void onStart(ServiceInstance service) async {
     );
   };
 
-  await smartwatchListener.start();
-
-  // Listen to service stop command
+  // Catatan: Hindari memanggil smartwatchListener.start() di background isolate
+  // secara bersamaan saat UI utama sedang aktif karena BLE GATT tidak bisa
+  // dikoneksi dari 2 isolate sekaligus. Gunakan listener di UI isolate (SmartwatchManager)
+  // dan panggil callback notifikasi ketika event darurat diterima.
   service.on('stopService').listen((event) {
     tuyaListener.stop();
     smartwatchListener.stop();

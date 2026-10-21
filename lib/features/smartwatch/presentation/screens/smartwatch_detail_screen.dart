@@ -1,12 +1,56 @@
+import 'dart:ui';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import '../../data/models/smartwatch_device_model.dart';
 import '../../data/services/smartwatch_manager.dart';
 
 class SmartwatchDetailScreen extends StatelessWidget {
+  static const Color primaryTeal = Color(0xFF00695C);
+  static const Color sosRed = Color(0xFFE50000);
+
   final SmartwatchDeviceModel device;
 
   const SmartwatchDetailScreen({super.key, required this.device});
+
+  Widget _buildGlassContainer({
+    required Widget child,
+    EdgeInsetsGeometry? padding,
+    Color? color,
+    BorderRadius? borderRadius,
+  }) {
+    final radius = borderRadius ?? BorderRadius.circular(16);
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: padding ?? const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color ?? Colors.white.withValues(alpha: 0.65),
+              borderRadius: radius,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.7),
+                width: 1.5,
+              ),
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,11 +61,16 @@ class SmartwatchDetailScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           device.name,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black87),
         ),
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        iconTheme: const IconThemeData(color: Colors.black87),
+        backgroundColor: const Color(0xFFF5F6F8),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        iconTheme: const IconThemeData(color: primaryTeal),
+        leading: IconButton(
+          icon: const Icon(CupertinoIcons.back, color: primaryTeal),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -29,31 +78,20 @@ class SmartwatchDetailScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Status Header Card
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x0A000000),
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
+            _buildGlassContainer(
+              padding: const EdgeInsets.all(18),
               child: Row(
                 children: [
                   Container(
-                    width: 60,
-                    height: 60,
+                    width: 58,
+                    height: 58,
                     decoration: BoxDecoration(
-                      color: const Color(0x1AE53935),
-                      borderRadius: BorderRadius.circular(14),
+                      color: primaryTeal.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: const Icon(
                       Icons.watch,
-                      color: Color(0xFFE53935),
+                      color: primaryTeal,
                       size: 32,
                     ),
                   ),
@@ -67,26 +105,28 @@ class SmartwatchDetailScreen extends StatelessWidget {
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF1E293B),
+                            color: Colors.black87,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 3),
                         Text(
                           device.brandDisplay,
-                          style: const TextStyle(fontSize: 13, color: Colors.grey),
+                          style: const TextStyle(fontSize: 13, color: Colors.black54),
                         ),
                         const SizedBox(height: 6),
                         ValueListenableBuilder<SmartwatchDeviceModel?>(
                           valueListenable: manager.activeDevice,
                           builder: (context, active, _) {
-                            final isConn = active != null && active.isConnected;
+                            final isConn = active != null &&
+                                active.id == device.id &&
+                                active.isConnected;
                             return Row(
                               children: [
                                 Container(
                                   width: 8,
                                   height: 8,
                                   decoration: BoxDecoration(
-                                    color: isConn ? Colors.green : Colors.grey,
+                                    color: isConn ? const Color(0xFF34C759) : Colors.grey,
                                     shape: BoxShape.circle,
                                   ),
                                 ),
@@ -96,12 +136,16 @@ class SmartwatchDetailScreen extends StatelessWidget {
                                     valueListenable: manager.connectionStatus,
                                     builder: (context, status, _) {
                                       return Text(
-                                        status ?? (isConn ? 'Terhubung & Siaga' : 'Terputus'),
+                                        isConn
+                                            ? (status ?? 'Terhubung & Siaga')
+                                            : 'Terputus',
                                         style: TextStyle(
                                           fontSize: 12,
-                                          color: isConn ? Colors.green : Colors.grey,
+                                          color: isConn ? const Color(0xFF34C759) : Colors.grey,
                                           fontWeight: FontWeight.w600,
                                         ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       );
                                     },
                                   ),
@@ -117,92 +161,104 @@ class SmartwatchDetailScreen extends StatelessWidget {
               ),
             ),
 
+            // Banner jika belum tersambung
             ValueListenableBuilder<SmartwatchDeviceModel?>(
               valueListenable: manager.activeDevice,
               builder: (context, active, _) {
-                final isConn = active != null && active.id == device.id && active.isConnected;
+                final isConn = active != null &&
+                    active.id == device.id &&
+                    active.isConnected;
                 if (isConn) return const SizedBox.shrink();
 
-                return Container(
-                  margin: const EdgeInsets.only(top: 14),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFFECACA)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Row(
-                        children: [
-                          Icon(Icons.bluetooth_disabled, color: Color(0xFFDC2626), size: 20),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Smartwatch Belum Tersambung',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: Color(0xFF991B1B),
+                return Padding(
+                  padding: const EdgeInsets.only(top: 14),
+                  child: _buildGlassContainer(
+                    color: const Color(0xFFFEF2F2).withValues(alpha: 0.9),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(CupertinoIcons.bluetooth,
+                                color: Color(0xFFDC2626), size: 20),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Smartwatch Belum Tersambung',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: Color(0xFF991B1B),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        '💡 Tips Sebelum Menyambungkan:\n'
-                        '1. Pastikan layar jam tangan MENYALA (jangan biarkan layar padam/tidur).\n'
-                        '2. Tutup aplikasi bawaan jam (Vivan/GloryFit/Da Fit) agar koneksi Bluetooth tidak terkunci.\n'
-                        '3. Buka menu Detak Jantung (Heart Rate) di jam tangan.',
-                        style: TextStyle(fontSize: 12, color: Color(0xFF7F1D1D), height: 1.4),
-                      ),
-                      const SizedBox(height: 12),
-                      ValueListenableBuilder<String?>(
-                        valueListenable: manager.connectingDeviceId,
-                        builder: (context, connectingId, _) {
-                          final isConnBusy = connectingId == device.id;
-                          final isAnyBusy = connectingId != null;
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          '💡 Tips Sebelum Menyambungkan:\n'
+                          '1. Pastikan layar jam tangan MENYALA (jangan biarkan layar padam/tidur).\n'
+                          '2. Untuk jam Huawei: aktifkan "Heart Rate Broadcast" di pengaturan olahraga jam, atau hubungkan Huawei Health ke Health Connect.\n'
+                          '3. Buka menu Detak Jantung (Heart Rate) di jam tangan.',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF7F1D1D),
+                              height: 1.45),
+                        ),
+                        const SizedBox(height: 14),
+                        ValueListenableBuilder<String?>(
+                          valueListenable: manager.connectingDeviceId,
+                          builder: (context, connectingId, _) {
+                            final isConnBusy = connectingId == device.id;
+                            final isAnyBusy = connectingId != null;
 
-                          return ElevatedButton.icon(
-                            onPressed: isAnyBusy
-                                ? null
-                                : () async {
-                                    final ok = await manager.connectDevice(device);
-                                    if (!context.mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          ok
-                                              ? 'Berhasil terhubung ke ${device.name}'
-                                              : 'Gagal terhubung ke ${device.name}. Pastikan layar jam menyala & aplikasi bawaan ditutup.',
+                            return ElevatedButton.icon(
+                              onPressed: isAnyBusy
+                                  ? null
+                                  : () async {
+                                      final ok = await manager.connectDevice(device);
+                                      if (!context.mounted) return;
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            ok
+                                                ? 'Berhasil terhubung ke ${device.name}'
+                                                : 'Gagal terhubung ke ${device.name}. Pastikan layar jam menyala & Bluetooth aktif.',
+                                          ),
+                                          backgroundColor:
+                                              ok ? primaryTeal : Colors.red,
+                                          duration: const Duration(seconds: 4),
                                         ),
-                                        backgroundColor: ok ? Colors.green : Colors.red,
-                                        duration: const Duration(seconds: 4),
+                                      );
+                                    },
+                              icon: isConnBusy
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CupertinoActivityIndicator(
+                                        radius: 7,
+                                        color: Colors.white,
                                       ),
-                                    );
-                                  },
-                            icon: isConnBusy
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                  )
-                                : const Icon(Icons.bluetooth_connected),
-                            label: Text(isConnBusy ? 'Menghubungkan...' : 'Sambungkan Jam Tangan'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFE53935),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                                    )
+                                  : const Icon(CupertinoIcons.bluetooth, size: 16),
+                              label: Text(isConnBusy
+                                  ? 'Menghubungkan...'
+                                  : 'Sambungkan Jam Tangan'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryTeal,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -210,27 +266,55 @@ class SmartwatchDetailScreen extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // Live Telemetry Cards
+            // Live Telemetry Cards (Heart Rate & Battery)
             Row(
               children: [
                 // Heart Rate Card
                 Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                  child: _buildGlassContainer(
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Row(
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Icon(Icons.favorite, color: Colors.red, size: 22),
-                            SizedBox(width: 8),
-                            Text(
-                              'Detak Jantung',
-                              style: TextStyle(fontSize: 13, color: Colors.grey),
+                            const Row(
+                              children: [
+                                Icon(CupertinoIcons.heart_fill, color: Colors.red, size: 20),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Detak Jantung',
+                                  style: TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                            InkWell(
+                              onTap: () async {
+                                await manager.syncFromHealthConnect();
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Menyinkronkan data terbaru dari Health Connect...',
+                                    ),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: primaryTeal.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Icon(
+                                  CupertinoIcons.arrow_clockwise,
+                                  size: 14,
+                                  color: primaryTeal,
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -238,36 +322,42 @@ class SmartwatchDetailScreen extends StatelessWidget {
                         ValueListenableBuilder<int?>(
                           valueListenable: manager.liveHeartRate,
                           builder: (context, bpm, _) {
-                            final hasBpm = bpm != null && bpm > 0;
+                            final displayBpm = bpm ?? device.heartRate;
+                            final hasBpm = displayBpm != null && displayBpm > 0;
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  hasBpm ? '$bpm BPM' : '-- BPM',
+                                  hasBpm ? '$displayBpm BPM' : '-- BPM',
                                   style: TextStyle(
-                                    fontSize: 24,
+                                    fontSize: 22,
                                     fontWeight: FontWeight.bold,
-                                    color: hasBpm ? Colors.red.shade700 : const Color(0xFF1E293B),
+                                    color: hasBpm
+                                        ? Colors.red.shade700
+                                        : Colors.black87,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   hasBpm
-                                      ? (bpm > 120
+                                      ? (displayBpm > 120
                                           ? 'Tinggi — kemungkinan panik'
-                                          : (bpm < 50
+                                          : (displayBpm < 50
                                               ? 'Rendah — perlu perhatian'
                                               : 'Normal — denyut aktif'))
-                                      : 'Buka menu HR di jam tangan',
+                                      : 'Buka HR / Sinkronisasi',
                                   style: TextStyle(
                                     fontSize: 11,
                                     color: hasBpm
-                                        ? (bpm > 120 || bpm < 50
+                                        ? (displayBpm > 120 || displayBpm < 50
                                             ? Colors.red.shade700
-                                            : Colors.green.shade700)
-                                        : Colors.grey,
-                                    fontWeight: hasBpm ? FontWeight.w600 : FontWeight.normal,
+                                            : const Color(0xFF2E7D32))
+                                        : Colors.black45,
+                                    fontWeight:
+                                        hasBpm ? FontWeight.w600 : FontWeight.normal,
                                   ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             );
@@ -280,40 +370,43 @@ class SmartwatchDetailScreen extends StatelessWidget {
                 const SizedBox(width: 12),
                 // Battery Card
                 Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                  child: _buildGlassContainer(
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Row(
                           children: [
-                            Icon(Icons.battery_charging_full, color: Colors.green, size: 22),
-                            SizedBox(width: 8),
+                            Icon(CupertinoIcons.battery_100,
+                                color: Color(0xFF34C759), size: 20),
+                            SizedBox(width: 6),
                             Text(
                               'Baterai Jam',
-                              style: TextStyle(fontSize: 13, color: Colors.grey),
+                              style: TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
                         const SizedBox(height: 12),
-                        Text(
-                          device.batteryLevel != null
-                              ? '${device.batteryLevel}%'
-                              : 'Normal',
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1E293B),
-                          ),
+                        ValueListenableBuilder<int?>(
+                          valueListenable: manager.liveBatteryLevel,
+                          builder: (context, liveBat, _) {
+                            final bat = liveBat ?? device.batteryLevel;
+                            return Text(
+                              bat != null ? '$bat%' : 'Siaga',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            );
+                          },
                         ),
                         const SizedBox(height: 4),
                         const Text(
                           'Kondisi daya siaga',
-                          style: TextStyle(fontSize: 11, color: Colors.grey),
+                          style: TextStyle(fontSize: 11, color: Colors.black45),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
@@ -324,56 +417,111 @@ class SmartwatchDetailScreen extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            // Tip Pengukuran Detak Jantung
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFBFDBFE)),
+            // Tombol Sinkronisasi Health Connect
+            _buildGlassContainer(
+              padding: EdgeInsets.zero,
+              child: InkWell(
+                onTap: () async {
+                  final resultMsg = await manager.syncFromHealthConnect();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(resultMsg),
+                      backgroundColor: resultMsg.startsWith('Berhasil')
+                          ? primaryTeal
+                          : Colors.orange.shade800,
+                      duration: const Duration(seconds: 4),
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: primaryTeal.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(CupertinoIcons.arrow_2_circlepath, color: primaryTeal, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Ambil Data via Health Connect',
+                              style: TextStyle(
+                                color: Colors.black87,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Sinkronisasi dari Huawei Health / Google Fit',
+                              style: TextStyle(fontSize: 11, color: Colors.black54),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(CupertinoIcons.chevron_right, size: 16, color: Colors.black38),
+                    ],
+                  ),
+                ),
               ),
-              child: const Column(
+            ),
+
+            const SizedBox(height: 12),
+
+            // Tip Pengukuran Detak Jantung
+            _buildGlassContainer(
+              color: primaryTeal.withValues(alpha: 0.06),
+              padding: const EdgeInsets.all(14),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  const Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.tips_and_updates_outlined, color: Color(0xFF2563EB), size: 20),
-                      SizedBox(width: 10),
+                      Icon(CupertinoIcons.lightbulb_fill,
+                          color: primaryTeal, size: 18),
+                      SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Tips Sensor Detak Jantung:',
                           style: TextStyle(
                             fontSize: 13,
-                            color: Color(0xFF1E40AF),
+                            color: primaryTeal,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Padding(
-                    padding: EdgeInsets.only(left: 30),
+                    padding: const EdgeInsets.only(left: 26),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+                      children: const [
                         Text(
-                          '1. Kenakan jam dengan pas di pergelangan tangan',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF1E40AF), height: 1.5),
-                        ),
-                        Text(
-                          '2. Buka menu "Heart Rate" / "Detak Jantung" di layar jam',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF1E40AF), height: 1.5),
-                        ),
-                        Text(
-                          '3. Tunggu beberapa detik sampai BPM muncul di aplikasi',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF1E40AF), height: 1.5),
+                          '1. Untuk live BPM via Bluetooth: buka Pengaturan Jam Huawei > Pengaturan Olahraga > aktifkan "Siaran Detak Jantung" (Heart Rate Broadcast).',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.black87,
+                              height: 1.45),
                         ),
                         SizedBox(height: 4),
                         Text(
-                          'Sebagian besar smartwatch hanya broadcast BPM via Bluetooth saat menu HR aktif di layar jam.',
-                          style: TextStyle(fontSize: 11, color: Color(0xFF3B82F6), height: 1.4, fontStyle: FontStyle.italic),
+                          '2. Untuk sinkronisasi via Health Connect: pastikan Huawei Health sudah terhubung ke Health Connect, lalu tekan tombol di atas.',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.black87,
+                              height: 1.45),
                         ),
                       ],
                     ),
@@ -388,73 +536,90 @@ class SmartwatchDetailScreen extends StatelessWidget {
             const Text(
               'Uji Coba Fungsi Darurat',
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 17,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF1E293B),
+                color: Colors.black87,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             const Text(
-              'Gunakan tombol di bawah untuk menguji respon sistem SahabatSOS terhadap sinyal dari smartwatch tanpa harus menunggu kejadian darurat.',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+              'Uji respon sistem SahabatSOS terhadap sinyal dari smartwatch tanpa harus menunggu kejadian darurat.',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
-            ElevatedButton.icon(
-              onPressed: () {
-                manager.simulateTestSos();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Simulasi tombol SOS Smartwatch dipicu!'),
-                    backgroundColor: Color(0xFFE53935),
+            _buildGlassContainer(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        manager.simulateTestSos();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Simulasi tombol SOS Smartwatch dipicu!'),
+                            backgroundColor: sosRed,
+                          ),
+                        );
+                      },
+                      icon: const Icon(CupertinoIcons.exclamationmark_triangle_fill, size: 18),
+                      label: const Text(
+                        'Uji Coba Tombol SOS Jam',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: sosRed,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
                   ),
-                );
-              },
-              icon: const Icon(Icons.emergency),
-              label: const Text('Uji Coba Tombol SOS Jam'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE53935),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            OutlinedButton.icon(
-              onPressed: () {
-                manager.simulateTestFall();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Simulasi sensor deteksi jatuh dipicu!'),
-                    backgroundColor: Colors.orange,
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        manager.simulateTestFall();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Simulasi sensor deteksi jatuh dipicu!'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.personal_injury, color: Colors.orange, size: 18),
+                      label: const Text(
+                        'Uji Coba Deteksi Jatuh',
+                        style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.orange),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
                   ),
-                );
-              },
-              icon: const Icon(Icons.personal_injury, color: Colors.orange),
-              label: const Text(
-                'Uji Coba Deteksi Jatuh',
-                style: TextStyle(color: Colors.orange),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.orange),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                ],
               ),
             ),
 
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
 
             // Disconnect & Unpair Actions
             ValueListenableBuilder<SmartwatchDeviceModel?>(
               valueListenable: manager.activeDevice,
               builder: (context, active, _) {
-                final isConn = active != null && active.id == device.id && active.isConnected;
+                final isConn = active != null &&
+                    active.id == device.id &&
+                    active.isConnected;
                 if (!isConn) return const SizedBox.shrink();
 
                 return Padding(
@@ -470,14 +635,14 @@ class SmartwatchDetailScreen extends StatelessWidget {
                         );
                       }
                     },
-                    icon: const Icon(Icons.link_off, color: Colors.orange),
+                    icon: const Icon(CupertinoIcons.link, color: Colors.orange, size: 18),
                     label: const Text(
                       'Putuskan Sambungan',
-                      style: TextStyle(color: Colors.orange),
+                      style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
                     ),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: Colors.orange),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -486,27 +651,34 @@ class SmartwatchDetailScreen extends StatelessWidget {
                 );
               },
             ),
+
             OutlinedButton.icon(
               onPressed: () async {
                 final confirm = await showDialog<bool>(
                   context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Hapus Smartwatch?'),
-                    content: const Text(
-                      'Perangkat jam tangan ini akan dihapus dari akun SahabatSOS Anda. '
-                      'Anda bisa menyambungkan ulang kapan saja.',
+                  builder: (ctx) => BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: AlertDialog(
+                      backgroundColor: Colors.white.withValues(alpha: 0.9),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      title: const Text('Hapus Smartwatch?', style: TextStyle(fontWeight: FontWeight.bold)),
+                      content: const Text(
+                        'Perangkat jam tangan ini akan dihapus dari akun SahabatSOS Anda. '
+                        'Anda bisa menyambungkan ulang kapan saja.',
+                        style: TextStyle(fontSize: 13, color: Colors.black87),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Batal', style: TextStyle(color: Colors.black54)),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          style: TextButton.styleFrom(foregroundColor: Colors.red),
+                          child: const Text('Hapus', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ],
                     ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Batal'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        style: TextButton.styleFrom(foregroundColor: Colors.red),
-                        child: const Text('Hapus'),
-                      ),
-                    ],
                   ),
                 );
 
@@ -517,19 +689,21 @@ class SmartwatchDetailScreen extends StatelessWidget {
                   }
                 }
               },
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              icon: const Icon(CupertinoIcons.trash, color: Colors.red, size: 18),
               label: const Text(
                 'Hapus Pasangan (Unpair)',
-                style: TextStyle(color: Colors.red),
+                style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
               ),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.redAccent),
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: Colors.red.shade300),
+                padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
             ),
+
+            const SizedBox(height: 40),
           ],
         ),
       ),

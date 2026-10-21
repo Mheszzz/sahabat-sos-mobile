@@ -1,20 +1,14 @@
 import 'package:dio/dio.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:get_it/get_it.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/services/location_service.dart';
 import '../../../../core/utils/device_info_helper.dart';
 import '../models/tuya_dp_event_model.dart';
-import 'package:get_it/get_it.dart';
 import 'tuya_channel_service.dart';
 
-/// Service responsible for sending emergency trigger events to the Laravel backend.
-///
-/// When an SOS event is detected from a Tuya device, this service:
-/// 1. Fetches the current GPS location
-/// 2. Sends HTTP POST to /emergency/trigger
-/// 3. Handles retry logic for failed requests
 class EmergencyTriggerService {
   final Dio _dio;
   final SharedPreferences _prefs;
@@ -25,36 +19,29 @@ class EmergencyTriggerService {
 
   EmergencyTriggerService({
     required this._dio,
-    required this._prefs,
+    required SharedPreferences prefs,
     required this._locationService,
-  });
+  })  : _prefs = prefs;
 
-  /// Trigger emergency alert to Laravel backend
-  ///
-  /// Returns true if the trigger was sent successfully
   Future<bool> triggerEmergency(TuyaDpEvent event) async {
     final token = _prefs.getString('auth_token');
     if (token == null || token.isEmpty) {
-      throw EmergencyTriggerException('User not authenticated');
+      throw const EmergencyTriggerException('User not authenticated');
     }
 
-    // Try to get current location from cached position or Geolocator
     double? latitude;
     double? longitude;
     try {
-      // First try cached position from LocationService
       final cachedPosition = _locationService.currentPosition.value;
       if (cachedPosition != null) {
         latitude = cachedPosition.latitude;
         longitude = cachedPosition.longitude;
       } else {
-        // Fallback to getLastKnownPosition for INSTANT response (0 second delay)
         final position = await Geolocator.getLastKnownPosition();
         if (position != null) {
           latitude = position.latitude;
           longitude = position.longitude;
         } else {
-          // If absolute worst case, try low accuracy for max 1 second
           final quickPosition = await Geolocator.getCurrentPosition(
             locationSettings: const LocationSettings(
               accuracy: LocationAccuracy.low,
@@ -64,9 +51,7 @@ class EmergencyTriggerService {
           longitude = quickPosition.longitude;
         }
       }
-    } catch (e) {
-      // Continue without location if GPS fails (it will use 0.0 fallback)
-    }
+    } catch (_) {}
 
     final telemetryData = await DeviceInfoHelper.getSosTelemetryData();
 
@@ -78,14 +63,13 @@ class EmergencyTriggerService {
         'battery_level': tuyaDevice.batteryLevel,
         'is_online': tuyaDevice.isOnline,
         'device_id': tuyaDevice.deviceId,
-        'last_seen': tuyaDevice.lastEventAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
+        'last_seen': tuyaDevice.lastEventAt?.toIso8601String() ??
+            DateTime.now().toIso8601String(),
         'location_updated_at': DateTime.now().toIso8601String(),
       };
-    } catch (e) {
-      // Ignored if failed to get Tuya device info
-    }
+    } catch (_) {}
 
-    final payload = {
+    final payload = <String, dynamic>{
       'device_id': event.deviceId,
       'timestamp': event.timestamp.toIso8601String(),
       'trigger_source': 'tuya_wifi',
@@ -101,14 +85,13 @@ class EmergencyTriggerService {
     return _sendPayloadWithRetry(payload, token);
   }
 
-  /// Trigger emergency alert from Smartwatch to Laravel backend
   Future<bool> triggerSmartwatchEmergency(
     dynamic smartwatchEvent, {
     dynamic smartwatchDevice,
   }) async {
     final token = _prefs.getString('auth_token');
     if (token == null || token.isEmpty) {
-      throw EmergencyTriggerException('User not authenticated');
+      throw const EmergencyTriggerException('User not authenticated');
     }
 
     double? latitude;
@@ -143,7 +126,7 @@ class EmergencyTriggerService {
       deviceName: smartwatchDevice?.name ?? 'Smartwatch',
     );
 
-    final payload = {
+    final payload = <String, dynamic>{
       'device_id': smartwatchEvent.deviceId,
       'timestamp': smartwatchEvent.timestamp.toIso8601String(),
       'trigger_source': smartwatchEvent.triggerSourceString,
@@ -162,7 +145,8 @@ class EmergencyTriggerService {
     return _sendPayloadWithRetry(payload, token);
   }
 
-  Future<bool> _sendPayloadWithRetry(Map<String, dynamic> payload, String token) async {
+  Future<bool> _sendPayloadWithRetry(
+      Map<String, dynamic> payload, String token) async {
     for (int attempt = 1; attempt <= _maxRetries; attempt++) {
       try {
         final response = await _dio.post(
@@ -200,7 +184,6 @@ class EmergencyTriggerService {
     return false;
   }
 
-  /// Send a test/simulation trigger (does not trigger real emergency)
   Future<bool> triggerTestEmergency(String deviceId) async {
     final testEvent = TuyaDpEvent(
       deviceId: deviceId,
@@ -213,7 +196,6 @@ class EmergencyTriggerService {
   }
 }
 
-/// Custom exception for emergency trigger errors
 class EmergencyTriggerException implements Exception {
   final String message;
   const EmergencyTriggerException(this.message);

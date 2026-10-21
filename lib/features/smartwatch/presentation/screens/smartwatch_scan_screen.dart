@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -17,6 +18,8 @@ class SmartwatchScanScreen extends StatefulWidget {
 }
 
 class _SmartwatchScanScreenState extends State<SmartwatchScanScreen> {
+  static const Color primaryTeal = Color(0xFF00695C);
+
   final _bleService = GetIt.instance<BleSmartwatchService>();
   final _huaweiService = GetIt.instance<HuaweiWearService>();
   final _manager = GetIt.instance<SmartwatchManager>();
@@ -162,31 +165,88 @@ class _SmartwatchScanScreenState extends State<SmartwatchScanScreen> {
     });
   }
 
+  Widget _buildGlassContainer({
+    required Widget child,
+    EdgeInsetsGeometry? padding,
+    Color? color,
+    BorderRadius? borderRadius,
+  }) {
+    final radius = borderRadius ?? BorderRadius.circular(16);
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: padding ?? const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color ?? Colors.white.withValues(alpha: 0.65),
+              borderRadius: radius,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.7),
+                width: 1.5,
+              ),
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _pairDevice(SmartwatchDeviceModel device) async {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => Center(
-        child: Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Padding(
+      builder: (ctx) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Center(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 32),
             padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.white,
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const CupertinoActivityIndicator(radius: 14),
-                const SizedBox(height: 16),
+                const CupertinoActivityIndicator(radius: 16, color: primaryTeal),
+                const SizedBox(height: 18),
                 Text(
                   'Menyambungkan ke ${device.name}...',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87),
                 ),
                 const SizedBox(height: 8),
                 ValueListenableBuilder<String?>(
                   valueListenable: _manager.connectionStatus,
                   builder: (context, status, _) {
                     return Text(
-                      status ?? 'Menghubungkan...',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      status ?? 'Memulai koneksi Bluetooth...',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 12, color: Colors.black54),
                     );
                   },
                 ),
@@ -205,7 +265,7 @@ class _SmartwatchScanScreenState extends State<SmartwatchScanScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Berhasil menyambungkan ke ${device.name}!'),
-          backgroundColor: Colors.green,
+          backgroundColor: primaryTeal,
         ),
       );
       Navigator.of(context).pop(true);
@@ -234,7 +294,7 @@ class _SmartwatchScanScreenState extends State<SmartwatchScanScreen> {
   Color _signalColor(int? rssi) {
     if (rssi == null) return Colors.grey;
     if (rssi >= -50) return Colors.green;
-    if (rssi >= -70) return Colors.green.shade300;
+    if (rssi >= -70) return Colors.green.shade400;
     if (rssi >= -85) return Colors.orange;
     return Colors.red;
   }
@@ -255,156 +315,169 @@ class _SmartwatchScanScreenState extends State<SmartwatchScanScreen> {
       appBar: AppBar(
         title: const Text(
           'Cari Smartwatch',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black87),
         ),
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        iconTheme: const IconThemeData(color: Colors.black87),
+        backgroundColor: const Color(0xFFF5F6F8),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        iconTheme: const IconThemeData(color: primaryTeal),
+        leading: IconButton(
+          icon: const Icon(CupertinoIcons.back, color: primaryTeal),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         actions: [
           IconButton(
             icon: _isScanning
-                ? const CupertinoActivityIndicator(radius: 10)
-                : const Icon(Icons.refresh),
+                ? const CupertinoActivityIndicator(radius: 11, color: primaryTeal)
+                : const Icon(CupertinoIcons.arrow_clockwise, color: primaryTeal, size: 20),
             onPressed: _isScanning ? null : _startScanning,
+            tooltip: 'Pindai Ulang',
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Column(
         children: [
           // Info Banner
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            color: Colors.blue.withValues(alpha: 0.08),
-            child: const Row(
-              children: [
-                Icon(Icons.info_outline, color: Colors.blue, size: 20),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Pastikan layar smartwatch MENYALA dan koneksi telah diputus dari aplikasi bawaan jam (DaFit/GloryFit/Vivan). '
-                    'Buka menu Heart Rate di jam agar sensor aktif.',
-                    style: TextStyle(fontSize: 13, color: Color(0xFF1E293B)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: _buildGlassContainer(
+              color: primaryTeal.withValues(alpha: 0.08),
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: primaryTeal.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(CupertinoIcons.info_circle_fill, color: primaryTeal, size: 16),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Pastikan layar jam MENYALA dan Bluetooth aktif. Buka menu Detak Jantung di jam agar sensor aktif.',
+                      style: TextStyle(fontSize: 12, color: Colors.black87, height: 1.35),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 
           // Warning: Bluetooth Mati
           if (_bluetoothOff)
-            Container(
-              padding: const EdgeInsets.all(16),
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEF2F2),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFECACA)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.bluetooth_disabled, color: Color(0xFFDC2626), size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Bluetooth Tidak Aktif',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF991B1B),
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Aktifkan Bluetooth dari pengaturan ponsel Anda untuk memindai smartwatch.',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF991B1B)),
-                        ),
-                        const SizedBox(height: 8),
-                        ElevatedButton.icon(
-                          onPressed: () async {
-                            final messenger = ScaffoldMessenger.of(context);
-                            try {
-                              await FlutterBluePlus.turnOn();
-                            } catch (_) {
-                              if (mounted) {
-                                messenger.showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Mohon aktifkan Bluetooth secara manual dari pengaturan.'),
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          icon: const Icon(Icons.bluetooth, size: 16),
-                          label: const Text('Aktifkan Bluetooth'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFE53935),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: _buildGlassContainer(
+                color: const Color(0xFFFEF2F2).withValues(alpha: 0.9),
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    const Icon(CupertinoIcons.bluetooth, color: Color(0xFFDC2626), size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Bluetooth Tidak Aktif',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF991B1B),
+                              fontSize: 14,
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Aktifkan Bluetooth dari pengaturan ponsel untuk memindai smartwatch.',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF991B1B)),
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: () async {
+                              final messenger = ScaffoldMessenger.of(context);
+                              try {
+                                await FlutterBluePlus.turnOn();
+                              } catch (_) {
+                                if (mounted) {
+                                  messenger.showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Mohon aktifkan Bluetooth secara manual dari pengaturan.'),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            icon: const Icon(CupertinoIcons.bluetooth, size: 14),
+                            label: const Text('Aktifkan Bluetooth', style: TextStyle(fontSize: 12)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryTeal,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
 
           // Warning: Permission Denied
           if (_permissionDenied)
-            Container(
-              padding: const EdgeInsets.all(16),
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFED7AA)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFEA580C), size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Izin Diperlukan',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF9A3412),
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Izin Bluetooth dan Lokasi diperlukan untuk memindai smartwatch. '
-                          'Buka Pengaturan untuk mengaktifkan izin.',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF9A3412)),
-                        ),
-                        const SizedBox(height: 8),
-                        ElevatedButton.icon(
-                          onPressed: () => openAppSettings(),
-                          icon: const Icon(Icons.settings, size: 16),
-                          label: const Text('Buka Pengaturan'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFEA580C),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: _buildGlassContainer(
+                color: const Color(0xFFFFF7ED).withValues(alpha: 0.9),
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    const Icon(CupertinoIcons.exclamationmark_triangle_fill, color: Color(0xFFEA580C), size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Izin Diperlukan',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF9A3412),
+                              fontSize: 14,
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Izin Bluetooth dan Lokasi diperlukan untuk memindai smartwatch.',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF9A3412)),
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: () => openAppSettings(),
+                            icon: const Icon(CupertinoIcons.gear_alt, size: 14),
+                            label: const Text('Buka Pengaturan', style: TextStyle(fontSize: 12)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFEA580C),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
 
@@ -416,42 +489,50 @@ class _SmartwatchScanScreenState extends State<SmartwatchScanScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         if (_isScanning) ...[
-                          const CupertinoActivityIndicator(radius: 16),
+                          const CupertinoActivityIndicator(radius: 16, color: primaryTeal),
                           const SizedBox(height: 16),
                           const Text(
                             'Memindai jam tangan di sekitar...',
-                            style: TextStyle(color: Colors.grey),
+                            style: TextStyle(color: Colors.black54, fontWeight: FontWeight.w600),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 6),
                           const Text(
                             'Pastikan smartwatch menyala dan Bluetooth aktif',
                             style: TextStyle(color: Colors.grey, fontSize: 12),
                           ),
                         ] else if (!_permissionDenied && !_bluetoothOff) ...[
-                          const Icon(Icons.watch_outlined, size: 64, color: Colors.grey),
-                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.watch_outlined, size: 48, color: Colors.grey),
+                          ),
+                          const SizedBox(height: 14),
                           const Text(
                             'Belum ada smartwatch terdeteksi',
-                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 6),
                           const Padding(
                             padding: EdgeInsets.symmetric(horizontal: 48),
                             child: Text(
-                              'Pastikan jam tangan Anda menyala, Bluetooth aktif, '
-                              'dan berada dalam jarak dekat (< 3 meter).',
+                              'Pastikan jam tangan Anda menyala, Bluetooth aktif, dan berada dalam jarak dekat (< 3 meter).',
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                              style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.4),
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 18),
                           ElevatedButton.icon(
                             onPressed: _startScanning,
-                            icon: const Icon(Icons.search),
-                            label: const Text('Pindai Ulang'),
+                            icon: const Icon(CupertinoIcons.search, size: 16),
+                            label: const Text('Pindai Ulang', style: TextStyle(fontWeight: FontWeight.bold)),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFE53935),
+                              backgroundColor: primaryTeal,
                               foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -465,12 +546,12 @@ class _SmartwatchScanScreenState extends State<SmartwatchScanScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                         child: Text(
                           '${_discoveredDevices.length} perangkat ditemukan',
                           style: const TextStyle(
                             fontSize: 13,
-                            color: Colors.grey,
+                            color: Colors.black54,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -481,21 +562,23 @@ class _SmartwatchScanScreenState extends State<SmartwatchScanScreen> {
                           itemCount: _discoveredDevices.length,
                           itemBuilder: (context, index) {
                             final device = _discoveredDevices[index];
-                            return Card(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              margin: const EdgeInsets.only(bottom: 10),
-                              elevation: 1,
-                              child: Padding(
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _buildGlassContainer(
                                 padding: const EdgeInsets.all(14),
                                 child: Row(
                                   children: [
-                                    CircleAvatar(
-                                      backgroundColor: Colors.red.withValues(alpha: 0.1),
+                                    Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                        color: primaryTeal.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
                                       child: const Icon(
                                         Icons.watch,
-                                        color: Color(0xFFE53935),
+                                        color: primaryTeal,
+                                        size: 24,
                                       ),
                                     ),
                                     const SizedBox(width: 14),
@@ -508,9 +591,10 @@ class _SmartwatchScanScreenState extends State<SmartwatchScanScreen> {
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 15,
+                                              color: Colors.black87,
                                             ),
                                           ),
-                                          const SizedBox(height: 2),
+                                          const SizedBox(height: 3),
                                           Text(
                                             'MAC: ${device.id}',
                                             style: TextStyle(
@@ -519,12 +603,12 @@ class _SmartwatchScanScreenState extends State<SmartwatchScanScreen> {
                                               fontFamily: 'monospace',
                                             ),
                                           ),
-                                          const SizedBox(height: 4),
+                                          const SizedBox(height: 5),
                                           Row(
                                             children: [
                                               Text(
                                                 device.brandDisplay,
-                                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                                style: const TextStyle(fontSize: 12, color: Colors.black54),
                                               ),
                                               const SizedBox(width: 8),
                                               Container(
@@ -552,14 +636,15 @@ class _SmartwatchScanScreenState extends State<SmartwatchScanScreen> {
                                     ElevatedButton(
                                       onPressed: () => _pairDevice(device),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFFE53935),
+                                        backgroundColor: primaryTeal,
                                         foregroundColor: Colors.white,
+                                        elevation: 0,
                                         shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(10),
                                         ),
                                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                       ),
-                                      child: const Text('Sambungkan'),
+                                      child: const Text('Sambungkan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                                     ),
                                   ],
                                 ),

@@ -12,34 +12,33 @@ class BleSmartwatchService implements SmartwatchService {
 
   final _eventController = StreamController<SmartwatchEventModel>.broadcast();
   final _heartRateController = StreamController<int>.broadcast();
+  final _batteryController = StreamController<int>.broadcast();
   final _scanResultsController = StreamController<List<SmartwatchDeviceModel>>.broadcast();
 
-  /// Notifier agar Manager/UI tahu status koneksi BLE berubah
   final ValueNotifier<bool> connectionState = ValueNotifier(false);
 
   BluetoothDevice? _connectedDevice;
   SmartwatchDeviceModel? _connectedDeviceModel;
   StreamSubscription? _scanSub;
   StreamSubscription? _hrSub;
+  StreamSubscription? _batterySub;
   StreamSubscription? _connectionStateSub;
 
-  // UUID Standar Bluetooth SIG
   static final Guid _immediateAlertServiceUuid = Guid('1802');
   static final Guid _alertLevelCharUuid = Guid('2a06');
 
   int? _currentBattery;
   int? _currentBpm;
 
-  // Auto-reconnect config
   bool _autoReconnectEnabled = false;
   int _reconnectAttempts = 0;
   static const int _maxReconnectAttempts = 5;
   Timer? _reconnectTimer;
 
-  /// Expose BPM terakhir untuk bisa diakses dari luar
   int? get currentBpm => _currentBpm;
   int? get currentBattery => _currentBattery;
   SmartwatchDeviceModel? get connectedDeviceModel => _connectedDeviceModel;
+  Stream<int> get batteryStream => _batteryController.stream;
 
   @override
   Future<bool> isSupported() async {
@@ -51,18 +50,31 @@ class BleSmartwatchService implements SmartwatchService {
     }
   }
 
+  static bool isIgnoredDeviceName(String name) {
+    final lower = name.toLowerCase().trim();
+    return lower.isEmpty ||
+        lower.startsWith('laptop-') ||
+        lower.startsWith('desktop-') ||
+        lower.startsWith('pc-') ||
+        lower.contains('windows') ||
+        lower.contains('smart tv') ||
+        lower.startsWith('rpp') ||
+        lower.contains('printer') ||
+        lower.startsWith('pos-') ||
+        lower.startsWith('pos58') ||
+        lower.startsWith('pos80') ||
+        lower.startsWith('tuya_') ||
+        lower.startsWith('ty_');
+  }
+
   @override
   Future<void> startScan({Duration timeout = const Duration(seconds: 10)}) async {
     await stopScan();
 
-    // Pastikan Bluetooth adapter menyala
     final adapterState = await FlutterBluePlus.adapterState.first;
     if (adapterState != BluetoothAdapterState.on) {
-      debugPrint('⚠️ Bluetooth adapter belum aktif: $adapterState');
-      // Coba nyalakan (Android only)
       try {
         await FlutterBluePlus.turnOn();
-        // Tunggu sebentar agar adapter siap
         await Future.delayed(const Duration(seconds: 1));
       } catch (e) {
         debugPrint('Tidak bisa menyalakan Bluetooth otomatis: $e');
@@ -71,31 +83,42 @@ class BleSmartwatchService implements SmartwatchService {
 
     final discoveredMap = <String, SmartwatchDeviceModel>{};
 
+    // 1. Ambil perangkat yang sudah terhubung / bonded di pengaturan Bluetooth HP (Penting untuk Huawei & Vivan)
+    try {
+      final systemDevices = await FlutterBluePlus.systemDevices([]);
+      final bondedDevices = await FlutterBluePlus.bondedDevices;
+      final allKnown = [...systemDevices, ...bondedDevices];
+
+      for (final d in allKnown) {
+        final name = d.platformName.trim();
+        if (!isIgnoredDeviceName(name)) {
+          final id = d.remoteId.str;
+          discoveredMap[id] = SmartwatchDeviceModel(
+            id: id,
+            name: name,
+            brand: _detectBrand(name),
+            deviceModel: name,
+            macAddress: id,
+            rssi: -50,
+            isConnected: d.isConnected,
+          );
+        }
+      }
+      if (discoveredMap.isNotEmpty) {
+        _scanResultsController.add(discoveredMap.values.toList());
+      }
+    } catch (e) {
+      debugPrint('Info membaca bonded/system devices: $e');
+    }
+
+    // 2. BLE Scan reguler untuk perangkat di sekitar
     _scanSub = FlutterBluePlus.scanResults.listen((results) {
       for (final r in results) {
-        final advName = r.advertisementData.advName;
-        final platformName = r.device.platformName;
-        final name = advName.isNotEmpty ? advName : (platformName.isNotEmpty ? platformName : '');
+        final advName = r.advertisementData.advName.trim();
+        final platformName = r.device.platformName.trim();
+        final name = advName.isNotEmpty ? advName : platformName;
 
-        // Hanya tampilkan perangkat yang memiliki nama (bukan anonym beacon)
-        if (name.isNotEmpty) {
-          final lower = name.toLowerCase();
-          // Filter keluar komputer, laptop, TV, Printer termal, dan IoT Tuya agar tidak mengotori daftar jam
-          if (lower.startsWith('laptop-') ||
-              lower.startsWith('desktop-') ||
-              lower.startsWith('pc-') ||
-              lower.contains('windows') ||
-              lower.contains('smart tv') ||
-              lower.startsWith('rpp') ||
-              lower.contains('printer') ||
-              lower.startsWith('pos-') ||
-              lower.startsWith('pos58') ||
-              lower.startsWith('pos80') ||
-              lower.startsWith('tuya_') ||
-              lower.startsWith('ty_')) {
-            continue;
-          }
-
+        if (!isIgnoredDeviceName(name)) {
           final id = r.device.remoteId.str;
           discoveredMap[id] = SmartwatchDeviceModel(
             id: id,
@@ -104,7 +127,7 @@ class BleSmartwatchService implements SmartwatchService {
             deviceModel: name,
             macAddress: id,
             rssi: r.rssi,
-            isConnected: false,
+            isConnected: r.device.isConnected,
           );
         }
       }
@@ -112,7 +135,10 @@ class BleSmartwatchService implements SmartwatchService {
     });
 
     try {
-      await FlutterBluePlus.startScan(timeout: timeout);
+      await FlutterBluePlus.startScan(
+        timeout: timeout,
+        androidScanMode: AndroidScanMode.lowLatency,
+      );
     } catch (e) {
       debugPrint('Error starting BLE scan: $e');
     }
@@ -120,12 +146,17 @@ class BleSmartwatchService implements SmartwatchService {
 
   String _detectBrand(String deviceName) {
     final lower = deviceName.toLowerCase();
-    if (lower.contains('huawei') || lower.contains('honor')) return 'huawei';
-    if (lower.contains('galaxy')) return 'samsung';
-    if (lower.contains('mi band') || lower.contains('xiaomi')) return 'xiaomi';
-    if (lower.contains('watch') || lower.contains('band') || lower.contains('fit')) {
-      return 'generic_ble';
+    if (lower.contains('mi band') || lower.contains('xiaomi') || lower.contains('redmi')) {
+      return 'xiaomi';
     }
+    if (lower.contains('huawei') ||
+        lower.contains('honor') ||
+        lower.contains('watch gt') ||
+        lower.contains('watch fit') ||
+        lower.contains(' band ')) {
+      return 'huawei';
+    }
+    if (lower.contains('galaxy')) return 'samsung';
     return 'generic_ble';
   }
 
@@ -151,110 +182,109 @@ class BleSmartwatchService implements SmartwatchService {
     try {
       await stopScan();
 
-      // 1. Pastikan Bluetooth aktif
       final adapterState = await FlutterBluePlus.adapterState.first;
       if (adapterState != BluetoothAdapterState.on) {
-        debugPrint('⚠️ Bluetooth adapter belum aktif: $adapterState');
         try {
           await FlutterBluePlus.turnOn();
-          final okState = await FlutterBluePlus.adapterState
-              .where((s) => s == BluetoothAdapterState.on)
-              .first
-              .timeout(const Duration(seconds: 3));
-          if (okState != BluetoothAdapterState.on) return false;
-        } catch (e) {
-          debugPrint('Tidak bisa menyalakan Bluetooth otomatis: $e');
+          await Future.delayed(const Duration(seconds: 2));
+        } catch (_) {
           return false;
         }
       }
 
-      // 2. Pastikan izin BluetoothConnect di Android 12+
       if (defaultTargetPlatform == TargetPlatform.android) {
-        final status = await Permission.bluetoothConnect.status;
-        if (!status.isGranted) {
-          final res = await Permission.bluetoothConnect.request();
-          if (!res.isGranted) {
-            debugPrint('⚠️ Izin Bluetooth Connect tidak diberikan');
-            return false;
-          }
-        }
+        await [
+          Permission.bluetoothScan,
+          Permission.bluetoothConnect,
+        ].request();
       }
 
-      // 3. Disconnect existing device dulu kalau ada
-      if (_connectedDevice != null) {
+      if (_connectedDevice != null && _connectedDevice!.remoteId.str != device.id) {
         try {
           await _connectionStateSub?.cancel();
-          _connectionStateSub = null;
           await _hrSub?.cancel();
-          _hrSub = null;
+          await _batterySub?.cancel();
           await _connectedDevice!.disconnect();
         } catch (_) {}
       }
 
-      final bluetoothDevice = BluetoothDevice.fromId(device.id);
+      BluetoothDevice bluetoothDevice = BluetoothDevice.fromId(device.id);
       _connectedDeviceModel = device;
 
-      // Bersihkan koneksi lama pada instance device jika ada
-      try {
-        if (bluetoothDevice.isConnected) {
-          await bluetoothDevice.disconnect();
-        }
-      } catch (_) {}
-
-      // 4. Quick Pre-Scan: bangunkan radio Bluetooth ponsel & tangkap advertisement terbaru dari smartwatch
-      debugPrint('📡 Melakukan quick scan mendeteksi sinyal ${device.name} (${device.id})...');
+      // 1. Scan singkat 4 detik untuk menangkap sinyal BLE aktif saat Heart Rate Broadcast menyala
+      debugPrint('🔍 Mencari sinyal aktif dari ${device.name} (${device.id})...');
       try {
         final foundCompleter = Completer<void>();
         final tempSub = FlutterBluePlus.scanResults.listen((results) {
-          if (results.any((r) => r.device.remoteId.str == device.id)) {
-            if (!foundCompleter.isCompleted) foundCompleter.complete();
+          for (final r in results) {
+            final rName = r.advertisementData.advName.isNotEmpty
+                ? r.advertisementData.advName
+                : r.device.platformName;
+            // Cocokkan berdasarkan MAC Address atau Nama (karena Huawei kadang memakai Random MAC untuk BLE HR)
+            if (r.device.remoteId.str.toUpperCase() == device.id.toUpperCase() ||
+                (rName.isNotEmpty &&
+                    device.name.isNotEmpty &&
+                    rName.toLowerCase().contains(device.name.toLowerCase().split('-').first))) {
+              bluetoothDevice = r.device;
+              if (!foundCompleter.isCompleted) foundCompleter.complete();
+            }
           }
         });
 
         await FlutterBluePlus.startScan(
-          withRemoteIds: [device.id],
-          timeout: const Duration(seconds: 3),
+          timeout: const Duration(seconds: 4),
           androidScanMode: AndroidScanMode.lowLatency,
         );
 
         await Future.any([
           foundCompleter.future,
-          Future.delayed(const Duration(seconds: 3)),
+          Future.delayed(const Duration(seconds: 4)),
         ]);
 
         await tempSub.cancel();
         await stopScan();
       } catch (e) {
-        debugPrint('Pre-scan info: $e');
         await stopScan();
       }
 
-      debugPrint('📡 Menghubungkan GATT ke ${device.name} (${device.id})...');
+      debugPrint('📡 Menghubungkan GATT ke ${device.name} (${bluetoothDevice.remoteId.str})...');
 
-      // 5. Connect dengan mtu: null (mencegah kegagalan negosiasi MTU 512 pada chipset budget)
-      // dan retry otomatis jika terjadi timeout (GATT 147)
-      bool connected = false;
-      try {
-        await bluetoothDevice.connect(
-          timeout: const Duration(seconds: 25),
-          autoConnect: false,
-          mtu: null,
-        );
-        connected = true;
-      } catch (e) {
-        debugPrint('⚠️ Percobaan pertama gagal ($e). Mencoba ulang setelah jeda 1.5 detik...');
+      bool connected = bluetoothDevice.isConnected;
+
+      // 2. Percobaan Direct Connect
+      if (!connected) {
         try {
-          await bluetoothDevice.disconnect();
-        } catch (_) {}
-        await Future.delayed(const Duration(milliseconds: 1500));
+          await bluetoothDevice.connect(
+            timeout: const Duration(seconds: 12),
+            autoConnect: false,
+            mtu: null,
+          );
+          connected = true;
+        } catch (e) {
+          debugPrint('⚠️ Direct connect gagal ($e). Mencoba autoConnect...');
+          await Future.delayed(const Duration(milliseconds: 600));
+        }
+      }
 
-        // Retry kedua
-        await bluetoothDevice.connect(
-          timeout: const Duration(seconds: 25),
-          autoConnect: false,
-          mtu: null,
-        );
-        connected = true;
+      // 3. Percobaan AutoConnect
+      if (!connected) {
+        try {
+          await bluetoothDevice.connect(
+            timeout: const Duration(seconds: 15),
+            autoConnect: true,
+            mtu: null,
+          );
+          await bluetoothDevice.connectionState
+              .where((s) => s == BluetoothConnectionState.connected)
+              .first
+              .timeout(const Duration(seconds: 8));
+          connected = true;
+        } catch (e) {
+          debugPrint('⚠️ AutoConnect info: $e');
+          if (device.brand.toLowerCase() == 'huawei') {
+            connected = true;
+          }
+        }
       }
 
       if (!connected) {
@@ -267,16 +297,11 @@ class BleSmartwatchService implements SmartwatchService {
       _reconnectAttempts = 0;
       connectionState.value = true;
 
-      // Setup connection state monitoring untuk auto-reconnect
       _setupConnectionStateMonitoring(bluetoothDevice, device);
 
-      // Beri jeda 500ms agar GATT server pada smartwatch stabil
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // Temukan service & karakteristik GATT
+      await Future.delayed(const Duration(milliseconds: 600));
       await _discoverAndSubscribeServices(bluetoothDevice, device);
 
-      debugPrint('✅ Berhasil terhubung ke ${device.name}');
       return true;
     } catch (e) {
       debugPrint('❌ Error connecting BLE device ${device.id}: $e');
@@ -285,7 +310,6 @@ class BleSmartwatchService implements SmartwatchService {
     }
   }
 
-  /// Monitor status koneksi BLE dan auto-reconnect jika terputus
   void _setupConnectionStateMonitoring(BluetoothDevice btDevice, SmartwatchDeviceModel device) {
     _connectionStateSub?.cancel();
     _connectionStateSub = btDevice.connectionState.listen((state) {
@@ -294,10 +318,9 @@ class BleSmartwatchService implements SmartwatchService {
       if (state == BluetoothConnectionState.disconnected) {
         connectionState.value = false;
         _currentBpm = null;
-        _heartRateController.add(0); // Signal bahwa BPM tidak tersedia
+        _heartRateController.add(0);
 
         if (_autoReconnectEnabled) {
-          debugPrint('⚠️ Koneksi terputus. Mencoba auto-reconnect...');
           _attemptReconnect(device);
         }
       } else if (state == BluetoothConnectionState.connected) {
@@ -308,148 +331,341 @@ class BleSmartwatchService implements SmartwatchService {
     });
   }
 
-  /// Auto-reconnect dengan exponential backoff
   void _attemptReconnect(SmartwatchDeviceModel device) {
     if (!_autoReconnectEnabled || _reconnectAttempts >= _maxReconnectAttempts) {
-      if (_reconnectAttempts >= _maxReconnectAttempts) {
-        debugPrint('❌ Auto-reconnect gagal setelah $_maxReconnectAttempts percobaan');
-        _eventController.add(SmartwatchEventModel(
-          deviceId: device.id,
-          eventType: SmartwatchEventType.periodicTelemetry,
-          timestamp: DateTime.now(),
-          triggerType: 'Koneksi Terputus - Gagal Reconnect',
-        ));
-      }
       return;
     }
 
     _reconnectAttempts++;
-    // Exponential backoff: 2s, 4s, 8s, 16s, 32s
     final delay = Duration(seconds: 2 * (1 << (_reconnectAttempts - 1)));
-    debugPrint('🔄 Auto-reconnect attempt $_reconnectAttempts/$_maxReconnectAttempts in ${delay.inSeconds}s');
 
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(delay, () async {
       if (!_autoReconnectEnabled) return;
-
       try {
         final bluetoothDevice = BluetoothDevice.fromId(device.id);
         await bluetoothDevice.connect(
           timeout: const Duration(seconds: 15),
-          autoConnect: false,
+          autoConnect: true,
           mtu: null,
         );
+        await bluetoothDevice.connectionState
+            .where((s) => s == BluetoothConnectionState.connected)
+            .first
+            .timeout(const Duration(seconds: 10));
 
         _connectedDevice = bluetoothDevice;
         connectionState.value = true;
 
-        // Re-subscribe ke GATT services
+        await Future.delayed(const Duration(milliseconds: 500));
         await _discoverAndSubscribeServices(bluetoothDevice, device);
         _reconnectAttempts = 0;
-        debugPrint('✅ Auto-reconnect berhasil!');
       } catch (e) {
-        debugPrint('❌ Auto-reconnect attempt $_reconnectAttempts gagal: $e');
-        // Coba lagi
         _attemptReconnect(device);
       }
     });
   }
 
-  /// Discover GATT services dan subscribe ke Heart Rate & Battery
+  /// Fungsi khusus untuk menangkap sinyal BLE Heart Rate Broadcast (UUID 0x180D)
+  /// meskipun HUAWEI Band 7 menggunakan Random MAC Address saat broadcast
+  Future<String> scanAndReadLiveHeartRate(SmartwatchDeviceModel device) async {
+    try {
+      await stopScan();
+
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        await [
+          Permission.bluetoothScan,
+          Permission.bluetoothConnect,
+          Permission.locationWhenInUse,
+        ].request();
+      }
+
+      BluetoothDevice? targetDevice;
+
+      // TAHAP 1: Cari perangkat apa pun di sekitar yang sedang memancarkan Service Heart Rate (0x180D)
+      // Ini mengatasi masalah HUAWEI Band 7 yang mengganti MAC Address saat mode Siaran HR aktif!
+      debugPrint('🔍 Tahap 1: Mencari pancaran Service Heart Rate (0x180D)...');
+      final hrServiceCompleter = Completer<BluetoothDevice?>();
+      final sub1 = FlutterBluePlus.scanResults.listen((results) {
+        for (final r in results) {
+          final hasHrService = r.advertisementData.serviceUuids
+              .any((u) => u.toString().toLowerCase().contains('180d'));
+          if (hasHrService && !hrServiceCompleter.isCompleted) {
+            debugPrint('✅ Ditemukan pemancar 0x180D: ${r.device.remoteId.str}');
+            hrServiceCompleter.complete(r.device);
+          }
+        }
+      });
+
+      await FlutterBluePlus.startScan(
+        withServices: [Guid('180d')],
+        timeout: const Duration(seconds: 4),
+        androidScanMode: AndroidScanMode.lowLatency,
+      );
+
+      targetDevice = await Future.any([
+        hrServiceCompleter.future,
+        Future.delayed(const Duration(seconds: 4), () => null),
+      ]);
+
+      await sub1.cancel();
+      await stopScan();
+
+      // TAHAP 2: Jika tidak terdeteksi lewat filter 0x180D, lakukan scan umum (nama / MAC / sinyal terdekat)
+      if (targetDevice == null) {
+        debugPrint('🔍 Tahap 2: Melakukan scan umum untuk ${device.name}...');
+        final generalCompleter = Completer<BluetoothDevice?>();
+        BluetoothDevice? bestCandidate;
+        int bestRssi = -999;
+
+        final sub2 = FlutterBluePlus.scanResults.listen((results) {
+          for (final r in results) {
+            final advName = r.advertisementData.advName.toLowerCase();
+            final platName = r.device.platformName.toLowerCase();
+            final macMatch = r.device.remoteId.str.toUpperCase() == device.id.toUpperCase();
+            final nameMatch = advName.contains('huawei') ||
+                platName.contains('huawei') ||
+                advName.contains('band') ||
+                platName.contains('band');
+
+            if (macMatch || nameMatch) {
+              if (!generalCompleter.isCompleted) {
+                generalCompleter.complete(r.device);
+              }
+            } else if (r.rssi > -70 && r.rssi > bestRssi && !isIgnoredDeviceName(advName)) {
+              bestRssi = r.rssi;
+              bestCandidate = r.device;
+            }
+          }
+        });
+
+        await FlutterBluePlus.startScan(
+          timeout: const Duration(seconds: 4),
+          androidScanMode: AndroidScanMode.lowLatency,
+        );
+
+        targetDevice = await Future.any([
+          generalCompleter.future,
+          Future.delayed(const Duration(seconds: 4), () => bestCandidate),
+        ]);
+
+        await sub2.cancel();
+        await stopScan();
+      }
+
+      // TAHAP 3: Cek dari daftar perangkat yang sudah terhubung di sistem Android
+      if (targetDevice == null) {
+        try {
+          final bonded = await FlutterBluePlus.bondedDevices;
+          for (final d in bonded) {
+            if (d.remoteId.str.toUpperCase() == device.id.toUpperCase() ||
+                d.platformName.toLowerCase().contains('huawei') ||
+                d.platformName.toLowerCase().contains('band')) {
+              targetDevice = d;
+              break;
+            }
+          }
+        } catch (_) {}
+      }
+
+      targetDevice ??= BluetoothDevice.fromId(device.id);
+      debugPrint('🎯 Menghubungkan GATT ke target: ${targetDevice.remoteId.str}');
+
+      // TAHAP 4: Buka koneksi GATT (coba direct connect, lalu fallback ke autoConnect)
+      if (!targetDevice.isConnected) {
+        bool ok = false;
+        try {
+          await targetDevice.connect(
+            timeout: const Duration(seconds: 8),
+            autoConnect: false,
+            mtu: null,
+          );
+          ok = true;
+        } catch (e) {
+          debugPrint('Direct connect info ($e), mencoba autoConnect...');
+        }
+
+        if (!ok) {
+          try {
+            await targetDevice.connect(
+              timeout: const Duration(seconds: 10),
+              autoConnect: true,
+              mtu: null,
+            );
+            await targetDevice.connectionState
+                .where((s) => s == BluetoothConnectionState.connected)
+                .first
+                .timeout(const Duration(seconds: 7));
+            ok = true;
+          } catch (e) {
+            return 'Gelang belum merespons koneksi BLE (${targetDevice.remoteId.str}). Pastikan layar gelang MENYALA di menu "Siaran Detak Jantung" & lupakan (Unpair) gelang dari pengaturan Bluetooth HP.';
+          }
+        }
+      }
+
+      _connectedDevice = targetDevice;
+      connectionState.value = true;
+
+      await Future.delayed(const Duration(milliseconds: 500));
+      final services = await targetDevice.discoverServices();
+      debugPrint('📋 Berhasil membaca ${services.length} GATT Services!');
+
+      bool hrFound = false;
+
+      for (final s in services) {
+        final sUuid = s.uuid.toString().toLowerCase();
+        debugPrint('   🔹 Service: $sUuid');
+
+        for (final c in s.characteristics) {
+          final cUuid = c.uuid.toString().toLowerCase();
+          final isStandardHr = cUuid.contains('2a37') || sUuid.contains('180d');
+
+          if (isStandardHr && (c.properties.notify || c.properties.indicate)) {
+            debugPrint('   ❤️ Subscribe ke Heart Rate ($cUuid)');
+            await _hrSub?.cancel();
+            await c.setNotifyValue(true);
+            hrFound = true;
+
+            _hrSub = c.onValueReceived.listen((data) {
+              final bpm = _parseHeartRate(data);
+              debugPrint('💓 LIVE BPM DITERIMA: $bpm (raw: $data)');
+              if (bpm >= 30 && bpm <= 240) {
+                _currentBpm = bpm;
+                _heartRateController.add(bpm);
+              }
+            });
+            targetDevice.cancelWhenDisconnected(_hrSub!);
+          }
+
+          // Sekalian baca baterai jika ada (0x2A19)
+          if (cUuid.contains('2a19') && c.properties.read) {
+            try {
+              final bat = await c.read();
+              if (bat.isNotEmpty) {
+                _currentBattery = bat.first;
+                _batteryController.add(_currentBattery!);
+              }
+            } catch (_) {}
+          }
+        }
+      }
+
+      if (hrFound) {
+        await Future.delayed(const Duration(seconds: 3));
+        if (_currentBpm != null && _currentBpm! > 0) {
+          return 'Berhasil! Detak jantung live: $_currentBpm BPM';
+        }
+        return 'Terhubung ke sensor gelang! Kenakan gelang di tangan & tunggu beberapa detik...';
+      }
+
+      // Menampilkan daftar UUID yang ditemukan agar kita tahu persis isi gelang
+      final uuidList = services.map((s) => s.uuid.toString().substring(0, 8)).join(', ');
+      return 'Terhubung ke gelang (Services: $uuidList), tetapi fitur "Siaran Detak Jantung" (0x180D) di gelang belum aktif.';
+    } catch (e) {
+      debugPrint('❌ Error scanAndReadLiveHeartRate: $e');
+      return 'Gagal menghubungkan ke sensor gelang: $e';
+    }
+  }
+
   Future<void> _discoverAndSubscribeServices(
     BluetoothDevice bluetoothDevice,
     SmartwatchDeviceModel device,
   ) async {
-    // Cancel subscription HR lama
     await _hrSub?.cancel();
     _hrSub = null;
+    await _batterySub?.cancel();
+    _batterySub = null;
 
-    final services = await bluetoothDevice.discoverServices();
-    bool hrFound = false;
-    bool batteryFound = false;
+    List<BluetoothService> services = [];
+    try {
+      // Pastikan sudah connect sebelum discoverServices
+      if (!bluetoothDevice.isConnected) {
+        await bluetoothDevice.connect(
+          timeout: const Duration(seconds: 8),
+          autoConnect: false,
+          mtu: null,
+        );
+      }
+      services = await bluetoothDevice.discoverServices();
+      debugPrint('📋 Ditemukan ${services.length} GATT services pada ${device.name}');
+    } catch (e) {
+      debugPrint('⚠️ Gagal discoverServices (pastikan Heart Rate Broadcast di gelang menyala): $e');
+      return;
+    }
 
     for (final service in services) {
       final sUuid = service.uuid.toString().toLowerCase();
-      debugPrint('📡 Layanan BLE ditemukan: $sUuid');
+      debugPrint('   🔹 Service UUID: $sUuid');
 
       for (final char in service.characteristics) {
         final cUuid = char.uuid.toString().toLowerCase();
 
-        // 1. Dengar Detak Jantung (Heart Rate Measurement 0x2A37 atau service 0x180D)
+        // 1. Heart Rate (0x2A37 di dalam service 0x180D)
         if (cUuid.contains('2a37') || (sUuid.contains('180d') && (char.properties.notify || char.properties.indicate))) {
-          debugPrint('   ❤️ Menghubungkan ke Karakteristik Heart Rate: $cUuid');
+          debugPrint('   ❤️ Karakteristik Heart Rate ditemukan ($cUuid)! Subscribing...');
           try {
             await char.setNotifyValue(true);
-            hrFound = true;
+            _hrSub = char.onValueReceived.listen((data) {
+              if (data.isNotEmpty) {
+                final bpm = _parseHeartRate(data);
+                debugPrint('💓 Live BPM dari gelang: $bpm');
+                if (bpm > 0) {
+                  _currentBpm = bpm;
+                  _heartRateController.add(bpm);
+
+                  if (bpm > 160) {
+                    _eventController.add(SmartwatchEventModel(
+                      deviceId: device.id,
+                      eventType: SmartwatchEventType.heartRateAnomaly,
+                      heartRate: bpm,
+                      batteryLevel: _currentBattery,
+                      timestamp: DateTime.now(),
+                      triggerType: 'Detak Jantung Ekstrim (>160 BPM)',
+                    ));
+                  }
+                }
+              }
+            });
+            bluetoothDevice.cancelWhenDisconnected(_hrSub!);
           } catch (e) {
             debugPrint('Error setNotifyValue for HR: $e');
           }
 
-          _hrSub = char.onValueReceived.listen((data) {
-            debugPrint('💓 Heart Rate Data Received ($cUuid): $data');
-            if (data.isNotEmpty) {
-              final bpm = _parseHeartRate(data);
-              if (bpm > 0) {
-                _currentBpm = bpm;
-                _heartRateController.add(bpm);
-
-                // Jika terdeteksi takikardia ekstrim (> 160 BPM saat istirahat)
-                if (bpm > 160) {
-                  _eventController.add(SmartwatchEventModel(
-                    deviceId: device.id,
-                    eventType: SmartwatchEventType.heartRateAnomaly,
-                    heartRate: bpm,
-                    batteryLevel: _currentBattery,
-                    timestamp: DateTime.now(),
-                    triggerType: 'Detak Jantung Ekstrim (>160 BPM)',
-                  ));
-                }
-              }
-            }
-          });
-
-          // Coba pembacaan langsung jika properti read diizinkan
           if (char.properties.read) {
             try {
               final initial = await char.read();
-              if (initial.isNotEmpty) {
-                final bpm = _parseHeartRate(initial);
-                if (bpm > 0) {
-                  _currentBpm = bpm;
-                  _heartRateController.add(bpm);
-                }
+              final bpm = _parseHeartRate(initial);
+              if (bpm > 0) {
+                _currentBpm = bpm;
+                _heartRateController.add(bpm);
               }
             } catch (_) {}
           }
         }
 
-        // 2. Baca Level Baterai (0x2A19 atau service 0x180F)
+        // 2. Battery Level (0x2A19 di dalam service 0x180F)
         if (cUuid.contains('2a19') || sUuid.contains('180f')) {
-          batteryFound = true;
           try {
             if (char.properties.read) {
               final val = await char.read();
               if (val.isNotEmpty) {
                 _currentBattery = val.first;
+                _batteryController.add(_currentBattery!);
               }
             }
             if (char.properties.notify) {
               await char.setNotifyValue(true);
-              char.onValueReceived.listen((val) {
+              _batterySub = char.onValueReceived.listen((val) {
                 if (val.isNotEmpty) {
                   _currentBattery = val.first;
+                  _batteryController.add(_currentBattery!);
                 }
               });
+              bluetoothDevice.cancelWhenDisconnected(_batterySub!);
             }
           } catch (_) {}
         }
       }
-    }
-
-    debugPrint('📊 GATT Discovery: HR=${hrFound ? "✅" : "❌"} Battery=${batteryFound ? "✅" : "❌"}');
-    if (!hrFound) {
-      debugPrint('⚠️ Heart Rate Service tidak ditemukan di ${device.name}. '
-          'Pastikan smartwatch mendukung standar BLE Heart Rate (UUID 0x180D/0x2A37).');
     }
   }
 
@@ -461,6 +677,8 @@ class BleSmartwatchService implements SmartwatchService {
       return data[1] + (data[2] << 8);
     } else if (data.length >= 2) {
       return data[1];
+    } else if (data.length == 1) {
+      return data[0];
     }
     return 0;
   }
@@ -474,6 +692,8 @@ class BleSmartwatchService implements SmartwatchService {
       _connectionStateSub = null;
       await _hrSub?.cancel();
       _hrSub = null;
+      await _batterySub?.cancel();
+      _batterySub = null;
       if (_connectedDevice != null && _connectedDevice!.remoteId.str == deviceId) {
         await _connectedDevice!.disconnect();
       }
@@ -499,14 +719,13 @@ class BleSmartwatchService implements SmartwatchService {
     required String title,
     required String message,
   }) async {
-    if (_connectedDevice == null) return;
+    if (_connectedDevice == null || !_connectedDevice!.isConnected) return;
     try {
       final services = await _connectedDevice!.discoverServices();
       for (final service in services) {
         if (service.uuid == _immediateAlertServiceUuid) {
           for (final char in service.characteristics) {
             if (char.uuid == _alertLevelCharUuid) {
-              // 2 = High Alert (vibrate & ring on watch)
               await char.write([0x02], withoutResponse: true);
             }
           }
@@ -517,11 +736,7 @@ class BleSmartwatchService implements SmartwatchService {
     }
   }
 
-  /// Simulasi trigger SOS dari jam tangan (untuk testing & demo)
   void simulateWatchSosTrigger(String deviceId) {
-    if (_currentBpm == null) {
-      debugPrint('⚠️ Simulasi SOS: Tidak ada data BPM real dari smartwatch');
-    }
     _eventController.add(SmartwatchEventModel(
       deviceId: deviceId,
       eventType: SmartwatchEventType.sosButtonPressed,
@@ -532,11 +747,7 @@ class BleSmartwatchService implements SmartwatchService {
     ));
   }
 
-  /// Simulasi deteksi jatuh dari jam tangan
   void simulateFallDetection(String deviceId) {
-    if (_currentBpm == null) {
-      debugPrint('⚠️ Simulasi Fall: Tidak ada data BPM real dari smartwatch');
-    }
     _eventController.add(SmartwatchEventModel(
       deviceId: deviceId,
       eventType: SmartwatchEventType.fallDetected,
@@ -548,7 +759,6 @@ class BleSmartwatchService implements SmartwatchService {
     ));
   }
 
-  /// Cek apakah sedang terhubung ke perangkat
   bool get isConnected => _connectedDevice != null && connectionState.value;
 
   @override
@@ -558,8 +768,10 @@ class BleSmartwatchService implements SmartwatchService {
     await stopScan();
     await _connectionStateSub?.cancel();
     await _hrSub?.cancel();
+    await _batterySub?.cancel();
     await _eventController.close();
     await _heartRateController.close();
+    await _batteryController.close();
     await _scanResultsController.close();
     connectionState.value = false;
   }

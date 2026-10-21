@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:get_it/get_it.dart';
@@ -17,6 +18,8 @@ class DevicePage extends StatefulWidget {
 }
 
 class _DevicePageState extends State<DevicePage> with SingleTickerProviderStateMixin {
+  static const Color primaryTeal = Color(0xFF00695C);
+
   final _tuyaService = GetIt.instance<TuyaChannelService>();
   final _smartwatchManager = GetIt.instance<SmartwatchManager>();
   bool _isLoading = true;
@@ -55,6 +58,45 @@ class _DevicePageState extends State<DevicePage> with SingleTickerProviderStateM
     }
   }
 
+  Widget _buildGlassContainer({
+    required Widget child,
+    EdgeInsetsGeometry? padding,
+    Color? color,
+    BorderRadius? borderRadius,
+  }) {
+    final radius = borderRadius ?? BorderRadius.circular(16);
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: padding ?? const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color ?? Colors.white.withValues(alpha: 0.65),
+              borderRadius: radius,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.7),
+                width: 1.5,
+              ),
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -69,40 +111,88 @@ class _DevicePageState extends State<DevicePage> with SingleTickerProviderStateM
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F8),
       appBar: AppBar(
-        title: const Text(
-          'Perangkat Saya',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1E293B),
-            fontSize: 20,
-          ),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: const Color(0xFFE53935),
-          unselectedLabelColor: Colors.grey,
-          indicatorColor: const Color(0xFFE53935),
-          indicatorWeight: 3,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-          tabs: const [
-            Tab(
-              icon: Icon(Icons.radio_button_checked, size: 20),
-              text: 'Tombol IoT Tuya',
-            ),
-            Tab(
-              icon: Icon(Icons.watch, size: 20),
-              text: 'Smartwatch',
+        backgroundColor: const Color(0xFFF5F6F8),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            Image.asset('assets/images/logo.png', width: 24, height: 24),
+            const SizedBox(width: 8),
+            const Text(
+              'Sahabat SOS',
+              style: TextStyle(
+                color: primaryTeal,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
             ),
           ],
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(52),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.65),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.8),
+                width: 1.2,
+              ),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.black54,
+              indicatorSize: TabBarIndicatorSize.tab,
+              indicator: BoxDecoration(
+                color: primaryTeal,
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryTeal.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              dividerColor: Colors.transparent,
+              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              tabs: const [
+                Tab(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(CupertinoIcons.antenna_radiowaves_left_right, size: 16),
+                      SizedBox(width: 6),
+                      Text('Tombol IoT'),
+                    ],
+                  ),
+                ),
+                Tab(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.watch, size: 16),
+                      SizedBox(width: 6),
+                      Text('Smartwatch'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          // Tab 1: Tuya Devices
-          const TuyaDeviceListScreen(showBackButton: false),
+          // Tab 1: Tuya Devices (embedded without redundant inner AppBar)
+          const TuyaDeviceListScreen(showBackButton: false, showAppBar: false),
 
           // Tab 2: Smartwatch Devices
           _buildSmartwatchTab(),
@@ -116,26 +206,51 @@ class _DevicePageState extends State<DevicePage> with SingleTickerProviderStateM
       valueListenable: _smartwatchManager.pairedDevices,
       builder: (context, pairedList, _) {
         return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Banner info
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.red.withValues(alpha: 0.15)),
+              // Page Title & Subtitle
+              const Text(
+                'Smartwatch',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                  letterSpacing: -0.5,
                 ),
-                child: const Row(
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Pantau detak jantung, deteksi jatuh, dan picu sinyal SOS darurat dari pergelangan tangan.',
+                style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.4),
+              ),
+              const SizedBox(height: 16),
+
+              // Banner info
+              _buildGlassContainer(
+                color: primaryTeal.withValues(alpha: 0.08),
+                padding: const EdgeInsets.all(14),
+                child: Row(
                   children: [
-                    Icon(Icons.health_and_safety_outlined, color: Color(0xFFE53935), size: 28),
-                    SizedBox(width: 14),
-                    Expanded(
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: primaryTeal.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        CupertinoIcons.checkmark_shield_fill,
+                        color: primaryTeal,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
                       child: Text(
-                        'Sambungkan smartwatch Huawei atau BLE untuk mendeteksi darurat, detak jantung, dan jatuh.',
-                        style: TextStyle(fontSize: 13, color: Color(0xFF1E293B), height: 1.3),
+                        'Mendukung Huawei Watch (via Huawei Health / Health Connect) dan BLE Smartband untuk deteksi darurat otomatis.',
+                        style: TextStyle(fontSize: 12, color: Colors.black87, height: 1.35),
                       ),
                     ),
                   ],
@@ -144,19 +259,40 @@ class _DevicePageState extends State<DevicePage> with SingleTickerProviderStateM
 
               const SizedBox(height: 20),
 
+              // Header bar: Smartwatch Terhubung & Tambah Jam
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Smartwatch Terhubung',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1E293B),
-                    ),
+                  Row(
+                    children: [
+                      const Text(
+                        'Smartwatch Terhubung',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: primaryTeal.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${pairedList.length}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: primaryTeal,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  TextButton.icon(
-                    onPressed: () {
+                  InkWell(
+                    onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -164,43 +300,72 @@ class _DevicePageState extends State<DevicePage> with SingleTickerProviderStateM
                         ),
                       );
                     },
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Tambah Jam'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFFE53935),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: primaryTeal.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: primaryTeal.withValues(alpha: 0.25),
+                          width: 1,
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(CupertinoIcons.plus, size: 14, color: primaryTeal),
+                          SizedBox(width: 4),
+                          Text(
+                            'Tambah Jam',
+                            style: TextStyle(
+                              color: primaryTeal,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
 
               if (pairedList.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(32),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                _buildGlassContainer(
+                  padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 24),
                   child: Column(
                     children: [
-                      const Icon(Icons.watch_off_outlined, size: 56, color: Colors.grey),
-                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.watch_outlined,
+                          size: 46,
+                          color: Colors.black38,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       const Text(
                         'Belum Ada Smartwatch',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E293B),
+                          color: Colors.black87,
                         ),
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        'Pasangkan Huawei Watch, Wear OS, atau smartband BLE Anda untuk memicu SOS langsung dari pergelangan tangan.',
+                        'Sambungkan Huawei Watch, Wear OS, atau smartband BLE Anda untuk memicu SOS dan mengirim telemetri detak jantung saat darurat.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 13, color: Colors.grey),
+                        style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.4),
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 20),
                       ElevatedButton.icon(
                         onPressed: () {
                           Navigator.push(
@@ -210,12 +375,16 @@ class _DevicePageState extends State<DevicePage> with SingleTickerProviderStateM
                             ),
                           );
                         },
-                        icon: const Icon(Icons.bluetooth_searching),
-                        label: const Text('Pindai & Sambungkan Smartwatch'),
+                        icon: const Icon(CupertinoIcons.bluetooth, size: 18),
+                        label: const Text(
+                          'Pindai & Sambungkan Smartwatch',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE53935),
+                          backgroundColor: primaryTeal,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -232,177 +401,210 @@ class _DevicePageState extends State<DevicePage> with SingleTickerProviderStateM
                       final isThisDevice = active != null && active.id == device.id;
                       final isConnected = isThisDevice && active.isConnected;
 
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 1,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => SmartwatchDetailScreen(device: device),
-                              ),
-                            );
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE53935).withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(
-                                    Icons.watch,
-                                    color: Color(0xFFE53935),
-                                    size: 26,
-                                  ),
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildGlassContainer(
+                          padding: EdgeInsets.zero,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => SmartwatchDetailScreen(device: device),
                                 ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        device.name,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
+                              );
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(14),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: primaryTeal.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.watch,
+                                      color: primaryTeal,
+                                      size: 26,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          device.name,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                            color: Colors.black87,
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          Container(
-                                            width: 8,
-                                            height: 8,
-                                            decoration: BoxDecoration(
-                                              color: isConnected ? Colors.green : Colors.grey,
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          // Hanya tampilkan connectionStatus untuk device yang aktif
-                                          if (isThisDevice)
-                                            Expanded(
-                                              child: ValueListenableBuilder<String?>(
-                                                valueListenable: _smartwatchManager.connectionStatus,
-                                                builder: (context, status, _) {
-                                                  return Text(
-                                                    status ?? (isConnected ? 'Terhubung (Siaga)' : 'Terputus'),
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: isConnected ? Colors.green : Colors.grey,
-                                                      fontWeight: FontWeight.w600,
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  );
-                                                },
-                                              ),
-                                            )
-                                          else
-                                            Expanded(
-                                              child: Text(
-                                                'Tidak aktif',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey.shade400,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          children: [
+                                            Container(
+                                              width: 7,
+                                              height: 7,
+                                              decoration: BoxDecoration(
+                                                color: isConnected
+                                                    ? const Color(0xFF34C759)
+                                                    : Colors.grey,
+                                                shape: BoxShape.circle,
                                               ),
                                             ),
-                                          const Text(' • ', style: TextStyle(color: Colors.grey)),
-                                          Text(
-                                            device.brandDisplay,
-                                            style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                isConnected
-                                    ? Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: Colors.green.shade50,
-                                              borderRadius: BorderRadius.circular(8),
-                                              border: Border.all(color: Colors.green.shade200),
-                                            ),
-                                            child: const Text(
-                                              'Siaga',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: Colors.green,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          const Icon(Icons.chevron_right, color: Colors.grey),
-                                        ],
-                                      )
-                                    : ValueListenableBuilder<String?>(
-                                        valueListenable: _smartwatchManager.connectingDeviceId,
-                                        builder: (context, connectingId, _) {
-                                          final isThisConnecting = connectingId == device.id;
-                                          final isAnyConnecting = connectingId != null;
-
-                                          return ElevatedButton.icon(
-                                            onPressed: isAnyConnecting
-                                                ? null
-                                                : () async {
-                                                    final ok = await _smartwatchManager.connectDevice(device);
-                                                    if (!context.mounted) return;
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      SnackBar(
-                                                        content: Text(
-                                                          ok
-                                                              ? 'Berhasil terhubung ke ${device.name}'
-                                                              : 'Gagal terhubung ke ${device.name}. Pastikan layar jam menyala & aplikasi bawaan ditutup.',
-                                                        ),
-                                                        backgroundColor: ok ? Colors.green : Colors.red,
+                                            const SizedBox(width: 6),
+                                            if (isThisDevice)
+                                              Expanded(
+                                                child: ValueListenableBuilder<String?>(
+                                                  valueListenable:
+                                                      _smartwatchManager.connectionStatus,
+                                                  builder: (context, status, _) {
+                                                    return Text(
+                                                      status ??
+                                                          (isConnected
+                                                              ? 'Terhubung (Siaga)'
+                                                              : 'Terputus'),
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: isConnected
+                                                            ? const Color(0xFF34C759)
+                                                            : Colors.grey,
+                                                        fontWeight: FontWeight.w600,
                                                       ),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
                                                     );
                                                   },
-                                            icon: isThisConnecting
-                                                ? const SizedBox(
-                                                    width: 14,
-                                                    height: 14,
-                                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                                  )
-                                                : const Icon(Icons.bluetooth_connected, size: 16),
-                                            label: Text(
-                                              isThisConnecting ? 'Menghubungkan...' : 'Sambungkan',
-                                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                            ),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(0xFFE53935),
-                                              foregroundColor: Colors.white,
-                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                              minimumSize: Size.zero,
-                                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(20),
+                                                ),
+                                              )
+                                            else
+                                              Expanded(
+                                                child: Text(
+                                                  'Tidak aktif',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey.shade500,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            const Text(' • ', style: TextStyle(color: Colors.grey)),
+                                            Text(
+                                              device.brandDisplay,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.black54,
                                               ),
                                             ),
-                                          );
-                                        },
-                                      ),
-                              ],
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  isConnected
+                                      ? Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 9,
+                                                vertical: 4,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF34C759).withValues(alpha: 0.12),
+                                                borderRadius: BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: const Color(0xFF34C759).withValues(alpha: 0.3),
+                                                ),
+                                              ),
+                                              child: const Text(
+                                                'Siaga',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Color(0xFF2E7D32),
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            const Icon(
+                                              CupertinoIcons.chevron_right,
+                                              size: 16,
+                                              color: Colors.black38,
+                                            ),
+                                          ],
+                                        )
+                                      : ValueListenableBuilder<String?>(
+                                          valueListenable: _smartwatchManager.connectingDeviceId,
+                                          builder: (context, connectingId, _) {
+                                            final isThisConnecting = connectingId == device.id;
+                                            final isAnyConnecting = connectingId != null;
+
+                                            return ElevatedButton.icon(
+                                              onPressed: isAnyConnecting
+                                                  ? null
+                                                  : () async {
+                                                      final ok = await _smartwatchManager
+                                                          .connectDevice(device);
+                                                      if (!context.mounted) return;
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        SnackBar(
+                                                          content: Text(
+                                                            ok
+                                                                ? 'Berhasil terhubung ke ${device.name}'
+                                                                : 'Gagal terhubung ke ${device.name}. Pastikan layar jam menyala & aplikasi bawaan ditutup.',
+                                                          ),
+                                                          backgroundColor: ok ? primaryTeal : Colors.red,
+                                                        ),
+                                                      );
+                                                    },
+                                              icon: isThisConnecting
+                                                  ? const SizedBox(
+                                                      width: 14,
+                                                      height: 14,
+                                                      child: CupertinoActivityIndicator(
+                                                        color: Colors.white,
+                                                        radius: 7,
+                                                      ),
+                                                    )
+                                                  : const Icon(CupertinoIcons.bluetooth, size: 14),
+                                              label: Text(
+                                                isThisConnecting
+                                                    ? 'Menghubungkan...'
+                                                    : 'Sambungkan',
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: primaryTeal,
+                                                foregroundColor: Colors.white,
+                                                elevation: 0,
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 12,
+                                                  vertical: 8,
+                                                ),
+                                                minimumSize: Size.zero,
+                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(10),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -410,6 +612,8 @@ class _DevicePageState extends State<DevicePage> with SingleTickerProviderStateM
                     },
                   );
                 }),
+
+              const SizedBox(height: 100), // Reserve space for bottom floating navbar
             ],
           ),
         );

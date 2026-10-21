@@ -13,8 +13,13 @@ import '../../data/services/tuya_channel_service.dart';
 
 class TuyaDeviceListScreen extends StatefulWidget {
   final bool showBackButton;
+  final bool showAppBar;
 
-  const TuyaDeviceListScreen({super.key, this.showBackButton = true});
+  const TuyaDeviceListScreen({
+    super.key,
+    this.showBackButton = true,
+    this.showAppBar = true,
+  });
 
   @override
   State<TuyaDeviceListScreen> createState() => _TuyaDeviceListScreenState();
@@ -178,34 +183,37 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
+      extendBodyBehindAppBar: widget.showAppBar,
       backgroundColor: const Color(0xFFF5F6F8),
-      appBar: AppBar(
-        automaticallyImplyLeading: widget.showBackButton,
-        backgroundColor: const Color(0xFFF5F6F8),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF00695C)), // primaryTeal
-        centerTitle: false,
-        titleSpacing: 16,
-        title: Row(
-          children: [
-            Image.asset('assets/images/logo.png', width: 24, height: 24),
-            const SizedBox(width: 8),
-            const Text(
-              'Sahabat SOS',
-              style: TextStyle(
-                color: Color(0xFF00695C), // primaryTeal
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
+      appBar: widget.showAppBar
+          ? AppBar(
+              automaticallyImplyLeading: widget.showBackButton,
+              backgroundColor: const Color(0xFFF5F6F8),
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              iconTheme: const IconThemeData(color: Color(0xFF00695C)), // primaryTeal
+              centerTitle: false,
+              titleSpacing: 16,
+              title: Row(
+                children: [
+                  Image.asset('assets/images/logo.png', width: 24, height: 24),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Sahabat SOS',
+                    style: TextStyle(
+                      color: Color(0xFF00695C), // primaryTeal
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
-      ),
+            )
+          : null,
       body: Container(
         color: const Color(0xFFF5F6F8),
         child: SafeArea(
+          top: widget.showAppBar,
           child: _isLoading
               ? const Center(
                   child: CupertinoActivityIndicator(radius: 16),
