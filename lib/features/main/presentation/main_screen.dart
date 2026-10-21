@@ -10,6 +10,7 @@ import 'package:sahabat_sos_mobile/features/history/presentation/history_screen.
 import 'package:sahabat_sos_mobile/features/device/presentation/pages/device_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart';
 import '../../../routing/routes.dart';
 
 class MainScreen extends StatefulWidget {
@@ -35,6 +36,25 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
     _initLocationTracking();
+    GlobalEventBus.changeUserTab.addListener(_onChangeUserTab);
+  }
+
+  void _onChangeUserTab() {
+    final targetIndex = GlobalEventBus.changeUserTab.value;
+    if (targetIndex != null && targetIndex >= 0 && targetIndex < _pages.length) {
+      if (mounted) {
+        setState(() {
+          _selectedIndex = targetIndex;
+        });
+      }
+      GlobalEventBus.changeUserTab.value = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    GlobalEventBus.changeUserTab.removeListener(_onChangeUserTab);
+    super.dispose();
   }
 
   Future<void> _initLocationTracking() async {
@@ -63,7 +83,7 @@ class _MainScreenState extends State<MainScreen> {
     const ProfileScreen(),
   ];
 
-  static const Color _unselectedColor = Colors.grey;
+  static const Color _unselectedColor = Color(0xFF6B7280);
 
   final List<_NavItem> _navItems = const [
     _NavItem(
