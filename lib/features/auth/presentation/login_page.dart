@@ -1,4 +1,4 @@
-import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +8,8 @@ import 'package:sahabat_sos_mobile/features/auth/data/datasources/auth_remote_da
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
+import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
 import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart' as event_bus;
 
 class LoginPage extends StatefulWidget {
@@ -22,92 +24,120 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: const Color(0xFFF5F6F8),
-      resizeToAvoidBottomInset: false,
-      body: Container(
-        color: const Color(0xFFF5F6F8),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 20,
-                    ),
-                    child: IntrinsicHeight(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildTopBar(),
-                          const SizedBox(height: 24),
-                          Center(
-                            child: Image.asset(
-                              'assets/images/logo_full.png',
-                              height: 80,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          const Text(
-                            'Selamat Datang Kembali',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF1B1B2F),
-                            ),
-                          ),
-                          const SizedBox(height: 60),
-                          _buildGoogleButton(),
-                          const Spacer(),
-                          const SizedBox(height: 20),
-                          _buildFooter(),
-                          const SizedBox(height: 12),
-                          const Center(
-                            child: Text(
-                              'versi 1.0 Beta',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF6B7080),
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final currentBg =
+            isHighContrast ? Colors.black : const Color(0xFFF5F6F8);
+        final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+        final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+        final tealColor =
+            isHighContrast ? const Color(0xFF80CBC4) : primaryDark;
+
+        return Scaffold(
+          extendBodyBehindAppBar: true,
+          backgroundColor: currentBg,
+          resizeToAvoidBottomInset: false,
+          body: Container(
+            color: currentBg,
+            child: SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    child: ConstrainedBox(
+                      constraints:
+                          BoxConstraints(minHeight: constraints.maxHeight),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 20,
+                        ),
+                        child: IntrinsicHeight(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildTopBar(
+                                  isHighContrast, textPrimary, tealColor),
+                              const SizedBox(height: 24),
+                              Center(
+                                child: Image.asset(
+                                  'assets/images/logo_full.png',
+                                  height: 80,
+                                ),
                               ),
-                            ),
+                              const SizedBox(height: 24),
+                              Text(
+                                'Selamat Datang Kembali',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w800,
+                                  color: textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 60),
+                              _buildGoogleButton(isHighContrast, textPrimary),
+                              const Spacer(),
+                              const SizedBox(height: 20),
+                              _buildFooter(textSecondary, tealColor),
+                              const SizedBox(height: 12),
+                              Center(
+                                child: Text(
+                                  'versi 1.0 Beta',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              );
-            },
+                  );
+                },
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildTopBar() {
+  Widget _buildTopBar(
+      bool isHighContrast, Color textPrimary, Color tealColor) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Text(
+        Text(
           'Masuk Akun',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF1B1B2F),
+            color: textPrimary,
           ),
         ),
         Row(
           children: [
             _circleIconButton(
               icon: CupertinoIcons.volume_up,
-              bg: const Color(0xFF7CF0D6),
-              iconColor: primaryDark,
-              onTap: () {},
+              bg: isHighContrast
+                  ? const Color(0xFF1E3A34)
+                  : const Color(0xFF7CF0D6),
+              iconColor: isHighContrast
+                  ? const Color(0xFF80CBC4)
+                  : primaryDark,
+              borderColor: isHighContrast ? const Color(0xFF00897B) : null,
+              onTap: () {
+                AccessibilityService.instance.speak(
+                  'Halaman masuk akun Sahabat SOS. Silakan masuk menggunakan akun Google Anda.',
+                );
+              },
             ),
           ],
         ),
@@ -119,6 +149,7 @@ class _LoginPageState extends State<LoginPage> {
     required IconData icon,
     required Color bg,
     required Color iconColor,
+    Color? borderColor,
     required VoidCallback onTap,
   }) {
     return InkWell(
@@ -127,7 +158,11 @@ class _LoginPageState extends State<LoginPage> {
       child: Container(
         width: 44,
         height: 44,
-        decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+        decoration: BoxDecoration(
+          color: bg,
+          shape: BoxShape.circle,
+          border: borderColor != null ? Border.all(color: borderColor) : null,
+        ),
         child: Icon(icon, color: iconColor, size: 22),
       ),
     );
@@ -135,11 +170,28 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _isLoading = false;
 
-  Widget _buildGoogleButton() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+  Widget _buildGoogleButton(bool isHighContrast, Color textPrimary) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isHighContrast ? const Color(0xFF121212) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isHighContrast
+              ? const Color(0xFF4B5563)
+              : const Color(0xFFE5E7EB),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black
+                .withValues(alpha: isHighContrast ? 0.35 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: _isLoading
@@ -234,7 +286,7 @@ class _LoginPageState extends State<LoginPage> {
                         }
                       } else {
                         if (!mounted) return;
-                        context.push(AppRoutes.registerStep2);
+                        unawaited(context.push(AppRoutes.registerStep2));
                       }
                     } else {
                       if (!mounted) return;
@@ -255,17 +307,9 @@ class _LoginPageState extends State<LoginPage> {
                     ).showSnackBar(SnackBar(content: Text('Gagal Login: $errorMessage')));
                   }
                 },
-          child: Container(
+          child: SizedBox(
             width: double.infinity,
             height: 60,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.6),
-                width: 1.5,
-              ),
-            ),
             child: _isLoading
                 ? const Center(
                     child: CupertinoActivityIndicator(radius: 12),
@@ -284,12 +328,12 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      const Text(
+                      Text(
                         'Masuk dengan Akun Google',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF1B1B2F),
+                          color: textPrimary,
                         ),
                       ),
                     ],
@@ -300,21 +344,21 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildFooter() {
+  Widget _buildFooter(Color textSecondary, Color tealColor) {
     return Center(
       child: GestureDetector(
         onTap: () {
           context.go(AppRoutes.register);
         },
         child: RichText(
-          text: const TextSpan(
-            style: TextStyle(fontSize: 14, color: Color(0xFF6B7080)),
+          text: TextSpan(
+            style: TextStyle(fontSize: 14, color: textSecondary),
             children: [
-              TextSpan(text: 'Belum punya akun Sahabat SOS? '),
+              const TextSpan(text: 'Belum punya akun Sahabat SOS? '),
               TextSpan(
                 text: 'Daftar di Sini',
                 style: TextStyle(
-                  color: primaryDark,
+                  color: tealColor,
                   fontWeight: FontWeight.w800,
                 ),
               ),

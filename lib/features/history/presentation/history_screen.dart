@@ -6,6 +6,8 @@ import 'package:geocoding/geocoding.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
+import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
 import '../data/datasources/history_remote_data_source.dart';
 import 'report_detail_screen.dart';
 
@@ -532,18 +534,21 @@ class _HistoryPageState extends State<HistoryPage> {
     EdgeInsetsGeometry? padding,
     Color? color,
     Border? border,
+    bool isHighContrast = false,
   }) {
     return Container(
       padding: padding ?? const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color ?? Colors.white,
+        color: color ?? AccessibleColors.cardBackground(isHighContrast),
         borderRadius: BorderRadius.circular(16),
-        border: border ?? Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: const [
+        border: border ?? AccessibleColors.cardBorder(isHighContrast),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x06000000),
+            color: Colors.black.withValues(
+              alpha: isHighContrast ? 0.3 : 0.04,
+            ),
             blurRadius: 6,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -553,84 +558,108 @@ class _HistoryPageState extends State<HistoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: _buildAppBar(),
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () => _fetchHistory(page: _currentPage),
-          color: primaryTeal,
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            children: [
-              const Text(
-                'Riwayat Kasus & Laporan',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF111827),
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${_totalItems > 0 ? _totalItems : _allItems.length} catatan riwayat bantuan',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF4B5563),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildTypeFilterTabs(),
-              const SizedBox(height: 12),
-              _buildStatusFilterChips(),
-              const SizedBox(height: 12),
-              _buildTimeFilterChips(),
-              const SizedBox(height: 18),
-              if (_isLoading)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(40.0),
-                    child: CupertinoActivityIndicator(radius: 16),
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final currentBg =
+            isHighContrast ? Colors.black : const Color(0xFFF8FAFC);
+        final tealColor =
+            isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
+        return Scaffold(
+          backgroundColor: currentBg,
+          appBar: _buildAppBar(isHighContrast),
+          body: SafeArea(
+            child: RefreshIndicator(
+              onRefresh: () => _fetchHistory(page: _currentPage),
+              color: tealColor,
+              child: ListView(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                children: [
+                  Text(
+                    'Riwayat Kasus & Laporan',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: isHighContrast
+                          ? Colors.white
+                          : const Color(0xFF111827),
+                      letterSpacing: -0.5,
+                    ),
                   ),
-                )
-              else if (_errorMessage != null)
-                _buildErrorState()
-              else if (_filteredItems.isEmpty)
-                _buildEmptyState()
-              else
-                ..._filteredItems.map((item) => _buildHistoryCard(item)),
-              if (!_isLoading &&
-                  _errorMessage == null &&
-                  _filteredItems.isNotEmpty &&
-                  _totalPages > 1)
-                _buildPagination(),
-              const SizedBox(height: 12),
-              _buildEncryptedFooter(),
-              const SizedBox(height: 80),
-            ],
+                  const SizedBox(height: 4),
+                  Text(
+                    '${_totalItems > 0 ? _totalItems : _allItems.length} catatan riwayat bantuan',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isHighContrast
+                          ? const Color(0xFFD1D5DB)
+                          : const Color(0xFF4B5563),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildTypeFilterTabs(isHighContrast),
+                  const SizedBox(height: 12),
+                  _buildStatusFilterChips(isHighContrast),
+                  const SizedBox(height: 12),
+                  _buildTimeFilterChips(isHighContrast),
+                  const SizedBox(height: 18),
+                  if (_isLoading)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(40.0),
+                        child: CupertinoActivityIndicator(
+                          radius: 16,
+                          color: tealColor,
+                        ),
+                      ),
+                    )
+                  else if (_errorMessage != null)
+                    _buildErrorState(isHighContrast)
+                  else if (_filteredItems.isEmpty)
+                    _buildEmptyState(isHighContrast)
+                  else
+                    ..._filteredItems
+                        .map((item) => _buildHistoryCard(item, isHighContrast)),
+                  if (!_isLoading &&
+                      _errorMessage == null &&
+                      _filteredItems.isNotEmpty &&
+                      _totalPages > 1)
+                    _buildPagination(isHighContrast),
+                  const SizedBox(height: 12),
+                  _buildEncryptedFooter(isHighContrast),
+                  const SizedBox(height: 80),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
+  PreferredSizeWidget _buildAppBar(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
     return AppBar(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: isHighContrast ? Colors.black : const Color(0xFFF8FAFC),
       elevation: 0,
       scrolledUnderElevation: 0,
-      iconTheme: const IconThemeData(color: primaryTeal),
+      iconTheme: IconThemeData(color: tealColor),
       centerTitle: false,
       titleSpacing: 16,
       title: Row(
         children: [
           Image.asset('assets/images/logo.png', width: 24, height: 24),
           const SizedBox(width: 8),
-          const Text(
+          Text(
             'Sahabat SOS',
             style: TextStyle(
-              color: primaryTeal,
+              color: tealColor,
               fontWeight: FontWeight.bold,
               fontSize: 18,
             ),
@@ -640,7 +669,11 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _buildTypeFilterTabs() {
+  Widget _buildTypeFilterTabs(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final selectedBg = isHighContrast ? const Color(0xFF1E3A34) : primaryTeal;
+    final unselectedBg = AccessibleColors.cardBackground(isHighContrast);
+
     final icons = [
       CupertinoIcons.tray_fill,
       CupertinoIcons.exclamationmark_triangle_fill,
@@ -669,9 +702,16 @@ class _HistoryPageState extends State<HistoryPage> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
-              onTap: () => setState(() {
-                _selectedTypeFilter = index;
-              }),
+              onTap: () {
+                AccessibilityService.instance.hapticSelection();
+                unawaited(
+                  AccessibilityService.instance
+                      .speak("Filter ${_typeFilters[index]} dipilih"),
+                );
+                setState(() {
+                  _selectedTypeFilter = index;
+                });
+              },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(
@@ -679,19 +719,20 @@ class _HistoryPageState extends State<HistoryPage> {
                   vertical: 9,
                 ),
                 decoration: BoxDecoration(
-                  color: isSelected ? primaryTeal : Colors.white,
+                  color: isSelected ? selectedBg : unselectedBg,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
                     color: isSelected
-                        ? primaryTeal
-                        : const Color(0xFFE5E7EB),
+                        ? tealColor
+                        : AccessibleColors.cardBorderColor(isHighContrast),
+                    width: isSelected || isHighContrast ? 1.5 : 1.0,
                   ),
                   boxShadow: isSelected
-                      ? const [
+                      ? [
                           BoxShadow(
-                            color: Color(0x2200695C),
+                            color: tealColor.withValues(alpha: 0.22),
                             blurRadius: 6,
-                            offset: Offset(0, 2),
+                            offset: const Offset(0, 2),
                           ),
                         ]
                       : const [],
@@ -702,13 +743,15 @@ class _HistoryPageState extends State<HistoryPage> {
                     Icon(
                       icons[index],
                       size: 16,
-                      color: isSelected ? Colors.white : primaryTeal,
+                      color: isSelected ? Colors.white : tealColor,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       _typeFilters[index],
                       style: TextStyle(
-                        color: isSelected ? Colors.white : const Color(0xFF111827),
+                        color: isSelected
+                            ? Colors.white
+                            : AccessibleColors.textPrimary(isHighContrast),
                         fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
                         fontSize: 13.5,
                       ),
@@ -722,7 +765,9 @@ class _HistoryPageState extends State<HistoryPage> {
                       decoration: BoxDecoration(
                         color: isSelected
                             ? Colors.white.withValues(alpha: 0.22)
-                            : const Color(0xFFF3F4F6),
+                            : (isHighContrast
+                                ? const Color(0xFF263238)
+                                : const Color(0xFFF3F4F6)),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
@@ -730,7 +775,9 @@ class _HistoryPageState extends State<HistoryPage> {
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: isSelected ? Colors.white : const Color(0xFF4B5563),
+                          color: isSelected
+                              ? Colors.white
+                              : AccessibleColors.textSecondary(isHighContrast),
                         ),
                       ),
                     ),
@@ -744,7 +791,12 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _buildStatusFilterChips() {
+  Widget _buildStatusFilterChips(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final selectedBg =
+        isHighContrast ? const Color(0xFF1E3A34) : primaryLightTeal;
+    final unselectedBg = AccessibleColors.cardBackground(isHighContrast);
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
@@ -755,19 +807,29 @@ class _HistoryPageState extends State<HistoryPage> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
-              onTap: () => setState(() {
-                _selectedStatusFilter = index;
-              }),
+              onTap: () {
+                AccessibilityService.instance.hapticSelection();
+                unawaited(
+                  AccessibilityService.instance
+                      .speak("Status ${_statusFilters[index]} dipilih"),
+                );
+                setState(() {
+                  _selectedStatusFilter = index;
+                });
+              },
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 7,
                 ),
                 decoration: BoxDecoration(
-                  color: isSelected ? primaryLightTeal : Colors.white,
+                  color: isSelected ? selectedBg : unselectedBg,
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                    color: isSelected ? primaryTeal : const Color(0xFFE5E7EB),
+                    color: isSelected
+                        ? tealColor
+                        : AccessibleColors.cardBorderColor(isHighContrast),
+                    width: isSelected || isHighContrast ? 1.5 : 1.0,
                   ),
                 ),
                 child: Text(
@@ -775,7 +837,9 @@ class _HistoryPageState extends State<HistoryPage> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? primaryTeal : const Color(0xFF4B5563),
+                    color: isSelected
+                        ? tealColor
+                        : AccessibleColors.textSecondary(isHighContrast),
                   ),
                 ),
               ),
@@ -786,7 +850,12 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _buildTimeFilterChips() {
+  Widget _buildTimeFilterChips(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final selectedBg =
+        isHighContrast ? const Color(0xFF1E3A34) : primaryLightTeal;
+    final unselectedBg = AccessibleColors.cardBackground(isHighContrast);
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
@@ -798,6 +867,11 @@ class _HistoryPageState extends State<HistoryPage> {
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
               onTap: () async {
+                AccessibilityService.instance.hapticSelection();
+                unawaited(
+                  AccessibilityService.instance
+                      .speak("Rentang waktu ${_timeFilters[index]} dipilih"),
+                );
                 if (index == 3) {
                   final picked = await showDateRangePicker(
                     context: context,
@@ -806,10 +880,12 @@ class _HistoryPageState extends State<HistoryPage> {
                     builder: (context, child) {
                       return Theme(
                         data: Theme.of(context).copyWith(
-                          colorScheme: const ColorScheme.light(
-                            primary: primaryTeal,
+                          colorScheme: ColorScheme.light(
+                            primary: tealColor,
                             onPrimary: Colors.white,
-                            onSurface: Color(0xFF111827),
+                            onSurface: isHighContrast
+                                ? Colors.white
+                                : const Color(0xFF111827),
                           ),
                         ),
                         child: child!,
@@ -835,10 +911,13 @@ class _HistoryPageState extends State<HistoryPage> {
                   vertical: 7,
                 ),
                 decoration: BoxDecoration(
-                  color: isSelected ? primaryLightTeal : Colors.white,
+                  color: isSelected ? selectedBg : unselectedBg,
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                    color: isSelected ? primaryTeal : const Color(0xFFE5E7EB),
+                    color: isSelected
+                        ? tealColor
+                        : AccessibleColors.cardBorderColor(isHighContrast),
+                    width: isSelected || isHighContrast ? 1.5 : 1.0,
                   ),
                 ),
                 child: Row(
@@ -848,7 +927,9 @@ class _HistoryPageState extends State<HistoryPage> {
                           ? CupertinoIcons.calendar
                           : CupertinoIcons.time,
                       size: 14,
-                      color: isSelected ? primaryTeal : const Color(0xFF6B7280),
+                      color: isSelected
+                          ? tealColor
+                          : AccessibleColors.textSecondary(isHighContrast),
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -856,7 +937,9 @@ class _HistoryPageState extends State<HistoryPage> {
                           ? '${_customStartDate!.day}/${_customStartDate!.month} - ${_customEndDate!.day}/${_customEndDate!.month}'
                           : _timeFilters[index],
                       style: TextStyle(
-                        color: isSelected ? primaryTeal : const Color(0xFF4B5563),
+                        color: isSelected
+                            ? tealColor
+                            : AccessibleColors.textSecondary(isHighContrast),
                         fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                         fontSize: 12,
                       ),
@@ -871,7 +954,10 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _buildPagination() {
+  Widget _buildPagination(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final defaultBg = AccessibleColors.cardBackground(isHighContrast);
+
     return Container(
       margin: const EdgeInsets.only(top: 16, bottom: 8),
       child: Row(
@@ -880,9 +966,14 @@ class _HistoryPageState extends State<HistoryPage> {
           IconButton(
             icon: const Icon(CupertinoIcons.chevron_left, size: 18),
             onPressed: _currentPage > 1
-                ? () => _fetchHistory(page: _currentPage - 1)
+                ? () {
+                    AccessibilityService.instance.hapticSelection();
+                    _fetchHistory(page: _currentPage - 1);
+                  }
                 : null,
-            color: _currentPage > 1 ? primaryTeal : const Color(0xFF9CA3AF),
+            color: _currentPage > 1
+                ? tealColor
+                : const Color(0xFF9CA3AF),
           ),
           ...List.generate(_totalPages, (index) {
             final page = index + 1;
@@ -891,9 +982,14 @@ class _HistoryPageState extends State<HistoryPage> {
                   page != _totalPages &&
                   (page < _currentPage - 1 || page > _currentPage + 1)) {
                 if (page == 2 || page == _totalPages - 1) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 4),
-                    child: Text('...', style: TextStyle(color: Color(0xFF9CA3AF))),
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      '...',
+                      style: TextStyle(
+                        color: AccessibleColors.textSecondary(isHighContrast),
+                      ),
+                    ),
                   );
                 }
                 return const SizedBox.shrink();
@@ -902,7 +998,10 @@ class _HistoryPageState extends State<HistoryPage> {
 
             final isSelected = _currentPage == page;
             return GestureDetector(
-              onTap: () => _fetchHistory(page: page),
+              onTap: () {
+                AccessibilityService.instance.hapticSelection();
+                _fetchHistory(page: page);
+              },
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 3),
                 padding: const EdgeInsets.symmetric(
@@ -910,16 +1009,21 @@ class _HistoryPageState extends State<HistoryPage> {
                   vertical: 7,
                 ),
                 decoration: BoxDecoration(
-                  color: isSelected ? primaryTeal : Colors.white,
+                  color: isSelected ? tealColor : defaultBg,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: isSelected ? primaryTeal : const Color(0xFFE5E7EB),
+                    color: isSelected
+                        ? tealColor
+                        : AccessibleColors.cardBorderColor(isHighContrast),
+                    width: isSelected || isHighContrast ? 1.5 : 1.0,
                   ),
                 ),
                 child: Text(
                   '$page',
                   style: TextStyle(
-                    color: isSelected ? Colors.white : const Color(0xFF111827),
+                    color: isSelected
+                        ? Colors.white
+                        : AccessibleColors.textPrimary(isHighContrast),
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                     fontSize: 13,
                   ),
@@ -930,10 +1034,13 @@ class _HistoryPageState extends State<HistoryPage> {
           IconButton(
             icon: const Icon(CupertinoIcons.chevron_right, size: 18),
             onPressed: _currentPage < _totalPages
-                ? () => _fetchHistory(page: _currentPage + 1)
+                ? () {
+                    AccessibilityService.instance.hapticSelection();
+                    _fetchHistory(page: _currentPage + 1);
+                  }
                 : null,
             color: _currentPage < _totalPages
-                ? primaryTeal
+                ? tealColor
                 : const Color(0xFF9CA3AF),
           ),
         ],
@@ -941,11 +1048,15 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _buildErrorState() {
+  Widget _buildErrorState(bool isHighContrast) {
     return _buildCard(
+      isHighContrast: isHighContrast,
       padding: const EdgeInsets.all(24),
-      color: const Color(0xFFFEF2F2),
-      border: Border.all(color: const Color(0xFFFCA5A5)),
+      color: isHighContrast ? const Color(0xFF3B1515) : const Color(0xFFFEF2F2),
+      border: Border.all(
+        color: isHighContrast ? const Color(0xFFEF4444) : const Color(0xFFFCA5A5),
+        width: isHighContrast ? 1.5 : 1.0,
+      ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -955,10 +1066,10 @@ class _HistoryPageState extends State<HistoryPage> {
             size: 44,
           ),
           const SizedBox(height: 14),
-          const Text(
+          Text(
             'Gagal Memuat Riwayat',
             style: TextStyle(
-              color: Color(0xFF991B1B),
+              color: isHighContrast ? Colors.white : const Color(0xFF991B1B),
               fontWeight: FontWeight.w700,
               fontSize: 16,
             ),
@@ -967,7 +1078,12 @@ class _HistoryPageState extends State<HistoryPage> {
           Text(
             _errorMessage ?? '',
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xFFB91C1C), fontSize: 13),
+            style: TextStyle(
+              color: isHighContrast
+                  ? const Color(0xFFFCA5A5)
+                  : const Color(0xFFB91C1C),
+              fontSize: 13,
+            ),
           ),
           const SizedBox(height: 18),
           ElevatedButton.icon(
@@ -989,31 +1105,37 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(bool isHighContrast) {
     return _buildCard(
+      isHighContrast: isHighContrast,
       padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 20),
-      child: const Column(
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             CupertinoIcons.tray,
             size: 54,
-            color: Color(0xFF9CA3AF),
+            color: isHighContrast
+                ? const Color(0xFF6B7280)
+                : const Color(0xFF9CA3AF),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Text(
             'Belum Ada Riwayat',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF111827),
+              color: AccessibleColors.textPrimary(isHighContrast),
             ),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text(
             'Laporan darurat atau panggilan SOS Anda akan tercatat rapi di sini.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+            style: TextStyle(
+              fontSize: 13,
+              color: AccessibleColors.textSecondary(isHighContrast),
+            ),
           ),
         ],
       ),
@@ -1068,28 +1190,35 @@ class _HistoryPageState extends State<HistoryPage> {
         : (icon: CupertinoIcons.doc_text_fill, color: primaryTeal);
   }
 
-  Widget _buildHistoryCard(HistoryItem item) {
+  Widget _buildHistoryCard(HistoryItem item, bool isHighContrast) {
     final isSos = item.type == HistoryType.sos;
     final isSelesai = item.status == HistoryStatus.selesai;
     final isAktif = item.status == HistoryStatus.aktif;
     final isDibatalkan = item.status == HistoryStatus.dibatalkan;
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
 
     String statusLabel = 'Sedang Ditangani';
-    Color statusBg = const Color(0xFFFEF3C7);
-    Color statusText = const Color(0xFFB45309);
+    Color statusBg =
+        isHighContrast ? const Color(0xFF451A03) : const Color(0xFFFEF3C7);
+    Color statusText =
+        isHighContrast ? const Color(0xFFFDE68A) : const Color(0xFFB45309);
 
     if (isAktif) {
       statusLabel = 'Menunggu Relawan';
-      statusBg = const Color(0xFFFEF2F2);
-      statusText = const Color(0xFFDC2626);
+      statusBg =
+          isHighContrast ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2);
+      statusText =
+          isHighContrast ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626);
     } else if (isSelesai) {
       statusLabel = 'Selesai';
-      statusBg = primaryLightTeal;
-      statusText = primaryTeal;
+      statusBg = isHighContrast ? const Color(0xFF1E3A34) : primaryLightTeal;
+      statusText = tealColor;
     } else if (isDibatalkan) {
       statusLabel = 'Dibatalkan';
-      statusBg = const Color(0xFFF3F4F6);
-      statusText = const Color(0xFF6B7280);
+      statusBg =
+          isHighContrast ? const Color(0xFF1F2937) : const Color(0xFFF3F4F6);
+      statusText =
+          isHighContrast ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280);
     }
 
     final categoryMeta = _getCategoryIconAndColor(item.title, isSos);
@@ -1097,14 +1226,16 @@ class _HistoryPageState extends State<HistoryPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AccessibleColors.cardBackground(isHighContrast),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: const [
+        border: AccessibleColors.cardBorder(isHighContrast),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x06000000),
+            color: Colors.black.withValues(
+              alpha: isHighContrast ? 0.3 : 0.04,
+            ),
             blurRadius: 6,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -1112,7 +1243,10 @@ class _HistoryPageState extends State<HistoryPage> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => _navigateToDetail(item),
+          onTap: () {
+            AccessibilityService.instance.hapticSelection();
+            _navigateToDetail(item);
+          },
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -1140,10 +1274,10 @@ class _HistoryPageState extends State<HistoryPage> {
                         children: [
                           Text(
                             item.title,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 15,
-                              color: Color(0xFF111827),
+                              color: AccessibleColors.textPrimary(isHighContrast),
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -1159,26 +1293,33 @@ class _HistoryPageState extends State<HistoryPage> {
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF1F5F9),
+                                    color: isHighContrast
+                                        ? const Color(0xFF1E293B)
+                                        : const Color(0xFFF1F5F9),
                                     borderRadius: BorderRadius.circular(4),
                                     border: Border.all(
-                                      color: const Color(0xFFE2E8F0),
+                                      color: isHighContrast
+                                          ? const Color(0xFF475569)
+                                          : const Color(0xFFE2E8F0),
                                     ),
                                   ),
                                   child: Text(
                                     item.nomorKasus!,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600,
-                                      color: Color(0xFF475569),
+                                      color: isHighContrast
+                                          ? const Color(0xFF93C5FD)
+                                          : const Color(0xFF475569),
                                     ),
                                   ),
                                 ),
                               Text(
                                 item.dateTime,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12,
-                                  color: Color(0xFF6B7280),
+                                  color: AccessibleColors.textSecondary(
+                                      isHighContrast),
                                 ),
                               ),
                               _buildStatusBadge(
@@ -1193,17 +1334,22 @@ class _HistoryPageState extends State<HistoryPage> {
                     ),
                   ],
                 ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Divider(height: 1, color: Color(0xFFF3F4F6)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Divider(
+                    height: 1,
+                    color: isHighContrast
+                        ? const Color(0xFF374151)
+                        : const Color(0xFFF3F4F6),
+                  ),
                 ),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
+                    Icon(
                       CupertinoIcons.location_solid,
                       size: 15,
-                      color: Color(0xFF6B7280),
+                      color: AccessibleColors.textSecondary(isHighContrast),
                     ),
                     const SizedBox(width: 6),
                     Expanded(
@@ -1215,9 +1361,10 @@ class _HistoryPageState extends State<HistoryPage> {
                             addressText.isNotEmpty
                                 ? addressText
                                 : 'Lokasi GPS Tercatat',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12.5,
-                              color: Color(0xFF4B5563),
+                              color: AccessibleColors.textSecondary(
+                                  isHighContrast),
                               height: 1.3,
                             ),
                             maxLines: 2,
@@ -1232,18 +1379,18 @@ class _HistoryPageState extends State<HistoryPage> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         CupertinoIcons.person_solid,
                         size: 15,
-                        color: primaryTeal,
+                        color: tealColor,
                       ),
                       const SizedBox(width: 6),
                       Text(
                         item.officerInfo!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,
-                          color: primaryTeal,
+                          color: tealColor,
                         ),
                       ),
                     ],
@@ -1255,18 +1402,19 @@ class _HistoryPageState extends State<HistoryPage> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
+                      Icon(
                         CupertinoIcons.text_quote,
                         size: 15,
-                        color: Color(0xFF9CA3AF),
+                        color: AccessibleColors.textSecondary(isHighContrast),
                       ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           item.description!,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12.5,
-                            color: Color(0xFF4B5563),
+                            color:
+                                AccessibleColors.textSecondary(isHighContrast),
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -1280,10 +1428,18 @@ class _HistoryPageState extends State<HistoryPage> {
                   width: double.infinity,
                   height: 40,
                   child: OutlinedButton(
-                    onPressed: () => _navigateToDetail(item),
+                    onPressed: () {
+                      AccessibilityService.instance.hapticSelection();
+                      _navigateToDetail(item);
+                    },
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: primaryTeal,
-                      side: const BorderSide(color: Color(0xFFE5E7EB)),
+                      foregroundColor: tealColor,
+                      side: BorderSide(
+                        color: isHighContrast
+                            ? const Color(0xFF4B5563)
+                            : const Color(0xFFE5E7EB),
+                        width: isHighContrast ? 1.5 : 1.0,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -1330,25 +1486,29 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _buildEncryptedFooter() {
+  Widget _buildEncryptedFooter(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
     return _buildCard(
+      isHighContrast: isHighContrast,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: const BoxDecoration(
-              color: primaryLightTeal,
-              borderRadius: BorderRadius.all(Radius.circular(12)),
+            decoration: BoxDecoration(
+              color: isHighContrast
+                  ? const Color(0xFF1E3A34)
+                  : primaryLightTeal,
+              borderRadius: const BorderRadius.all(Radius.circular(12)),
             ),
-            child: const Icon(
+            child: Icon(
               CupertinoIcons.shield_fill,
-              color: primaryTeal,
+              color: tealColor,
               size: 22,
             ),
           ),
           const SizedBox(width: 14),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1357,15 +1517,15 @@ class _HistoryPageState extends State<HistoryPage> {
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
-                    color: Color(0xFF111827),
+                    color: AccessibleColors.textPrimary(isHighContrast),
                   ),
                 ),
-                SizedBox(height: 3),
+                const SizedBox(height: 3),
                 Text(
                   'Seluruh rekaman darurat, lampiran foto, koordinat GPS, dan data penanganan terlindungi sesuai standar privasi darurat.',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Color(0xFF6B7280),
+                    color: AccessibleColors.textSecondary(isHighContrast),
                     height: 1.4,
                   ),
                 ),

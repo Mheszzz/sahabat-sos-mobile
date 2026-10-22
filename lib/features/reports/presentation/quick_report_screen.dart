@@ -9,6 +9,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
+import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
 import 'package:sahabat_sos_mobile/features/reports/data/datasources/report_remote_data_source.dart';
 
 class QuickReportScreen extends StatefulWidget {
@@ -229,6 +231,10 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       if (_isRecording) {
         final path = await _audioRecorder.stop();
         _pulseController.stop();
+        AccessibilityService.instance.hapticMedium();
+        unawaited(
+          AccessibilityService.instance.speak("Rekaman suara selesai disimpan"),
+        );
         setState(() {
           _isRecording = false;
           if (path != null) {
@@ -237,6 +243,10 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         });
       } else {
         if (await _audioRecorder.hasPermission()) {
+          AccessibilityService.instance.hapticMedium();
+          unawaited(
+            AccessibilityService.instance.speak("Merekam suara darurat"),
+          );
           setState(() {
             _isRecording = true;
             _selectedAudio = null;
@@ -364,6 +374,14 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       );
 
       if (mounted) {
+        AccessibilityService.instance.hapticHeavy();
+        unawaited(AccessibilityService.instance.speak("Laporan terkirim"));
+
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+
         setState(() {
           _selectedCategory = 0;
           _selectedQuickMessage = 0;
@@ -373,18 +391,23 @@ class _QuickReportScreenState extends State<QuickReportScreen>
           _isRecording = false;
         });
 
-        // Clean Solid Surface Dialog (Anti-Slop)
+        // Clean Solid Surface Dialog (Anti-Slop & Accessible)
         unawaited(
           showDialog(
             context: context,
             barrierDismissible: false,
             builder: (ctx) => AlertDialog(
-              backgroundColor: Colors.white,
+              backgroundColor:
+                  isHighContrast ? const Color(0xFF1E1E1E) : Colors.white,
               surfaceTintColor: Colors.transparent,
               elevation: 6,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
-                side: const BorderSide(color: Color(0xFFE5E7EB)),
+                side: BorderSide(
+                  color: isHighContrast
+                      ? const Color(0xFF4B5563)
+                      : const Color(0xFFE5E7EB),
+                ),
               ),
               titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
               contentPadding: const EdgeInsets.symmetric(horizontal: 24),
@@ -394,33 +417,41 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                   Container(
                     width: 64,
                     height: 64,
-                    decoration: const BoxDecoration(
-                      color: primaryLightTeal,
+                    decoration: BoxDecoration(
+                      color: isHighContrast
+                          ? const Color(0xFF1E3A34)
+                          : primaryLightTeal,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       CupertinoIcons.checkmark_circle_fill,
-                      color: primaryTeal,
+                      color: isHighContrast
+                          ? const Color(0xFF80CBC4)
+                          : primaryTeal,
                       size: 38,
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     'Laporan Terkirim!',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF111827),
+                      color: isHighContrast
+                          ? Colors.white
+                          : const Color(0xFF111827),
                     ),
                   ),
                 ],
               ),
-              content: const Text(
+              content: Text(
                 'Laporan darurat Anda telah berhasil dikirim ke sistem. Relawan terdekat sedang menuju lokasi Anda.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
-                  color: Color(0xFF4B5563),
+                  color: isHighContrast
+                      ? const Color(0xFFD1D5DB)
+                      : const Color(0xFF4B5563),
                   height: 1.5,
                 ),
               ),
@@ -476,129 +507,155 @@ class _QuickReportScreenState extends State<QuickReportScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: _buildAppBar(),
-      body: SafeArea(
-        child: _isLoadingOptions
-            ? const Center(
-                child: CupertinoActivityIndicator(radius: 16),
-              )
-            : _optionsError != null
-            ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        CupertinoIcons.exclamationmark_triangle,
-                        color: Color(0xFFDC2626),
-                        size: 48,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        _optionsError!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Color(0xFF374151),
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _fetchOptionsFromApi,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryTeal,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final currentBg = isHighContrast ? Colors.black : const Color(0xFFF8FAFC);
+
+        return Scaffold(
+          backgroundColor: currentBg,
+          appBar: _buildAppBar(isHighContrast),
+          body: SafeArea(
+            child: _isLoadingOptions
+                ? const Center(
+                    child: CupertinoActivityIndicator(radius: 16),
+                  )
+                : _optionsError != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                CupertinoIcons.exclamationmark_triangle,
+                                color: Color(0xFFDC2626),
+                                size: 48,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _optionsError!,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: isHighContrast
+                                      ? const Color(0xFFD1D5DB)
+                                      : const Color(0xFF374151),
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: _fetchOptionsFromApi,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: primaryTeal,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: const Text('Coba Lagi'),
+                              ),
+                            ],
                           ),
                         ),
-                        child: const Text('Coba Lagi'),
+                      )
+                    : SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Kirim Laporan Cepat',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: isHighContrast
+                                    ? Colors.white
+                                    : const Color(0xFF111827),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Pilih kategori dan kirim pesan bantuan tanpa harus mengetik panjang.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isHighContrast
+                                    ? const Color(0xFFD1D5DB)
+                                    : const Color(0xFF4B5563),
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _buildSectionHeader(
+                              'Kategori Laporan',
+                              isHighContrast,
+                              trailing: 'Pilih salah satu',
+                            ),
+                            const SizedBox(height: 10),
+                            _buildCategoryGrid(isHighContrast),
+                            const SizedBox(height: 20),
+                            _buildSectionHeader(
+                              'Pesan Cepat (Ketuk untuk menyisipkan)',
+                              isHighContrast,
+                            ),
+                            const SizedBox(height: 10),
+                            _buildQuickMessages(isHighContrast),
+                            const SizedBox(height: 20),
+                            _buildSectionHeader(
+                              'Keterangan Tambahan (Opsional)',
+                              isHighContrast,
+                            ),
+                            const SizedBox(height: 10),
+                            _buildNotesField(isHighContrast),
+                            const SizedBox(height: 20),
+                            _buildSectionHeader(
+                              'Lampiran & Koordinat Otomatis',
+                              isHighContrast,
+                            ),
+                            const SizedBox(height: 10),
+                            _buildVoiceRecordTile(isHighContrast),
+                            const SizedBox(height: 10),
+                            _buildPhotoTile(isHighContrast),
+                            const SizedBox(height: 10),
+                            _buildLocationTile(isHighContrast),
+                            const SizedBox(height: 24),
+                            _buildSendButton(),
+                            const SizedBox(height: 12),
+                            _buildFooterNote(isHighContrast),
+                            const SizedBox(height: 85),
+                          ],
+                        ),
                       ),
-                    ],
-                  ),
-                ),
-              )
-            : SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Text(
-                      'Kirim Laporan Cepat',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF111827),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Pilih kategori dan kirim pesan bantuan tanpa harus mengetik panjang.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF4B5563),
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    _buildSectionHeader(
-                      'Kategori Laporan',
-                      trailing: 'Pilih salah satu',
-                    ),
-                    const SizedBox(height: 10),
-                    _buildCategoryGrid(),
-                    const SizedBox(height: 20),
-                    _buildSectionHeader(
-                      'Pesan Cepat (Ketuk untuk menyisipkan)',
-                    ),
-                    const SizedBox(height: 10),
-                    _buildQuickMessages(),
-                    const SizedBox(height: 20),
-                    _buildSectionHeader('Keterangan Tambahan (Opsional)'),
-                    const SizedBox(height: 10),
-                    _buildNotesField(),
-                    const SizedBox(height: 20),
-                    _buildSectionHeader('Lampiran & Koordinat Otomatis'),
-                    const SizedBox(height: 10),
-                    _buildVoiceRecordTile(),
-                    const SizedBox(height: 10),
-                    _buildPhotoTile(),
-                    const SizedBox(height: 10),
-                    _buildLocationTile(),
-                    const SizedBox(height: 24),
-                    _buildSendButton(),
-                    const SizedBox(height: 12),
-                    _buildFooterNote(),
-                    const SizedBox(height: 85),
-                  ],
-                ),
-              ),
-      ),
+          ),
+        );
+      },
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
+  PreferredSizeWidget _buildAppBar(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
     return AppBar(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: isHighContrast ? Colors.black : const Color(0xFFF8FAFC),
       elevation: 0,
       scrolledUnderElevation: 0,
-      iconTheme: const IconThemeData(color: primaryTeal),
+      iconTheme: IconThemeData(color: tealColor),
       centerTitle: false,
       titleSpacing: 16,
       title: Row(
         children: [
           Image.asset('assets/images/logo.png', width: 24, height: 24),
           const SizedBox(width: 8),
-          const Text(
+          Text(
             'Sahabat SOS',
             style: TextStyle(
-              color: primaryTeal,
+              color: tealColor,
               fontWeight: FontWeight.bold,
               fontSize: 18,
             ),
@@ -608,24 +665,30 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     );
   }
 
-  Widget _buildSectionHeader(String title, {String? trailing}) {
+  Widget _buildSectionHeader(
+    String title,
+    bool isHighContrast, {
+    String? trailing,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w700,
             fontSize: 14,
-            color: Color(0xFF111827),
+            color: isHighContrast ? Colors.white : const Color(0xFF111827),
           ),
         ),
         if (trailing != null)
           Text(
             trailing,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: Color(0xFF6B7280),
+              color: isHighContrast
+                  ? const Color(0xFFD1D5DB)
+                  : const Color(0xFF6B7280),
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -633,7 +696,12 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     );
   }
 
-  Widget _buildCategoryGrid() {
+  Widget _buildCategoryGrid(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final defaultBg = AccessibleColors.cardBackground(isHighContrast);
+    final selectedBg =
+        isHighContrast ? const Color(0xFF1E3A34) : primaryLightTeal;
+
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -652,22 +720,33 @@ class _QuickReportScreenState extends State<QuickReportScreen>
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
-            onTap: () => setState(() => _selectedCategory = index),
+            onTap: () {
+              AccessibilityService.instance.hapticSelection();
+              unawaited(
+                AccessibilityService.instance
+                    .speak("Kategori ${category.title} dipilih"),
+              );
+              setState(() => _selectedCategory = index);
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: isSelected ? primaryLightTeal : Colors.white,
+                color: isSelected ? selectedBg : defaultBg,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: isSelected ? primaryTeal : const Color(0xFFE5E7EB),
-                  width: isSelected ? 1.5 : 1.0,
+                  color: isSelected
+                      ? tealColor
+                      : AccessibleColors.cardBorderColor(isHighContrast),
+                  width: isSelected || isHighContrast ? 1.5 : 1.0,
                 ),
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
-                    color: Color(0x06000000),
+                    color: Colors.black.withValues(
+                      alpha: isHighContrast ? 0.25 : 0.04,
+                    ),
                     blurRadius: 4,
-                    offset: Offset(0, 1),
+                    offset: const Offset(0, 1),
                   ),
                 ],
               ),
@@ -694,8 +773,8 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                             fontWeight: FontWeight.w700,
                             fontSize: 12.5,
                             color: isSelected
-                                ? primaryTeal
-                                : const Color(0xFF111827),
+                                ? tealColor
+                                : AccessibleColors.textPrimary(isHighContrast),
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -703,9 +782,9 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                         const SizedBox(height: 2),
                         Text(
                           category.subtitle,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 10.5,
-                            color: Color(0xFF6B7280),
+                            color: AccessibleColors.textSecondary(isHighContrast),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -722,7 +801,12 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     );
   }
 
-  Widget _buildQuickMessages() {
+  Widget _buildQuickMessages(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final defaultBg = AccessibleColors.cardBackground(isHighContrast);
+    final selectedBg =
+        isHighContrast ? const Color(0xFF1E3A34) : primaryLightTeal;
+
     return Column(
       children: List.generate(_quickMessages.length, (index) {
         final item = _quickMessages[index];
@@ -734,7 +818,14 @@ class _QuickReportScreenState extends State<QuickReportScreen>
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: () => setState(() => _selectedQuickMessage = index),
+              onTap: () {
+                AccessibilityService.instance.hapticSelection();
+                unawaited(
+                  AccessibilityService.instance
+                      .speak("Pesan ${item['text']} dipilih"),
+                );
+                setState(() => _selectedQuickMessage = index);
+              },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 width: double.infinity,
@@ -743,17 +834,21 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: isSelected ? primaryLightTeal : Colors.white,
+                  color: isSelected ? selectedBg : defaultBg,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isSelected ? primaryTeal : const Color(0xFFE5E7EB),
-                    width: isSelected ? 1.5 : 1.0,
+                    color: isSelected
+                        ? tealColor
+                        : AccessibleColors.cardBorderColor(isHighContrast),
+                    width: isSelected || isHighContrast ? 1.5 : 1.0,
                   ),
-                  boxShadow: const [
+                  boxShadow: [
                     BoxShadow(
-                      color: Color(0x06000000),
+                      color: Colors.black.withValues(
+                        alpha: isHighContrast ? 0.25 : 0.04,
+                      ),
                       blurRadius: 4,
-                      offset: Offset(0, 1),
+                      offset: const Offset(0, 1),
                     ),
                   ],
                 ),
@@ -765,7 +860,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                           : CupertinoIcons.circle,
                       size: 18,
                       color: isSelected
-                          ? primaryTeal
+                          ? tealColor
                           : const Color(0xFF9CA3AF),
                     ),
                     const SizedBox(width: 10),
@@ -778,8 +873,8 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                               ? FontWeight.w700
                               : FontWeight.w500,
                           color: isSelected
-                              ? primaryTeal
-                              : const Color(0xFF374151),
+                              ? tealColor
+                              : AccessibleColors.textPrimary(isHighContrast),
                         ),
                       ),
                     ),
@@ -793,34 +888,38 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     );
   }
 
-  Widget _buildNotesField() {
+  Widget _buildNotesField(bool isHighContrast) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AccessibleColors.fieldBackground(isHighContrast),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: const [
+        border: AccessibleColors.cardBorder(isHighContrast),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x06000000),
+            color: Colors.black.withValues(
+              alpha: isHighContrast ? 0.25 : 0.04,
+            ),
             blurRadius: 4,
-            offset: Offset(0, 1),
+            offset: const Offset(0, 1),
           ),
         ],
       ),
       child: TextField(
         controller: _notesController,
         maxLines: 3,
-        style: const TextStyle(
-          color: Color(0xFF111827),
+        style: TextStyle(
+          color: AccessibleColors.textPrimary(isHighContrast),
           fontSize: 13,
         ),
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           border: InputBorder.none,
-          contentPadding: EdgeInsets.all(14),
+          contentPadding: const EdgeInsets.all(14),
           hintText:
               'Jelaskan patokan lokasi atau kebutuhan spesifik Anda di sini...',
           hintStyle: TextStyle(
-            color: Color(0xFF9CA3AF),
+            color: isHighContrast
+                ? const Color(0xFF9CA3AF)
+                : const Color(0xFF9CA3AF),
             fontSize: 13,
           ),
         ),
@@ -828,8 +927,10 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     );
   }
 
-  Widget _buildVoiceRecordTile() {
+  Widget _buildVoiceRecordTile(bool isHighContrast) {
     final hasAudio = _selectedAudio != null;
+    final defaultBg = AccessibleColors.cardBackground(isHighContrast);
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
 
     return Material(
       color: Colors.transparent,
@@ -841,20 +942,26 @@ class _QuickReportScreenState extends State<QuickReportScreen>
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: _isRecording
-                ? const Color(0xFFFEF2F2)
-                : (hasAudio ? const Color(0xFFF0FDF4) : Colors.white),
+                ? (isHighContrast ? const Color(0xFF3B1515) : const Color(0xFFFEF2F2))
+                : (hasAudio
+                    ? (isHighContrast ? const Color(0xFF143026) : const Color(0xFFF0FDF4))
+                    : defaultBg),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: _isRecording
                   ? const Color(0xFFEF4444)
-                  : (hasAudio ? primaryTeal : const Color(0xFFE5E7EB)),
-              width: (_isRecording || hasAudio) ? 1.5 : 1.0,
+                  : (hasAudio
+                      ? tealColor
+                      : AccessibleColors.cardBorderColor(isHighContrast)),
+              width: (_isRecording || hasAudio || isHighContrast) ? 1.5 : 1.0,
             ),
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
-                color: Color(0x06000000),
+                color: Colors.black.withValues(
+                  alpha: isHighContrast ? 0.25 : 0.04,
+                ),
                 blurRadius: 4,
-                offset: Offset(0, 1),
+                offset: const Offset(0, 1),
               ),
             ],
           ),
@@ -870,8 +977,12 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                       color: _isRecording
                           ? const Color(0xFFEF4444)
                           : (hasAudio
-                              ? primaryLightTeal
-                              : const Color(0xFFFFF7ED)),
+                              ? (isHighContrast
+                                  ? const Color(0xFF1E3A34)
+                                  : primaryLightTeal)
+                              : (isHighContrast
+                                  ? const Color(0xFF332015)
+                                  : const Color(0xFFFFF7ED))),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Icon(
@@ -882,7 +993,11 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                               : CupertinoIcons.mic_fill),
                       color: _isRecording
                           ? Colors.white
-                          : (hasAudio ? primaryTeal : const Color(0xFFEA580C)),
+                          : (hasAudio
+                              ? tealColor
+                              : (isHighContrast
+                                  ? const Color(0xFFFB923C)
+                                  : const Color(0xFFEA580C))),
                       size: 24,
                     ),
                   );
@@ -896,13 +1011,15 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                     Text(
                       _isRecording
                           ? 'Sedang Merekam Suara...'
-                          : (hasAudio ? 'Rekaman Suara Siap' : 'Rekam Pesan Suara'),
+                          : (hasAudio
+                              ? 'Rekaman Suara Siap'
+                              : 'Rekam Pesan Suara'),
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 14,
                         color: _isRecording
-                            ? const Color(0xFFDC2626)
-                            : const Color(0xFF111827),
+                            ? const Color(0xFFEF4444)
+                            : AccessibleColors.textPrimary(isHighContrast),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -935,9 +1052,9 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                         hasAudio
                             ? _selectedAudio!.path.split('/').last
                             : 'Ketuk untuk mulai merekam suara',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: Color(0xFF6B7280),
+                          color: AccessibleColors.textSecondary(isHighContrast),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -952,7 +1069,13 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: hasAudio ? primaryLightTeal : const Color(0xFFFFF7ED),
+                    color: hasAudio
+                        ? (isHighContrast
+                            ? const Color(0xFF1E3A34)
+                            : primaryLightTeal)
+                        : (isHighContrast
+                            ? const Color(0xFF332015)
+                            : const Color(0xFFFFF7ED)),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -964,8 +1087,10 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                             : CupertinoIcons.mic,
                         size: 15,
                         color: hasAudio
-                            ? primaryTeal
-                            : const Color(0xFFEA580C),
+                            ? tealColor
+                            : (isHighContrast
+                                ? const Color(0xFFFB923C)
+                                : const Color(0xFFEA580C)),
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -974,8 +1099,10 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                           color: hasAudio
-                              ? primaryTeal
-                              : const Color(0xFFEA580C),
+                              ? tealColor
+                              : (isHighContrast
+                                  ? const Color(0xFFFB923C)
+                                  : const Color(0xFFEA580C)),
                         ),
                       ),
                     ],
@@ -1007,8 +1134,10 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     );
   }
 
-  Widget _buildPhotoTile() {
+  Widget _buildPhotoTile(bool isHighContrast) {
     final hasPhoto = _selectedImage != null;
+    final defaultBg = AccessibleColors.cardBackground(isHighContrast);
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
 
     return Material(
       color: Colors.transparent,
@@ -1018,17 +1147,23 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: hasPhoto ? const Color(0xFFF0FDF4) : Colors.white,
+            color: hasPhoto
+                ? (isHighContrast ? const Color(0xFF143026) : const Color(0xFFF0FDF4))
+                : defaultBg,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: hasPhoto ? primaryTeal : const Color(0xFFE5E7EB),
-              width: hasPhoto ? 1.5 : 1.0,
+              color: hasPhoto
+                  ? tealColor
+                  : AccessibleColors.cardBorderColor(isHighContrast),
+              width: (hasPhoto || isHighContrast) ? 1.5 : 1.0,
             ),
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
-                color: Color(0x06000000),
+                color: Colors.black.withValues(
+                  alpha: isHighContrast ? 0.25 : 0.04,
+                ),
                 blurRadius: 4,
-                offset: Offset(0, 1),
+                offset: const Offset(0, 1),
               ),
             ],
           ),
@@ -1038,7 +1173,9 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: hasPhoto ? primaryLightTeal : const Color(0xFFEFF6FF),
+                  color: hasPhoto
+                      ? (isHighContrast ? const Color(0xFF1E3A34) : primaryLightTeal)
+                      : (isHighContrast ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF)),
                   borderRadius: BorderRadius.circular(14),
                   image: hasPhoto
                       ? DecorationImage(
@@ -1049,9 +1186,9 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                 ),
                 child: hasPhoto
                     ? null
-                    : const Icon(
+                    : Icon(
                         CupertinoIcons.camera_fill,
-                        color: Color(0xFF2563EB),
+                        color: isHighContrast ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
                         size: 24,
                       ),
               ),
@@ -1062,10 +1199,10 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                   children: [
                     Text(
                       hasPhoto ? 'Foto Terlampir' : 'Ambil Foto Keadaan',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 14,
-                        color: Color(0xFF111827),
+                        color: AccessibleColors.textPrimary(isHighContrast),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -1073,9 +1210,9 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                       hasPhoto
                           ? _selectedImage!.path.split('/').last
                           : 'Dokumentasikan situasi sekitar Anda',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF6B7280),
+                        color: AccessibleColors.textSecondary(isHighContrast),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1089,7 +1226,9 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: hasPhoto ? primaryLightTeal : const Color(0xFFEFF6FF),
+                  color: hasPhoto
+                      ? (isHighContrast ? const Color(0xFF1E3A34) : primaryLightTeal)
+                      : (isHighContrast ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF)),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -1101,8 +1240,8 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                           : CupertinoIcons.camera,
                       size: 15,
                       color: hasPhoto
-                          ? primaryTeal
-                          : const Color(0xFF2563EB),
+                          ? tealColor
+                          : (isHighContrast ? const Color(0xFF60A5FA) : const Color(0xFF2563EB)),
                     ),
                     const SizedBox(width: 4),
                     Text(
@@ -1111,8 +1250,8 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: hasPhoto
-                            ? primaryTeal
-                            : const Color(0xFF2563EB),
+                            ? tealColor
+                            : (isHighContrast ? const Color(0xFF60A5FA) : const Color(0xFF2563EB)),
                       ),
                     ),
                   ],
@@ -1125,18 +1264,21 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     );
   }
 
-  Widget _buildLocationTile() {
+  Widget _buildLocationTile(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AccessibleColors.cardBackground(isHighContrast),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: const [
+        border: AccessibleColors.cardBorder(isHighContrast),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x06000000),
+            color: Colors.black.withValues(
+              alpha: isHighContrast ? 0.25 : 0.04,
+            ),
             blurRadius: 4,
-            offset: Offset(0, 1),
+            offset: const Offset(0, 1),
           ),
         ],
       ),
@@ -1146,17 +1288,17 @@ class _QuickReportScreenState extends State<QuickReportScreen>
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: primaryLightTeal,
+              color: isHighContrast ? const Color(0xFF1E3A34) : primaryLightTeal,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Icon(
+            child: Icon(
               CupertinoIcons.location_fill,
-              color: primaryTeal,
+              color: tealColor,
               size: 24,
             ),
           ),
           const SizedBox(width: 14),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1165,13 +1307,16 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
-                    color: Color(0xFF111827),
+                    color: AccessibleColors.textPrimary(isHighContrast),
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   'GPS otomatis disematkan saat mengirim',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AccessibleColors.textSecondary(isHighContrast),
+                  ),
                 ),
               ],
             ),
@@ -1179,24 +1324,24 @@ class _QuickReportScreenState extends State<QuickReportScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: primaryLightTeal,
+              color: isHighContrast ? const Color(0xFF1E3A34) : primaryLightTeal,
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   CupertinoIcons.checkmark_circle_fill,
                   size: 15,
-                  color: primaryTeal,
+                  color: tealColor,
                 ),
-                SizedBox(width: 4),
+                const SizedBox(width: 4),
                 Text(
                   'Aktif',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: primaryTeal,
+                    color: tealColor,
                   ),
                 ),
               ],
@@ -1241,17 +1386,21 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     );
   }
 
-  Widget _buildFooterNote() {
-    return const Row(
+  Widget _buildFooterNote(bool isHighContrast) {
+    return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(CupertinoIcons.shield, size: 14, color: Color(0xFF6B7280)),
-        SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            'Tim relawan siaga 24 jam • Respon cepat terkoordinasi',
-            style: TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
-            textAlign: TextAlign.center,
+        Icon(
+          CupertinoIcons.shield,
+          size: 14,
+          color: AccessibleColors.textSecondary(isHighContrast),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          'Laporan langsung diteruskan ke tim relawan aktif.',
+          style: TextStyle(
+            fontSize: 11.5,
+            color: AccessibleColors.textSecondary(isHighContrast),
           ),
         ),
       ],

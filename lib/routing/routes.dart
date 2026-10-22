@@ -12,6 +12,7 @@ class AppRoutes {
   static const String addEmergencyContact = '/emergency-contacts/add';
   static const String sosStatus = '/sos-status';
   static const String editProfile = '/edit-profile';
+  static const String map = '/map';
 
   // Tuya Device
   static const String tuyaDevices = '/tuya-devices';

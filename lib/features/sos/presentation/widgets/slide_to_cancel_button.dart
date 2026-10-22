@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
 
 class SlideToCancelButton extends StatefulWidget {
   final Future<void> Function()? onCancelled;
@@ -22,6 +24,11 @@ class _SlideToCancelButtonState extends State<SlideToCancelButton> {
 
   @override
   Widget build(BuildContext context) {
+    final isHighContrast =
+        AccessibilityService.instance.isHighContrastEnabled ||
+        Theme.of(context).brightness == Brightness.dark ||
+        MediaQuery.of(context).highContrast;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth;
@@ -31,9 +38,16 @@ class _SlideToCancelButtonState extends State<SlideToCancelButton> {
           width: maxWidth,
           height: _thumbSize,
           decoration: BoxDecoration(
-            color: const Color(0xFFFFEBEE),
+            color: isHighContrast
+                ? const Color(0xFF201212)
+                : const Color(0xFFFFEBEE),
             borderRadius: BorderRadius.circular(_thumbSize / 2),
-            border: Border.all(color: const Color(0xFFFFCDD2)),
+            border: Border.all(
+              color: isHighContrast
+                  ? const Color(0xFFEF4444)
+                  : const Color(0xFFFFCDD2),
+              width: isHighContrast ? 1.5 : 1.0,
+            ),
           ),
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -53,6 +67,8 @@ class _SlideToCancelButtonState extends State<SlideToCancelButton> {
               final isDraggedPastThreshold = _dragPosition >= maxDrag * 0.75;
 
               if (isFling || isDraggedPastThreshold) {
+                AccessibilityService.instance.hapticHeavy();
+                unawaited(AccessibilityService.instance.speak("Membatalkan SOS"));
                 setState(() {
                   _dragPosition = maxDrag;
                   _isCompleted = true;
@@ -70,6 +86,7 @@ class _SlideToCancelButtonState extends State<SlideToCancelButton> {
                   }
                 }
               } else {
+                AccessibilityService.instance.hapticLight();
                 setState(() {
                   _dragPosition = 0.0; // Snap back
                 });
@@ -84,17 +101,21 @@ class _SlideToCancelButtonState extends State<SlideToCancelButton> {
                     children: [
                       const SizedBox(width: 20),
                       if (!_isCompleted) ...[
-                        const Icon(
+                        Icon(
                           CupertinoIcons.xmark_circle_fill,
                           size: 18,
-                          color: Color(0xFFD32F2F),
+                          color: isHighContrast
+                              ? const Color(0xFFFCA5A5)
+                              : const Color(0xFFD32F2F),
                         ),
                         const SizedBox(width: 8),
                       ],
                       Text(
                         _isCompleted ? 'Membatalkan SOS...' : widget.label,
-                        style: const TextStyle(
-                          color: Color(0xFFD32F2F),
+                        style: TextStyle(
+                          color: isHighContrast
+                              ? const Color(0xFFFCA5A5)
+                              : const Color(0xFFD32F2F),
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
                         ),

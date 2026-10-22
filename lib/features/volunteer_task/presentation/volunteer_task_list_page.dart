@@ -8,6 +8,8 @@ import 'package:sahabat_sos_mobile/features/volunteer_task/data/datasources/volu
 import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/volunteer_active_task_page.dart';
 import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/widgets/glass_container.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
+import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
 import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart' as import_event_bus;
 
 class VolunteerTaskListPage extends StatefulWidget {
@@ -80,7 +82,7 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
       };
 
       // 2a. Fetch SOS darurat yang belum ditangani
-      List<dynamic> sosList = [];
+      final List<dynamic> sosList = [];
       try {
         final sosRes = await dio.get(
           ApiConstants.sosActiveRelawan,
@@ -100,7 +102,7 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
       }
 
       // 2b. Fetch Laporan warga yang belum ditangani
-      List<dynamic> laporanList = [];
+      final List<dynamic> laporanList = [];
       try {
         final lapRes = await dio.get(
           ApiConstants.laporan,
@@ -229,8 +231,8 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
   /// 3. Fallback: nilai string mentah
   Future<String> _parseLokasiDisplay(Map<String, dynamic> item) async {
     // Ambil lat/lng dari berbagai kemungkinan field
-    double? lat = _toDouble(item['latitude']);
-    double? lng = _toDouble(item['longitude']);
+    final double? lat = _toDouble(item['latitude']);
+    final double? lng = _toDouble(item['longitude']);
 
     // Jika ada koordinat valid, geocode ke nama wilayah
     if (lat != null && lng != null && lat != 0.0 && lng != 0.0) {
@@ -362,133 +364,174 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: bgColor,
-      child: SafeArea(
-        child: Column(
-          children: [
-            // ── Header (sama dengan Beranda) ──────────────────────────────
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final currentBg = isHighContrast ? Colors.black : bgColor;
+        final tealColor =
+            isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
+        return Container(
+          color: currentBg,
+          child: SafeArea(
+            child: Column(
+              children: [
+                // ── Header (sama dengan Beranda) ──────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0, vertical: 16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Image.asset('assets/images/logo.png',
-                          width: 28, height: 28),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Sahabat SOS',
-                        style: TextStyle(
-                          color: primaryTeal,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
+                      Row(
+                        children: [
+                          Image.asset('assets/images/logo.png',
+                              width: 28, height: 28),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Sahabat SOS',
+                            style: TextStyle(
+                              color: tealColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                      GestureDetector(
+                        onTap: _fetchData,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: isHighContrast
+                                ? const Color(0xFF1E2430)
+                                : Colors.white,
+                            shape: BoxShape.circle,
+                            border: isHighContrast
+                                ? Border.all(color: const Color(0xFF4B5563))
+                                : null,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.06),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Icon(CupertinoIcons.refresh,
+                              color: tealColor, size: 20),
                         ),
                       ),
                     ],
                   ),
-                  GestureDetector(
-                    onTap: _fetchData,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.06),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                ),
+
+                // ── Tab Bar ───────────────────────────────────────────────────
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: isHighContrast
+                        ? const Color(0xFF121212)
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: isHighContrast
+                        ? Border.all(color: const Color(0xFF4B5563))
+                        : null,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
-                      child: const Icon(CupertinoIcons.refresh,
-                          color: primaryTeal, size: 20),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-
-            // ── Tab Bar ───────────────────────────────────────────────────
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: TabBar(
-                controller: _tabController,
-                labelColor: primaryTeal,
-                unselectedLabelColor: Colors.grey,
-                indicator: BoxDecoration(
-                  color: primaryTeal.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                indicatorSize: TabBarIndicatorSize.tab,
-                dividerColor: Colors.transparent,
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-                unselectedLabelStyle: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 13,
-                ),
-                tabs: const [
-                  Tab(text: 'SOS Darurat'),
-                  Tab(text: 'Laporan'),
-                  Tab(text: 'Riwayat'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // ── Tab Content ───────────────────────────────────────────────
-            Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CupertinoActivityIndicator(radius: 16))
-                  : TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildAvailableTab(_availableSosList, true),
-                        _buildAvailableTab(_availableLaporanList, false),
-                        _buildRiwayatTab(),
-                      ],
+                  child: TabBar(
+                    controller: _tabController,
+                    labelColor: tealColor,
+                    unselectedLabelColor: isHighContrast
+                        ? const Color(0xFF9CA3AF)
+                        : Colors.grey,
+                    indicator: BoxDecoration(
+                      color: isHighContrast
+                          ? const Color(0xFF1E3A34)
+                          : primaryTeal.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: isHighContrast
+                          ? Border.all(color: const Color(0xFF00897B))
+                          : null,
                     ),
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    dividerColor: Colors.transparent,
+                    labelStyle: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                    unselectedLabelStyle: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 13,
+                    ),
+                    tabs: const [
+                      Tab(text: 'SOS Darurat'),
+                      Tab(text: 'Laporan'),
+                      Tab(text: 'Riwayat'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // ── Tab Content ───────────────────────────────────────────────
+                Expanded(
+                  child: _isLoading
+                      ? Center(
+                          child: CupertinoActivityIndicator(
+                            radius: 16,
+                            color: tealColor,
+                          ))
+                      : TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildAvailableTab(_availableSosList, true,
+                                isHighContrast: isHighContrast),
+                            _buildAvailableTab(_availableLaporanList, false,
+                                isHighContrast: isHighContrast),
+                            _buildRiwayatTab(isHighContrast: isHighContrast),
+                          ],
+                        ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
   // ── Tab Kasus SOS & Laporan ─────────────────────────────────────────────
-  Widget _buildAvailableTab(List<dynamic> list, bool isSos) {
+  Widget _buildAvailableTab(List<dynamic> list, bool isSos,
+      {bool isHighContrast = false}) {
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+    final tealColor =
+        isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
     return RefreshIndicator(
       onRefresh: _fetchData,
-      color: primaryTeal,
+      color: tealColor,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
         children: [
           // Tugas aktif (sedang ditangani)
           if (_activeTask != null) ...[
-            const Text(
+            Text(
               'Sedang Ditangani',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 15,
-                color: sosRed,
+                color: isHighContrast ? const Color(0xFFEF4444) : sosRed,
               ),
             ),
             const SizedBox(height: 10),
@@ -496,17 +539,27 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
               onTap: () => _navigateToDetail(item: _activeTask),
               child: GlassContainer(
                 padding: const EdgeInsets.all(16),
-                color: sosRed.withValues(alpha: 0.85),
+                color: isHighContrast
+                    ? const Color(0xFF450A0A)
+                    : sosRed.withValues(alpha: 0.85),
                 border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.4), width: 1.5),
+                    color: isHighContrast
+                        ? const Color(0xFFEF4444)
+                        : Colors.white.withValues(alpha: 0.4),
+                    width: 1.5),
                 borderRadius: BorderRadius.circular(20),
                 child: Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: isHighContrast
+                            ? const Color(0xFF1E2430)
+                            : Colors.white.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
+                        border: isHighContrast
+                            ? Border.all(color: const Color(0xFFEF4444))
+                            : null,
                       ),
                       child: const Icon(CupertinoIcons.shield_fill,
                           color: Colors.white, size: 24),
@@ -551,27 +604,41 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
             children: [
               Text(
                 isSos ? 'SOS Darurat Tersedia' : 'Laporan Tersedia',
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
-                  color: Colors.black87,
+                  color: textPrimary,
                 ),
               ),
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isSos
-                      ? sosRed.withValues(alpha: 0.1)
-                      : primaryTeal.withValues(alpha: 0.1),
+                  color: isHighContrast
+                      ? (isSos
+                          ? const Color(0xFF450A0A)
+                          : const Color(0xFF1E3A34))
+                      : (isSos
+                          ? sosRed.withValues(alpha: 0.1)
+                          : primaryTeal.withValues(alpha: 0.1)),
                   borderRadius: BorderRadius.circular(20),
+                  border: isHighContrast
+                      ? Border.all(
+                          color: isSos
+                              ? const Color(0xFFEF4444)
+                              : const Color(0xFF00897B))
+                      : null,
                 ),
                 child: Text(
                   '${list.length} kasus',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: isSos ? sosRed : primaryTeal,
+                    color: isHighContrast
+                        ? (isSos
+                            ? const Color(0xFFFCA5A5)
+                            : const Color(0xFF80CBC4))
+                        : (isSos ? sosRed : primaryTeal),
                   ),
                 ),
               ),
@@ -585,6 +652,7 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
               message: isSos
                   ? 'Belum ada SOS darurat baru'
                   : 'Belum ada laporan baru',
+              isHighContrast: isHighContrast,
             )
           else
             ...list.map((item) => Padding(
@@ -600,17 +668,31 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: isSos
-                                    ? sosRed.withValues(alpha: 0.1)
-                                    : primaryTeal.withValues(alpha: 0.1),
+                                color: isHighContrast
+                                    ? (isSos
+                                        ? const Color(0xFF450A0A)
+                                        : const Color(0xFF1E3A34))
+                                    : (isSos
+                                        ? sosRed.withValues(alpha: 0.1)
+                                        : primaryTeal.withValues(alpha: 0.1)),
                                 borderRadius: BorderRadius.circular(10),
+                                border: isHighContrast
+                                    ? Border.all(
+                                        color: isSos
+                                            ? const Color(0xFFEF4444)
+                                            : const Color(0xFF00897B))
+                                    : null,
                               ),
                               child: Icon(
                                 isSos
                                     ? CupertinoIcons
                                         .exclamationmark_triangle_fill
                                     : CupertinoIcons.doc_text_fill,
-                                color: isSos ? sosRed : primaryTeal,
+                                color: isHighContrast
+                                    ? (isSos
+                                        ? const Color(0xFFFCA5A5)
+                                        : const Color(0xFF80CBC4))
+                                    : (isSos ? sosRed : primaryTeal),
                                 size: 18,
                               ),
                             ),
@@ -618,9 +700,10 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                             Expanded(
                               child: Text(
                                 '${isSos ? 'SOS Darurat' : 'Laporan'} · ID ${item['id']}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 14,
+                                  color: textPrimary,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -629,15 +712,23 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: Colors.orange.withValues(alpha: 0.12),
+                                color: isHighContrast
+                                    ? const Color(0xFF451A03)
+                                    : Colors.orange.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(8),
+                                border: isHighContrast
+                                    ? Border.all(
+                                        color: const Color(0xFFF59E0B))
+                                    : null,
                               ),
                               child: Text(
                                 'Baru',
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.orange.shade700,
+                                  color: isHighContrast
+                                      ? const Color(0xFFFDE68A)
+                                      : Colors.orange.shade700,
                                 ),
                               ),
                             ),
@@ -646,15 +737,21 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                         const SizedBox(height: 10),
                         Row(
                           children: [
-                            const Icon(CupertinoIcons.person_solid,
-                                size: 14, color: Colors.grey),
+                            Icon(CupertinoIcons.person_solid,
+                                size: 14,
+                                color: isHighContrast
+                                    ? const Color(0xFF9CA3AF)
+                                    : Colors.grey),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
                                 item['pengguna']?['name'] ??
                                     item['relawan']?['name'] ??
                                     'Korban',
-                                style: const TextStyle(fontSize: 13),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: textPrimary,
+                                ),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -663,15 +760,18 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                         const SizedBox(height: 6),
                         Row(
                           children: [
-                            const Icon(CupertinoIcons.location_solid,
-                                size: 14, color: Colors.grey),
+                            Icon(CupertinoIcons.location_solid,
+                                size: 14,
+                                color: isHighContrast
+                                    ? const Color(0xFF9CA3AF)
+                                    : Colors.grey),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
                                 _getLokasi(item),
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey.shade600,
+                                  color: textSecondary,
                                 ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
@@ -684,8 +784,18 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                           width: double.infinity,
                           child: ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  isSos ? sosRed : primaryTeal,
+                              backgroundColor: isHighContrast
+                                  ? (isSos
+                                      ? const Color(0xFFEF4444)
+                                      : const Color(0xFF00897B))
+                                  : (isSos ? sosRed : primaryTeal),
+                              side: isHighContrast
+                                  ? BorderSide(
+                                      color: isSos
+                                          ? const Color(0xFFFCA5A5)
+                                          : const Color(0xFF80CBC4),
+                                      width: 1.5)
+                                  : BorderSide.none,
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12)),
                               padding:
@@ -730,10 +840,15 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
   }
 
   // ── Tab Riwayat ─────────────────────────────────────────────────────────
-  Widget _buildRiwayatTab() {
+  Widget _buildRiwayatTab({bool isHighContrast = false}) {
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+    final tealColor =
+        isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
     return RefreshIndicator(
       onRefresh: _fetchData,
-      color: primaryTeal,
+      color: tealColor,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
         children: [
@@ -741,27 +856,32 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Riwayat Tugas Selesai',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
-                  color: Colors.black87,
+                  color: textPrimary,
                 ),
               ),
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: primaryTeal.withValues(alpha: 0.1),
+                  color: isHighContrast
+                      ? const Color(0xFF1E3A34)
+                      : primaryTeal.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
+                  border: isHighContrast
+                      ? Border.all(color: const Color(0xFF00897B))
+                      : null,
                 ),
                 child: Text(
                   '${_riwayatList.length} tugas',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: primaryTeal,
+                    color: tealColor,
                   ),
                 ),
               ),
@@ -773,6 +893,7 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
             _buildEmptyState(
               icon: CupertinoIcons.tray,
               message: 'Belum ada riwayat tugas yang diselesaikan',
+              isHighContrast: isHighContrast,
             )
           else ...[
             ..._riwayatList.take(_visibleRiwayatCount).map((item) {
@@ -787,11 +908,18 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isHighContrast
+                      ? const Color(0xFF121212)
+                      : Colors.white,
                   borderRadius: BorderRadius.circular(16),
+                  border: isHighContrast
+                      ? Border.all(
+                          color: const Color(0xFF4B5563), width: 1.5)
+                      : null,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
+                      color: Colors.black.withValues(
+                          alpha: isHighContrast ? 0.35 : 0.04),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -801,16 +929,24 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                   children: [
                     CircleAvatar(
                       radius: 20,
-                      backgroundColor: isSos
-                          ? Colors.red.shade100
-                          : Colors.blue.shade100,
+                      backgroundColor: isHighContrast
+                          ? (isSos
+                              ? const Color(0xFF450A0A)
+                              : const Color(0xFF1E3A34))
+                          : (isSos
+                              ? Colors.red.shade100
+                              : Colors.blue.shade100),
                       child: Icon(
                         isSos
                             ? CupertinoIcons.exclamationmark_triangle_fill
                             : CupertinoIcons.doc_text_fill,
-                        color: isSos
-                            ? Colors.red.shade700
-                            : Colors.blue.shade700,
+                        color: isHighContrast
+                            ? (isSos
+                                ? const Color(0xFFFCA5A5)
+                                : const Color(0xFF80CBC4))
+                            : (isSos
+                                ? Colors.red.shade700
+                                : Colors.blue.shade700),
                         size: 18,
                       ),
                     ),
@@ -824,9 +960,10 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                               Expanded(
                                 child: Text(
                                   title,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 13,
+                                    color: textPrimary,
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -835,15 +972,23 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 7, vertical: 3),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFE8F5E9),
+                                  color: isHighContrast
+                                      ? const Color(0xFF064E3B)
+                                      : const Color(0xFFE8F5E9),
                                   borderRadius: BorderRadius.circular(8),
+                                  border: isHighContrast
+                                      ? Border.all(
+                                          color: const Color(0xFF10B981))
+                                      : null,
                                 ),
-                                child: const Text(
+                                child: Text(
                                   'Selesai',
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFF2E7D32),
+                                    color: isHighContrast
+                                        ? const Color(0xFFA7F3D0)
+                                        : const Color(0xFF2E7D32),
                                   ),
                                 ),
                               ),
@@ -854,7 +999,10 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                           Row(
                             children: [
                               Icon(CupertinoIcons.person_solid,
-                                  size: 12, color: Colors.grey.shade500),
+                                  size: 12,
+                                  color: isHighContrast
+                                      ? const Color(0xFF9CA3AF)
+                                      : Colors.grey.shade500),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
@@ -864,7 +1012,7 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                                       'Anonim',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey.shade700,
+                                    color: textSecondary,
                                     fontWeight: FontWeight.w500,
                                   ),
                                   overflow: TextOverflow.ellipsis,
@@ -878,7 +1026,10 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Icon(CupertinoIcons.location_solid,
-                                  size: 12, color: Colors.grey.shade500),
+                                  size: 12,
+                                  color: isHighContrast
+                                      ? const Color(0xFF9CA3AF)
+                                      : Colors.grey.shade500),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
@@ -887,7 +1038,7 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey.shade600,
+                                    color: textSecondary,
                                   ),
                                 ),
                               ),
@@ -899,13 +1050,17 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                               children: [
                                 Icon(CupertinoIcons.clock,
                                     size: 11,
-                                    color: Colors.grey.shade400),
+                                    color: isHighContrast
+                                        ? const Color(0xFF9CA3AF)
+                                        : Colors.grey.shade400),
                                 const SizedBox(width: 4),
                                 Text(
                                   displayDate,
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: Colors.grey.shade500,
+                                    color: isHighContrast
+                                        ? const Color(0xFF9CA3AF)
+                                        : Colors.grey.shade500,
                                   ),
                                 ),
                               ],
@@ -925,12 +1080,12 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
                   onPressed: () {
                     setState(() => _visibleRiwayatCount += 5);
                   },
-                  icon: const Icon(CupertinoIcons.chevron_down,
-                      size: 14, color: primaryTeal),
-                  label: const Text(
+                  icon: Icon(CupertinoIcons.chevron_down,
+                      size: 14, color: tealColor),
+                  label: Text(
                     'Muat Lebih Banyak',
                     style: TextStyle(
-                      color: primaryTeal,
+                      color: tealColor,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -942,7 +1097,11 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
     );
   }
 
-  Widget _buildEmptyState({required IconData icon, required String message}) {
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String message,
+    bool isHighContrast = false,
+  }) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 48.0),
@@ -951,15 +1110,32 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: isHighContrast
+                    ? const Color(0xFF1E2430)
+                    : Colors.grey.shade100,
                 shape: BoxShape.circle,
+                border: isHighContrast
+                    ? Border.all(
+                        color: const Color(0xFF4B5563), width: 1.5)
+                    : null,
               ),
-              child: Icon(icon, size: 48, color: Colors.grey.shade400),
+              child: Icon(
+                icon,
+                size: 48,
+                color: isHighContrast
+                    ? const Color(0xFF9CA3AF)
+                    : Colors.grey.shade400,
+              ),
             ),
             const SizedBox(height: 16),
             Text(
               message,
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+              style: TextStyle(
+                color: isHighContrast
+                    ? const Color(0xFFD1D5DB)
+                    : Colors.grey.shade600,
+                fontSize: 14,
+              ),
               textAlign: TextAlign.center,
             ),
           ],

@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/volunteer_dashboard_page.dart';
@@ -8,6 +7,8 @@ import 'package:sahabat_sos_mobile/features/profile/presentation/screens/volunte
 
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
+import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
     as event_bus;
@@ -107,45 +108,65 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
   }
 
   void _showDeactivatedDialog() {
+    final isHighContrast =
+        AccessibilityService.instance.isHighContrastEnabled ||
+        Theme.of(context).brightness == Brightness.dark ||
+        MediaQuery.of(context).highContrast;
     showCupertinoDialog(
       context: context,
-      builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('Akun Dinonaktifkan'),
-        content: const Padding(
-          padding: EdgeInsets.only(top: 8),
-          child: Text(
-            'Akun relawan Anda saat ini telah dinonaktifkan oleh administrator.\n\nFitur Beranda, Tugas, dan Peta tidak dapat diakses selama status akun nonaktif.\n\nSilakan cek status akun Anda di halaman Profil atau hubungi admin.',
-          ),
+      builder: (ctx) => CupertinoTheme(
+        data: CupertinoThemeData(
+          brightness: isHighContrast ? Brightness.dark : Brightness.light,
+          primaryColor: isHighContrast ? const Color(0xFF80CBC4) : primaryTeal,
         ),
-        actions: [
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Mengerti'),
+        child: CupertinoAlertDialog(
+          title: const Text('Akun Dinonaktifkan'),
+          content: const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text(
+              'Akun relawan Anda saat ini telah dinonaktifkan oleh administrator.\n\nFitur Beranda, Tugas, dan Peta tidak dapat diakses selama status akun nonaktif.\n\nSilakan cek status akun Anda di halaman Profil atau hubungi admin.',
+            ),
           ),
-        ],
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Mengerti'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   void _showUnverifiedDialog() {
+    final isHighContrast =
+        AccessibilityService.instance.isHighContrastEnabled ||
+        Theme.of(context).brightness == Brightness.dark ||
+        MediaQuery.of(context).highContrast;
     showCupertinoDialog(
       context: context,
-      builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('Akun Dalam Tahap Verifikasi'),
-        content: const Padding(
-          padding: EdgeInsets.only(top: 8),
-          child: Text(
-            'Akun relawan Anda sedang dalam peninjauan oleh admin Sahabat SOS.\n\nFitur Beranda, Tugas, dan Peta akan dapat diakses setelah akun Anda diverifikasi oleh admin.\n\nSilakan cek status verifikasi Anda di halaman Profil.',
-          ),
+      builder: (ctx) => CupertinoTheme(
+        data: CupertinoThemeData(
+          brightness: isHighContrast ? Brightness.dark : Brightness.light,
+          primaryColor: isHighContrast ? const Color(0xFF80CBC4) : primaryTeal,
         ),
-        actions: [
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Mengerti'),
+        child: CupertinoAlertDialog(
+          title: const Text('Akun Dalam Tahap Verifikasi'),
+          content: const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text(
+              'Akun relawan Anda sedang dalam peninjauan oleh admin Sahabat SOS.\n\nFitur Beranda, Tugas, dan Peta akan dapat diakses setelah akun Anda diverifikasi oleh admin.\n\nSilakan cek status verifikasi Anda di halaman Profil.',
+            ),
           ),
-        ],
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Mengerti'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -400,138 +421,163 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
       const VolunteerProfileScreen(),
     ];
 
-    return Scaffold(
-      extendBody: true,
-      body: Stack(
-        children: [
-          IndexedStack(index: _selectedIndex, children: pages),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Container(
-              margin: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                bottom: MediaQuery.of(context).padding.bottom + 16,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.5),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(30),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: List.generate(_navItems.length, (index) {
-                        final isSelected = _selectedIndex == index;
-                        final item = _navItems[index];
-                        final isLocked = (_isVerified == false || !_isActive) && index != 3;
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final selectedColor =
+            isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+        final unselectedColor =
+            isHighContrast ? const Color(0xFFD1D5DB) : _unselectedColor;
 
-                        return GestureDetector(
-                          onTap: () {
-                            if (isLocked) {
-                              if (!_isActive) {
-                                _showDeactivatedDialog();
-                              } else {
-                                _showUnverifiedDialog();
+        return Scaffold(
+          extendBody: true,
+          body: Stack(
+            children: [
+              IndexedStack(index: _selectedIndex, children: pages),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  margin: EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    bottom: MediaQuery.of(context).padding.bottom + 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isHighContrast
+                        ? const Color(0xFF121212)
+                        : Colors.white.withValues(alpha: 0.95),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color: isHighContrast
+                          ? const Color(0xFF4B5563)
+                          : const Color(0xFFE5E7EB),
+                      width: isHighContrast ? 1.5 : 1.0,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(
+                          alpha: isHighContrast ? 0.35 : 0.08,
+                        ),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(30),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: List.generate(_navItems.length, (index) {
+                          final isSelected = _selectedIndex == index;
+                          final item = _navItems[index];
+                          final isLocked = (_isVerified == false || !_isActive) && index != 3;
+
+                          return GestureDetector(
+                            onTap: () {
+                              AccessibilityService.instance.hapticSelection();
+                              if (isLocked) {
+                                if (!_isActive) {
+                                  _showDeactivatedDialog();
+                                } else {
+                                  _showUnverifiedDialog();
+                                }
+                                return;
                               }
-                              return;
-                            }
-                            setState(() {
-                              _selectedIndex = index;
-                            });
-                          },
-                          behavior: HitTestBehavior.opaque,
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeInOut,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.transparent,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    Icon(
-                                      isSelected ? item.selectedIcon : item.icon,
-                                      color: isLocked
-                                          ? Colors.grey.withValues(alpha: 0.35)
-                                          : isSelected
-                                              ? primaryTeal
-                                              : _unselectedColor,
-                                      size: 24,
-                                    ),
-                                    if (isLocked)
-                                      Positioned(
-                                        top: -3,
-                                        right: -7,
-                                        child: Container(
-                                          padding: const EdgeInsets.all(2.5),
-                                          decoration: BoxDecoration(
-                                            color: !_isActive ? Colors.red.shade700 : Colors.amber.shade800,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Icon(
-                                            CupertinoIcons.lock_fill,
-                                            color: Colors.white,
-                                            size: 8,
+                              AccessibilityService.instance.speak("Tab ${item.label}");
+                              setState(() {
+                                _selectedIndex = index;
+                              });
+                            },
+                            behavior: HitTestBehavior.opaque,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeInOut,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected && isHighContrast
+                                    ? const Color(0xFF1E2430)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      Icon(
+                                        isSelected ? item.selectedIcon : item.icon,
+                                        color: isLocked
+                                            ? (isHighContrast
+                                                ? const Color(0xFF6B7280)
+                                                : Colors.grey.withValues(alpha: 0.35))
+                                            : isSelected
+                                                ? selectedColor
+                                                : unselectedColor,
+                                        size: 24,
+                                      ),
+                                      if (isLocked)
+                                        Positioned(
+                                          top: -3,
+                                          right: -7,
+                                          child: Container(
+                                            padding: const EdgeInsets.all(2.5),
+                                            decoration: BoxDecoration(
+                                              color: !_isActive ? Colors.red.shade700 : Colors.amber.shade800,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(
+                                              CupertinoIcons.lock_fill,
+                                              color: Colors.white,
+                                              size: 8,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  item.label,
-                                  style: TextStyle(
-                                    color: isLocked
-                                        ? Colors.grey.withValues(alpha: 0.35)
-                                        : isSelected
-                                            ? primaryTeal
-                                            : _unselectedColor,
-                                    fontSize: 11,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w600
-                                        : FontWeight.w500,
+                                    ],
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    item.label,
+                                    style: TextStyle(
+                                      color: isLocked
+                                          ? (isHighContrast
+                                              ? const Color(0xFF6B7280)
+                                              : Colors.grey.withValues(alpha: 0.35))
+                                          : isSelected
+                                              ? selectedColor
+                                              : unselectedColor,
+                                      fontSize: 11,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        );
-                      }),
+                          );
+                        }),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

@@ -20,6 +20,7 @@ import 'package:sahabat_sos_mobile/features/volunteer_task/data/datasources/volu
     as import_volunteer;
 import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/volunteer_active_task_page.dart'
     as import_active_task;
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
 
 class VolunteerMapPage extends StatefulWidget {
   const VolunteerMapPage({super.key});
@@ -276,7 +277,7 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
       );
 
       if (mounted) {
-        List<Map<String, dynamic>> combinedList = [];
+        final List<Map<String, dynamic>> combinedList = [];
 
         // Parse Unassigned
         if (responseUnassigned.statusCode == 200) {
@@ -428,33 +429,47 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
-    final isDarkMode = theme.brightness == Brightness.dark;
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final theme = Theme.of(context);
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            theme.brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final isDarkMode =
+            isHighContrast || theme.brightness == Brightness.dark;
+        final primaryColor = isHighContrast
+            ? const Color(0xFF80CBC4)
+            : theme.colorScheme.primary;
 
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      body: ValueListenableBuilder<Position?>(
-        valueListenable: _locationService.currentPosition,
-        builder: (context, position, _) {
-          if (_isLoading || position == null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CupertinoActivityIndicator(radius: 16),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Menunggu Sinyal GPS...',
-                    style: TextStyle(
-                      color: primaryColor,
-                      fontWeight: FontWeight.w500,
-                    ),
+        return Scaffold(
+          extendBodyBehindAppBar: true,
+          backgroundColor: isHighContrast ? Colors.black : null,
+          body: ValueListenableBuilder<Position?>(
+            valueListenable: _locationService.currentPosition,
+            builder: (context, position, _) {
+              if (_isLoading || position == null) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CupertinoActivityIndicator(
+                        radius: 16,
+                        color: primaryColor,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Menunggu Sinyal GPS...',
+                        style: TextStyle(
+                          color: primaryColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            );
-          }
+                );
+              }
 
           final myLatLng = LatLng(position.latitude, position.longitude);
 
@@ -869,6 +884,8 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
         },
       ),
     );
+      },
+    );
   }
 
   // ──────────────────── Glass Container ────────────────────
@@ -878,8 +895,14 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
     required Widget child,
     EdgeInsetsGeometry? padding,
     BorderRadius? borderRadius,
+    bool? isHighContrast,
   }) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final contrast = isHighContrast ??
+        (AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast);
+    final isDarkMode =
+        contrast || Theme.of(context).brightness == Brightness.dark;
     final radius = borderRadius ?? BorderRadius.circular(24);
     return ClipRRect(
       borderRadius: radius,
@@ -888,19 +911,25 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
         child: Container(
           padding: padding ?? const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDarkMode
-                ? Colors.black.withValues(alpha: 0.4)
-                : Colors.white.withValues(alpha: 0.5),
+            color: contrast
+                ? const Color(0xFF121212)
+                : (isDarkMode
+                    ? Colors.black.withValues(alpha: 0.4)
+                    : Colors.white.withValues(alpha: 0.5)),
             borderRadius: radius,
             border: Border.all(
-              color: isDarkMode
-                  ? Colors.white.withValues(alpha: 0.1)
-                  : Colors.white.withValues(alpha: 0.3),
-              width: 1,
+              color: contrast
+                  ? const Color(0xFF4B5563)
+                  : (isDarkMode
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : Colors.white.withValues(alpha: 0.3)),
+              width: contrast ? 1.5 : 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
+                color: Colors.black.withValues(
+                  alpha: contrast ? 0.35 : 0.05,
+                ),
                 blurRadius: 15,
                 offset: const Offset(0, 5),
               ),
@@ -959,8 +988,14 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
 
   void _showSosDetails(Map<String, dynamic> sos) {
     final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
-    final isDarkMode = theme.brightness == Brightness.dark;
+    final isHighContrast =
+        AccessibilityService.instance.isHighContrastEnabled ||
+        theme.brightness == Brightness.dark ||
+        MediaQuery.of(context).highContrast;
+    final isDarkMode = isHighContrast || theme.brightness == Brightness.dark;
+    final primaryColor = isHighContrast
+        ? const Color(0xFF80CBC4)
+        : theme.colorScheme.primary;
 
     final volunteerPos = _locationService.currentPosition.value;
     final sosLat = double.tryParse(sos['latitude'].toString()) ?? 0.0;
@@ -998,11 +1033,18 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
           margin: const EdgeInsets.all(16),
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+            color: isHighContrast
+                ? const Color(0xFF121212)
+                : (isDarkMode ? const Color(0xFF1E1E1E) : Colors.white),
             borderRadius: BorderRadius.circular(24),
+            border: isHighContrast
+                ? Border.all(color: const Color(0xFF4B5563), width: 1.5)
+                : null,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
+                color: Colors.black.withValues(
+                  alpha: isHighContrast ? 0.35 : 0.1,
+                ),
                 blurRadius: 20,
                 offset: const Offset(0, 5),
               ),
@@ -1019,9 +1061,11 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                     height: 4,
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: isDarkMode
-                          ? Colors.white24
-                          : Colors.grey.withValues(alpha: 0.4),
+                      color: isHighContrast
+                          ? const Color(0xFF4B5563)
+                          : (isDarkMode
+                              ? Colors.white24
+                              : Colors.grey.withValues(alpha: 0.4)),
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
@@ -1033,12 +1077,19 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: sosRed.withValues(alpha: 0.1),
+                        color: isHighContrast
+                            ? const Color(0xFF450A0A)
+                            : sosRed.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
+                        border: isHighContrast
+                            ? Border.all(color: const Color(0xFFEF4444))
+                            : null,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         CupertinoIcons.exclamationmark_triangle_fill,
-                        color: sosRed,
+                        color: isHighContrast
+                            ? const Color(0xFFFCA5A5)
+                            : sosRed,
                         size: 24,
                       ),
                     ),
@@ -1049,7 +1100,9 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 18,
-                          color: isDarkMode ? Colors.white : Colors.black87,
+                          color: isHighContrast
+                              ? Colors.white
+                              : (isDarkMode ? Colors.white : Colors.black87),
                         ),
                       ),
                     ),
@@ -1059,13 +1112,20 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                         vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: sosRed.withValues(alpha: 0.1),
+                        color: isHighContrast
+                            ? const Color(0xFF450A0A)
+                            : sosRed.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(10),
+                        border: isHighContrast
+                            ? Border.all(color: const Color(0xFFEF4444))
+                            : null,
                       ),
                       child: Text(
                         status.toString().toUpperCase(),
-                        style: const TextStyle(
-                          color: sosRed,
+                        style: TextStyle(
+                          color: isHighContrast
+                              ? const Color(0xFFFCA5A5)
+                              : sosRed,
                           fontWeight: FontWeight.bold,
                           fontSize: 11,
                         ),
@@ -1081,6 +1141,7 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                   CupertinoIcons.phone_fill,
                   'Telepon',
                   noTelp,
+                  isHighContrast: isHighContrast,
                 ),
                 const SizedBox(height: 10),
                 FutureBuilder<String>(
@@ -1092,6 +1153,7 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                       CupertinoIcons.location_solid,
                       'Lokasi',
                       loc,
+                      isHighContrast: isHighContrast,
                     );
                   },
                 ),
@@ -1102,6 +1164,7 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                     CupertinoIcons.arrow_right_arrow_left,
                     'Jarak',
                     '${distanceKm.toStringAsFixed(1)} km dari Anda',
+                    isHighContrast: isHighContrast,
                   ),
                 ],
                 const SizedBox(height: 20),
@@ -1126,11 +1189,19 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
+                      backgroundColor: isHighContrast
+                          ? const Color(0xFF00897B)
+                          : primaryColor,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
+                        side: isHighContrast
+                            ? const BorderSide(
+                                color: Color(0xFF80CBC4),
+                                width: 1.5,
+                              )
+                            : BorderSide.none,
                       ),
                     ),
                     onPressed: _isFetchingRoute
@@ -1246,15 +1317,19 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
     String label,
     String value, {
     Widget? valueWidget,
+    bool isHighContrast = false,
   }) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final isDarkMode =
+        isHighContrast || Theme.of(context).brightness == Brightness.dark;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(
           icon,
           size: 18,
-          color: isDarkMode ? Colors.white54 : Colors.black54,
+          color: isHighContrast
+              ? const Color(0xFF80CBC4)
+              : (isDarkMode ? Colors.white54 : Colors.black54),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -1265,18 +1340,23 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                 label,
                 style: TextStyle(
                   fontSize: 11,
-                  color: isDarkMode ? Colors.white54 : Colors.black45,
+                  color: isHighContrast
+                      ? const Color(0xFFD1D5DB)
+                      : (isDarkMode ? Colors.white54 : Colors.black45),
                 ),
               ),
               const SizedBox(height: 2),
-              valueWidget ?? Text(
-                value,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isDarkMode ? Colors.white : Colors.black87,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+              valueWidget ??
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isHighContrast
+                          ? Colors.white
+                          : (isDarkMode ? Colors.white : Colors.black87),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
             ],
           ),
         ),

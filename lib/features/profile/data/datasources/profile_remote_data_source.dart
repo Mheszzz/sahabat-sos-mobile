@@ -1,9 +1,9 @@
-import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart';
-import '../../../../core/constants/api_constants.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/constants/api_constants.dart';
 
 abstract class ProfileRemoteDataSource {
   Future<Map<String, dynamic>> getProfile();
@@ -18,16 +18,19 @@ abstract class ProfileRemoteDataSource {
 }
 
 class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
+  final Dio dio;
   final SharedPreferences prefs;
 
-  ProfileRemoteDataSourceImpl({required this.prefs});
+  ProfileRemoteDataSourceImpl({
+    required this.dio,
+    required this.prefs,
+  });
 
-  Map<String, String> _getHeaders() {
+  Map<String, dynamic> _getHeaders() {
     final token = prefs.getString('auth_token');
     return {
       'Authorization': 'Bearer $token',
       'Accept': 'application/json',
-      'Content-Type': 'application/json',
     };
   }
 
@@ -36,59 +39,95 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
     switch (ext) {
       case 'png':
         return MediaType('image', 'png');
-      case 'jpg':
-      case 'jpeg':
-        return MediaType('image', 'jpeg');
       case 'webp':
         return MediaType('image', 'webp');
+      case 'jpg':
+      case 'jpeg':
       default:
         return MediaType('image', 'jpeg');
     }
   }
 
+  Map<String, dynamic> _parseResponse(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      return data;
+    } else if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    } else if (data is String) {
+      return json.decode(data);
+    }
+    return <String, dynamic>{};
+  }
+
   @override
   Future<Map<String, dynamic>> getProfile() async {
-    final response = await http.get(
-      Uri.parse(ApiConstants.profile),
-      headers: _getHeaders(),
-    );
+    try {
+      final response = await dio.get(
+        ApiConstants.profile,
+        options: Options(headers: _getHeaders()),
+      );
 
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      throw Exception('Gagal mengambil profil. Status: ${response.statusCode}');
+      if (response.statusCode == 200 && response.data != null) {
+        return _parseResponse(response.data);
+      } else {
+        throw Exception(
+          response.data?['message'] ??
+              'Gagal mengambil profil. Status: ${response.statusCode}',
+        );
+      }
+    } on DioException catch (e) {
+      throw Exception(
+        e.response?.data?['message'] ??
+            'Gagal mengambil profil: ${e.message}',
+      );
     }
   }
 
   @override
   Future<Map<String, dynamic>> getMe() async {
-    final response = await http.get(
-      Uri.parse(ApiConstants.me),
-      headers: _getHeaders(),
-    );
+    try {
+      final response = await dio.get(
+        ApiConstants.me,
+        options: Options(headers: _getHeaders()),
+      );
 
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
+      if (response.statusCode == 200 && response.data != null) {
+        return _parseResponse(response.data);
+      } else {
+        throw Exception(
+          response.data?['message'] ??
+              'Gagal mengambil profil user. Status: ${response.statusCode}',
+        );
+      }
+    } on DioException catch (e) {
       throw Exception(
-        'Gagal mengambil profil user. Status: ${response.statusCode}',
+        e.response?.data?['message'] ??
+            'Gagal mengambil profil user: ${e.message}',
       );
     }
   }
 
   @override
   Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
-    final response = await http.put(
-      Uri.parse(ApiConstants.profile),
-      headers: _getHeaders(),
-      body: json.encode(data),
-    );
+    try {
+      final response = await dio.put(
+        ApiConstants.profile,
+        data: data,
+        options: Options(headers: _getHeaders()),
+      );
 
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
+      if (response.statusCode == 200 && response.data != null) {
+        return _parseResponse(response.data);
+      } else {
+        throw Exception(
+          response.data?['message'] ??
+              'Gagal memperbarui profil. Status: ${response.statusCode}',
+        );
+      }
+    } on DioException catch (e) {
       throw Exception(
-        'Gagal memperbarui profil. Status: ${response.statusCode}',
+        e.response?.data?['message'] ??
+            'Gagal memperbarui profil: ${e.message}',
       );
     }
   }
@@ -98,92 +137,103 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
     Map<String, dynamic> data,
     XFile imageFile,
   ) async {
-    var request = http.MultipartRequest(
-      'POST',
-      Uri.parse(ApiConstants.profile),
-    );
+    try {
+      final map = <String, dynamic>{};
+      data.forEach((key, value) {
+        map[key] = value.toString();
+      });
 
-    // Add headers
-    request.headers.addAll({
-      'Authorization': 'Bearer ${prefs.getString('auth_token')}',
-      'Accept': 'application/json',
-    });
+      final bytes = await imageFile.readAsBytes();
+      final mimeType = _getMimeType(imageFile.name);
 
-    // Add string fields
-    data.forEach((key, value) {
-      request.fields[key] = value.toString();
-    });
-
-    // Add file with correct field name and MIME type
-    final bytes = await imageFile.readAsBytes();
-    final mimeType = _getMimeType(imageFile.name);
-    request.files.add(
-      http.MultipartFile.fromBytes(
-        'foto_profile',
+      map['foto_profile'] = MultipartFile.fromBytes(
         bytes,
         filename: imageFile.name,
         contentType: mimeType,
-      ),
-    );
+      );
 
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
+      final formData = FormData.fromMap(map);
 
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
+      // Gunakan POST endpoint /pengguna/profile yang mendukung multipart form-data
+      final response = await dio.post(
+        ApiConstants.profile,
+        data: formData,
+        options: Options(headers: _getHeaders()),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        return _parseResponse(response.data);
+      } else {
+        throw Exception(
+          response.data?['message'] ??
+              'Gagal memperbarui profil dan foto. Status: ${response.statusCode}',
+        );
+      }
+    } on DioException catch (e) {
       throw Exception(
-        'Gagal memperbarui profil dan foto. Status: ${response.statusCode}',
+        e.response?.data?['message'] ??
+            'Gagal memperbarui profil dan foto: ${e.message}',
       );
     }
   }
 
   @override
   Future<Map<String, dynamic>> uploadFoto(XFile imageFile) async {
-    var request = http.MultipartRequest(
-      'POST',
-      Uri.parse(ApiConstants.profileFoto),
-    );
+    try {
+      final bytes = await imageFile.readAsBytes();
+      final mimeType = _getMimeType(imageFile.name);
 
-    // Add headers
-    request.headers.addAll({
-      'Authorization': 'Bearer ${prefs.getString('auth_token')}',
-      'Accept': 'application/json',
-    });
+      final formData = FormData.fromMap({
+        'foto_profile': MultipartFile.fromBytes(
+          bytes,
+          filename: imageFile.name,
+          contentType: mimeType,
+        ),
+      });
 
-    // Add file with correct field name and MIME type
-    final bytes = await imageFile.readAsBytes();
-    final mimeType = _getMimeType(imageFile.name);
-    request.files.add(
-      http.MultipartFile.fromBytes(
-        'foto_profile',
-        bytes,
-        filename: imageFile.name,
-        contentType: mimeType,
-      ),
-    );
+      final response = await dio.post(
+        ApiConstants.profileFoto,
+        data: formData,
+        options: Options(headers: _getHeaders()),
+      );
 
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
-
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      throw Exception('Gagal mengupload foto. Status: ${response.statusCode}');
+      if (response.statusCode == 200 && response.data != null) {
+        return _parseResponse(response.data);
+      } else {
+        throw Exception(
+          response.data?['message'] ??
+              'Gagal mengupload foto. Status: ${response.statusCode}',
+        );
+      }
+    } on DioException catch (e) {
+      throw Exception(
+        e.response?.data?['message'] ??
+            'Gagal mengupload foto: ${e.message}',
+      );
     }
   }
 
   @override
   Future<Map<String, dynamic>> deleteFoto() async {
-    final response = await http.delete(
-      Uri.parse(ApiConstants.profileFoto),
-      headers: _getHeaders(),
-    );
+    try {
+      final response = await dio.delete(
+        ApiConstants.profileFoto,
+        options: Options(headers: _getHeaders()),
+      );
 
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      throw Exception('Gagal menghapus foto. Status: ${response.statusCode}');
+      if (response.statusCode == 200 && response.data != null) {
+        return _parseResponse(response.data);
+      } else {
+        throw Exception(
+          response.data?['message'] ??
+              'Gagal menghapus foto. Status: ${response.statusCode}',
+        );
+      }
+    } on DioException catch (e) {
+      throw Exception(
+        e.response?.data?['message'] ??
+            'Gagal menghapus foto: ${e.message}',
+      );
     }
   }
 }

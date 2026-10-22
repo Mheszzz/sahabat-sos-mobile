@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
 import '../../../../features/tuya_device/data/services/tuya_channel_service.dart';
 import '../../../../features/tuya_device/presentation/screens/tuya_device_list_screen.dart';
 
@@ -45,11 +46,26 @@ class _DevicePageState extends State<DevicePage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFF5F6F8),
-        body: Center(
-          child: CupertinoActivityIndicator(radius: 16),
-        ),
+      return ListenableBuilder(
+        listenable: AccessibilityService.instance,
+        builder: (context, _) {
+          final isHighContrast =
+              AccessibilityService.instance.isHighContrastEnabled ||
+              Theme.of(context).brightness == Brightness.dark ||
+              MediaQuery.of(context).highContrast;
+          return Scaffold(
+            backgroundColor:
+                isHighContrast ? Colors.black : const Color(0xFFF5F6F8),
+            body: Center(
+              child: CupertinoActivityIndicator(
+                radius: 16,
+                color: isHighContrast
+                    ? const Color(0xFF80CBC4)
+                    : const Color(0xFF00695C),
+              ),
+            ),
+          );
+        },
       );
     }
 

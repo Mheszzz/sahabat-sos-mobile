@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../routing/routes.dart';
 import 'package:get_it/get_it.dart';
+import '../../../../core/services/accessibility_service.dart';
+import '../../../../core/theme/accessible_colors.dart';
 
 import '../../../volunteer_task/data/datasources/volunteer_remote_data_source.dart';
 import '../../../../core/utils/global_event_bus.dart' as event_bus;
@@ -82,7 +84,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
 
           if (userData['foto_profile'] != null &&
               userData['foto_profile'].toString().isNotEmpty) {
-            String foto = userData['foto_profile'];
+            final String foto = userData['foto_profile'];
             if (foto.startsWith('http://') || foto.startsWith('https://')) {
               _avatarUrl = foto;
             } else {
@@ -176,102 +178,158 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: const Color(0xFFF5F6F8),
-      appBar: _buildAppBar(),
-      body: Container(
-        color: const Color(0xFFF5F6F8),
-        child: _isLoading
-            ? const Center(child: CupertinoActivityIndicator(radius: 16))
-            : SafeArea(
-                child: RefreshIndicator(
-                  onRefresh: _fetchProfile,
-                  color: primaryTeal,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.only(bottom: 120),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildProfileHeader(),
-                        if (!_isActive || _verificationStatus != 'terverifikasi') ...[
-                          const SizedBox(height: 16),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: _buildVerificationStatusCard(),
-                          ),
-                        ],
-                        const SizedBox(height: 24),
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final currentBg = isHighContrast ? Colors.black : const Color(0xFFF5F6F8);
+        final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+        final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+        final textSecondary = AccessibleColors.textSecondary(isHighContrast);
 
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _buildSectionHeader(
-                                icon: CupertinoIcons.briefcase,
-                                title: 'Informasi Relawan',
-                              ),
-                              const SizedBox(height: 12),
-                              _buildVolunteerInfoCard(),
-                              const SizedBox(height: 24),
-
-                              _buildSectionHeader(
-                                icon: CupertinoIcons.shield,
-                                title: 'Privasi & Lokasi',
-                              ),
-                              const SizedBox(height: 12),
-                              _buildPrivacyCard(),
-                              const SizedBox(height: 24),
-
-                              _buildSectionHeader(
-                                icon: CupertinoIcons.question_circle,
-                                title: 'Bantuan',
-                              ),
-                              const SizedBox(height: 12),
-                              _buildHelpCard(),
-                              const SizedBox(height: 32),
-
-                              _buildLogoutButton(),
-                              const SizedBox(height: 8),
-                              const Center(
-                                child: Text(
-                                  'versi 1.0 Beta',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.black54,
-                                  ),
+        return Scaffold(
+          extendBodyBehindAppBar: true,
+          backgroundColor: currentBg,
+          appBar: _buildAppBar(isHighContrast, currentBg, tealColor),
+          body: Container(
+            color: currentBg,
+            child: _isLoading
+                ? Center(
+                    child: CupertinoActivityIndicator(
+                      radius: 16,
+                      color: tealColor,
+                    ),
+                  )
+                : SafeArea(
+                    child: RefreshIndicator(
+                      onRefresh: _fetchProfile,
+                      color: tealColor,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.only(bottom: 120),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildProfileHeader(
+                              isHighContrast: isHighContrast,
+                              textPrimary: textPrimary,
+                              textSecondary: textSecondary,
+                              tealColor: tealColor,
+                            ),
+                            if (!_isActive || _verificationStatus != 'terverifikasi') ...[
+                              const SizedBox(height: 16),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                child: _buildVerificationStatusCard(
+                                  isHighContrast: isHighContrast,
+                                  textPrimary: textPrimary,
+                                  textSecondary: textSecondary,
                                 ),
                               ),
                             ],
-                          ),
+                            const SizedBox(height: 24),
+
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _buildSectionHeader(
+                                    icon: CupertinoIcons.briefcase,
+                                    title: 'Informasi Relawan',
+                                    tealColor: tealColor,
+                                    textPrimary: textPrimary,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _buildVolunteerInfoCard(
+                                    isHighContrast: isHighContrast,
+                                    textPrimary: textPrimary,
+                                    textSecondary: textSecondary,
+                                    tealColor: tealColor,
+                                  ),
+                                  const SizedBox(height: 24),
+
+                                  _buildSectionHeader(
+                                    icon: CupertinoIcons.shield,
+                                    title: 'Privasi & Lokasi',
+                                    tealColor: tealColor,
+                                    textPrimary: textPrimary,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _buildPrivacyCard(
+                                    isHighContrast: isHighContrast,
+                                    textPrimary: textPrimary,
+                                    textSecondary: textSecondary,
+                                  ),
+                                  const SizedBox(height: 24),
+
+                                  _buildSectionHeader(
+                                    icon: CupertinoIcons.question_circle,
+                                    title: 'Bantuan',
+                                    tealColor: tealColor,
+                                    textPrimary: textPrimary,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _buildHelpCard(
+                                    isHighContrast: isHighContrast,
+                                    textPrimary: textPrimary,
+                                    textSecondary: textSecondary,
+                                  ),
+                                  const SizedBox(height: 32),
+
+                                  _buildLogoutButton(
+                                    isHighContrast: isHighContrast,
+                                    tealColor: tealColor,
+                                    textPrimary: textPrimary,
+                                    textSecondary: textSecondary,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Center(
+                                    child: Text(
+                                      'versi 1.0 Beta',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ),
-      ),
+          ),
+        );
+      },
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
+  PreferredSizeWidget _buildAppBar(
+    bool isHighContrast,
+    Color currentBg,
+    Color tealColor,
+  ) {
     return AppBar(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: currentBg,
       elevation: 0,
       scrolledUnderElevation: 0,
-      iconTheme: const IconThemeData(color: primaryTeal),
+      iconTheme: IconThemeData(color: tealColor),
       centerTitle: false,
       titleSpacing: 16,
       title: Row(
         children: [
           Image.asset('assets/images/logo.png', width: 24, height: 24),
           const SizedBox(width: 8),
-          const Text(
+          Text(
             'Sahabat SOS',
             style: TextStyle(
-              color: primaryTeal,
+              color: tealColor,
               fontWeight: FontWeight.bold,
               fontSize: 18,
             ),
@@ -282,17 +340,16 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
         IconButton(
           onPressed: () async {
             if (_fullUserData != null) {
-              // Bisa diarahkan ke halaman edit profil relawan
               final result = await context.push<bool>(
                 AppRoutes.editProfile,
                 extra: _fullUserData,
               );
               if (result == true) {
-                _fetchProfile();
+                await _fetchProfile();
               }
             }
           },
-          icon: const Icon(CupertinoIcons.pencil, color: primaryTeal, size: 28),
+          icon: Icon(CupertinoIcons.pencil, color: tealColor, size: 28),
           tooltip: 'Edit Profil',
         ),
         const SizedBox(width: 8),
@@ -303,6 +360,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
   Widget _buildGlassContainer({
     required Widget child,
     BorderRadius? borderRadius,
+    bool isHighContrast = false,
   }) {
     final radius = borderRadius ?? BorderRadius.circular(16);
     return Container(
@@ -310,7 +368,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
         borderRadius: radius,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withValues(alpha: isHighContrast ? 0.35 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -322,10 +380,14 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.4),
+              color: isHighContrast
+                  ? const Color(0xFF121212)
+                  : Colors.white.withValues(alpha: 0.4),
               borderRadius: radius,
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.6),
+                color: isHighContrast
+                    ? const Color(0xFF4B5563)
+                    : Colors.white.withValues(alpha: 0.6),
                 width: 1.5,
               ),
             ),
@@ -336,10 +398,16 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     );
   }
 
-  Widget _buildProfileHeader() {
-    bool isVerified = _verificationStatus == 'terverifikasi';
+  Widget _buildProfileHeader({
+    required bool isHighContrast,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color tealColor,
+  }) {
+    final bool isVerified = _verificationStatus == 'terverifikasi';
 
     return _buildGlassContainer(
+      isHighContrast: isHighContrast,
       borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
       child: Container(
         width: double.infinity,
@@ -357,16 +425,20 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: !_isActive
-                      ? Colors.red
+                      ? (isHighContrast ? const Color(0xFFFCA5A5) : Colors.red)
                       : (isVerified
-                          ? primaryTeal
-                          : Colors.orange.withValues(alpha: 0.3)),
+                          ? tealColor
+                          : (isHighContrast
+                              ? const Color(0xFFFCD34D)
+                              : Colors.orange.withValues(alpha: 0.3))),
                   width: 3,
                 ),
               ),
               child: CircleAvatar(
                 radius: 46,
-                backgroundColor: Colors.grey.shade200,
+                backgroundColor: isHighContrast
+                    ? const Color(0xFF1E2430)
+                    : Colors.grey.shade200,
                 backgroundImage: NetworkImage(_avatarUrl),
                 onBackgroundImageError: (_, _) {},
               ),
@@ -378,10 +450,10 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                 Flexible(
                   child: Text(
                     _name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: textPrimary,
                     ),
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
@@ -389,9 +461,9 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                 ),
                 const SizedBox(width: 6),
                 if (isVerified && _isActive)
-                  const Icon(
+                  Icon(
                     CupertinoIcons.checkmark_seal_fill,
-                    color: primaryTeal,
+                    color: tealColor,
                     size: 20,
                   ),
               ],
@@ -400,21 +472,41 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
             if (_email != '-')
               Text(
                 _email,
-                style: const TextStyle(fontSize: 14, color: Colors.black54),
+                style: TextStyle(fontSize: 14, color: textSecondary),
                 textAlign: TextAlign.center,
               ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               decoration: BoxDecoration(
-                color: !_isActive
-                    ? const Color(0xFFFFEBEE)
-                    : (isVerified
-                        ? const Color(0xFFE0F2F1)
-                        : (_verificationStatus == 'ditolak'
-                            ? const Color(0xFFFFEBEE)
-                            : const Color(0xFFFFE0B2))),
+                color: isHighContrast
+                    ? (!_isActive
+                        ? const Color(0xFF450A0A)
+                        : (isVerified
+                            ? const Color(0xFF064E3B)
+                            : (_verificationStatus == 'ditolak'
+                                ? const Color(0xFF450A0A)
+                                : const Color(0xFF451A03))))
+                    : (!_isActive
+                        ? const Color(0xFFFFEBEE)
+                        : (isVerified
+                            ? const Color(0xFFE0F2F1)
+                            : (_verificationStatus == 'ditolak'
+                                ? const Color(0xFFFFEBEE)
+                                : const Color(0xFFFFE0B2)))),
                 borderRadius: BorderRadius.circular(20),
+                border: isHighContrast
+                    ? Border.all(
+                        color: !_isActive
+                            ? const Color(0xFFEF4444)
+                            : (isVerified
+                                ? const Color(0xFF10B981)
+                                : (_verificationStatus == 'ditolak'
+                                    ? const Color(0xFFEF4444)
+                                    : const Color(0xFFF59E0B))),
+                        width: 1.5,
+                      )
+                    : null,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -427,13 +519,21 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                             : (_verificationStatus == 'ditolak'
                                 ? CupertinoIcons.clear_thick_circled
                                 : CupertinoIcons.time)),
-                    color: !_isActive
-                        ? Colors.red.shade700
-                        : (isVerified
-                            ? primaryTeal
-                            : (_verificationStatus == 'ditolak'
-                                ? Colors.red.shade700
-                                : const Color(0xFFEF6C00))),
+                    color: isHighContrast
+                        ? (!_isActive
+                            ? const Color(0xFFFCA5A5)
+                            : (isVerified
+                                ? const Color(0xFFA7F3D0)
+                                : (_verificationStatus == 'ditolak'
+                                    ? const Color(0xFFFCA5A5)
+                                    : const Color(0xFFFDE68A))))
+                        : (!_isActive
+                            ? Colors.red.shade700
+                            : (isVerified
+                                ? primaryTeal
+                                : (_verificationStatus == 'ditolak'
+                                    ? Colors.red.shade700
+                                    : const Color(0xFFEF6C00)))),
                     size: 16,
                   ),
                   const SizedBox(width: 6),
@@ -447,13 +547,21 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                                 : 'Menunggu Verifikasi')),
                     style: TextStyle(
                       fontSize: 13,
-                      color: !_isActive
-                          ? Colors.red.shade700
-                          : (isVerified
-                              ? primaryTeal
-                              : (_verificationStatus == 'ditolak'
-                                  ? Colors.red.shade700
-                                  : const Color(0xFFEF6C00))),
+                      color: isHighContrast
+                          ? (!_isActive
+                              ? const Color(0xFFFCA5A5)
+                              : (isVerified
+                                  ? const Color(0xFFA7F3D0)
+                                  : (_verificationStatus == 'ditolak'
+                                      ? const Color(0xFFFCA5A5)
+                                      : const Color(0xFFFDE68A))))
+                          : (!_isActive
+                              ? Colors.red.shade700
+                              : (isVerified
+                                  ? primaryTeal
+                                  : (_verificationStatus == 'ditolak'
+                                      ? Colors.red.shade700
+                                      : const Color(0xFFEF6C00)))),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -465,18 +573,30 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
               icon: CupertinoIcons.phone,
               label: 'Nomor Telepon',
               value: _phone,
+              isHighContrast: isHighContrast,
+              textPrimary: textPrimary,
+              textSecondary: textSecondary,
+              tealColor: tealColor,
             ),
             const SizedBox(height: 6),
             _buildInfoBox(
               icon: CupertinoIcons.location_solid,
               label: 'Lokasi Saat Ini',
               value: _location,
+              isHighContrast: isHighContrast,
+              textPrimary: textPrimary,
+              textSecondary: textSecondary,
+              tealColor: tealColor,
             ),
             const SizedBox(height: 6),
             _buildInfoBox(
               icon: CupertinoIcons.house,
               label: 'Alamat Lengkap',
               value: _address,
+              isHighContrast: isHighContrast,
+              textPrimary: textPrimary,
+              textSecondary: textSecondary,
+              tealColor: tealColor,
             ),
           ],
         ),
@@ -484,16 +604,23 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     );
   }
 
-  Widget _buildVerificationStatusCard() {
+  Widget _buildVerificationStatusCard({
+    required bool isHighContrast,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
     if (!_isActive) {
       return Container(
         decoration: BoxDecoration(
-          color: const Color(0xFFFFEBEE),
+          color: isHighContrast ? const Color(0xFF1E2430) : const Color(0xFFFFEBEE),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFFFCDD2), width: 1.5),
+          border: Border.all(
+            color: isHighContrast ? const Color(0xFFEF4444) : const Color(0xFFFFCDD2),
+            width: 1.5,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
+              color: Colors.black.withValues(alpha: isHighContrast ? 0.3 : 0.04),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -508,12 +635,13 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.red.shade700.withValues(alpha: 0.15),
+                    color: (isHighContrast ? const Color(0xFFEF4444) : Colors.red.shade700)
+                        .withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     CupertinoIcons.slash_circle_fill,
-                    color: Colors.red.shade700,
+                    color: isHighContrast ? const Color(0xFFFCA5A5) : Colors.red.shade700,
                     size: 22,
                   ),
                 ),
@@ -524,18 +652,18 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.red.shade700,
+                      color: isHighContrast ? const Color(0xFFFCA5A5) : Colors.red.shade700,
                     ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               'Akun relawan Anda saat ini dinonaktifkan oleh administrator. Akses ke seluruh fitur operasional relawan (Beranda, Tugas, Peta) dibekukan sementara. Silakan hubungi admin atau periksa kembali status akun Anda.',
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.black87,
+                color: textSecondary,
                 height: 1.4,
               ),
             ),
@@ -554,21 +682,23 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                       )
                     : const Icon(CupertinoIcons.arrow_2_circlepath, size: 16),
                 label: Text(
-                  _isCheckingStatus
-                      ? 'Memeriksa...'
-                      : 'Periksa Status Akun',
+                  _isCheckingStatus ? 'Memeriksa...' : 'Periksa Status Akun',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red.shade700,
+                  backgroundColor:
+                      isHighContrast ? const Color(0xFFB91C1C) : Colors.red.shade700,
                   foregroundColor: Colors.white,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
+                    side: isHighContrast
+                        ? const BorderSide(color: Color(0xFFFCA5A5), width: 1.5)
+                        : BorderSide.none,
                   ),
                 ),
               ),
@@ -579,9 +709,15 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     }
 
     final isRejected = _verificationStatus == 'ditolak';
-    final cardColor = isRejected ? const Color(0xFFFFEBEE) : const Color(0xFFFFF3E0);
-    final borderColor = isRejected ? const Color(0xFFFFCDD2) : const Color(0xFFFFE0B2);
-    final iconColor = isRejected ? Colors.red.shade700 : const Color(0xFFEF6C00);
+    final cardColor = isHighContrast
+        ? const Color(0xFF1E2430)
+        : (isRejected ? const Color(0xFFFFEBEE) : const Color(0xFFFFF3E0));
+    final borderColor = isHighContrast
+        ? (isRejected ? const Color(0xFFEF4444) : const Color(0xFFF59E0B))
+        : (isRejected ? const Color(0xFFFFCDD2) : const Color(0xFFFFE0B2));
+    final iconColor = isHighContrast
+        ? (isRejected ? const Color(0xFFFCA5A5) : const Color(0xFFFCD34D))
+        : (isRejected ? Colors.red.shade700 : const Color(0xFFEF6C00));
 
     return Container(
       decoration: BoxDecoration(
@@ -590,7 +726,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
         border: Border.all(color: borderColor, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: isHighContrast ? 0.3 : 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -636,9 +772,9 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
             isRejected
                 ? 'Pendaftaran akun relawan Anda ditolak oleh administrator. Silakan hubungi tim admin untuk informasi lebih detail.'
                 : 'Akun Anda saat ini belum diverifikasi oleh admin. Semua fitur operasional relawan (Beranda, Tugas, Peta) dibatasi hingga akun disetujui.',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: Colors.black87,
+              color: textSecondary,
               height: 1.4,
             ),
           ),
@@ -657,21 +793,24 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                     )
                   : const Icon(CupertinoIcons.arrow_2_circlepath, size: 16),
               label: Text(
-                _isCheckingStatus
-                    ? 'Memeriksa...'
-                    : 'Periksa Status Verifikasi',
+                _isCheckingStatus ? 'Memeriksa...' : 'Periksa Status Verifikasi',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: isRejected ? Colors.red.shade700 : const Color(0xFFEF6C00),
+                backgroundColor: isHighContrast
+                    ? (isRejected ? const Color(0xFFB91C1C) : const Color(0xFFD97706))
+                    : (isRejected ? Colors.red.shade700 : const Color(0xFFEF6C00)),
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
+                  side: isHighContrast
+                      ? BorderSide(color: iconColor, width: 1.5)
+                      : BorderSide.none,
                 ),
               ),
             ),
@@ -681,20 +820,38 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     );
   }
 
-  Widget _buildVolunteerInfoCard() {
+  Widget _buildVolunteerInfoCard({
+    required bool isHighContrast,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color tealColor,
+  }) {
     return _buildGlassContainer(
+      isHighContrast: isHighContrast,
       child: Column(
         children: [
           _buildInfoTile(
             icon: CupertinoIcons.briefcase_fill,
             title: 'Pekerjaan',
             value: _job,
+            isHighContrast: isHighContrast,
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+            tealColor: tealColor,
           ),
-          const Divider(height: 1, indent: 56),
+          Divider(
+            height: 1,
+            indent: 56,
+            color: isHighContrast ? const Color(0xFF374151) : const Color(0xFFE5E7EB),
+          ),
           _buildInfoTile(
             icon: CupertinoIcons.heart_fill,
             title: 'Alasan Menjadi Relawan',
             value: _reason,
+            isHighContrast: isHighContrast,
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+            tealColor: tealColor,
           ),
         ],
       ),
@@ -705,6 +862,10 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     required IconData icon,
     required String title,
     required String value,
+    required bool isHighContrast,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color tealColor,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -715,10 +876,12 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: primaryTeal.withValues(alpha: 0.1),
+              color: isHighContrast
+                  ? tealColor.withValues(alpha: 0.2)
+                  : primaryTeal.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: primaryTeal, size: 20),
+            child: Icon(icon, color: tealColor, size: 20),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -728,18 +891,18 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
-                    color: Colors.black87,
+                    color: textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: Colors.black54,
+                    color: textSecondary,
                     height: 1.4,
                   ),
                 ),
@@ -755,18 +918,24 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     required IconData icon,
     required String label,
     required String value,
+    required bool isHighContrast,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color tealColor,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: isHighContrast ? const Color(0xFF1E2430) : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: isHighContrast ? const Color(0xFF4B5563) : Colors.grey.shade200,
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, color: primaryTeal, size: 22),
+          Icon(icon, color: tealColor, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -775,15 +944,15 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(fontSize: 11, color: Colors.black54),
+                  style: TextStyle(fontSize: 11, color: textSecondary),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   value.trim(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                    color: textPrimary,
                   ),
                 ),
               ],
@@ -794,24 +963,33 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     );
   }
 
-  Widget _buildSectionHeader({required IconData icon, required String title}) {
+  Widget _buildSectionHeader({
+    required IconData icon,
+    required String title,
+    required Color tealColor,
+    required Color textPrimary,
+  }) {
     return Row(
       children: [
-        Icon(icon, color: primaryTeal, size: 22),
+        Icon(icon, color: tealColor, size: 22),
         const SizedBox(width: 10),
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 16,
-            color: Colors.black87,
+            color: textPrimary,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildPrivacyCard() {
+  Widget _buildPrivacyCard({
+    required bool isHighContrast,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       child: Row(
@@ -821,17 +999,20 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.orange.shade50,
+              color: isHighContrast ? const Color(0xFF1E2430) : Colors.orange.shade50,
               borderRadius: BorderRadius.circular(12),
+              border: isHighContrast
+                  ? Border.all(color: const Color(0xFF4B5563))
+                  : null,
             ),
-            child: const Icon(
+            child: Icon(
               CupertinoIcons.location,
-              color: Color(0xFFEF6C00),
+              color: isHighContrast ? const Color(0xFFFDBA74) : const Color(0xFFEF6C00),
               size: 24,
             ),
           ),
           const SizedBox(width: 16),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -841,15 +1022,15 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
-                    color: Colors.black87,
+                    color: textPrimary,
                   ),
                 ),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 Text(
                   'Lokasi Anda dibagikan agar pengguna yang membutuhkan dapat menemukan relawan terdekat. Anda bisa mengatur privasi ini di pengaturan.',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.black54,
+                    color: textSecondary,
                     height: 1.4,
                   ),
                 ),
@@ -861,24 +1042,39 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     );
   }
 
-  Widget _buildHelpCard() {
+  Widget _buildHelpCard({
+    required bool isHighContrast,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
     return _buildGlassContainer(
+      isHighContrast: isHighContrast,
       child: Column(
         children: [
           _buildHelpTile(
             icon: CupertinoIcons.info,
-            iconColor: Colors.blue.shade700,
-            iconBg: Colors.blue.shade50,
+            iconColor: isHighContrast ? const Color(0xFF93C5FD) : Colors.blue.shade700,
+            iconBg: isHighContrast ? const Color(0xFF1E2430) : Colors.blue.shade50,
             title: 'Panduan Relawan',
             subtitle: 'SOP darurat, FAQ, cara menangani SOS',
+            isHighContrast: isHighContrast,
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
           ),
-          const Divider(height: 1, indent: 56),
+          Divider(
+            height: 1,
+            indent: 56,
+            color: isHighContrast ? const Color(0xFF374151) : const Color(0xFFE5E7EB),
+          ),
           _buildHelpTile(
             icon: CupertinoIcons.headphones,
-            iconColor: Colors.orange.shade700,
-            iconBg: Colors.orange.shade50,
+            iconColor: isHighContrast ? const Color(0xFFFDBA74) : Colors.orange.shade700,
+            iconBg: isHighContrast ? const Color(0xFF1E2430) : Colors.orange.shade50,
             title: 'Hubungi Admin',
             subtitle: 'Bantuan koordinasi laporan',
+            isHighContrast: isHighContrast,
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
           ),
         ],
       ),
@@ -891,6 +1087,9 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     required Color iconColor,
     required String title,
     required String subtitle,
+    required bool isHighContrast,
+    required Color textPrimary,
+    required Color textSecondary,
     VoidCallback? onTap,
   }) {
     return InkWell(
@@ -905,6 +1104,9 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
               decoration: BoxDecoration(
                 color: iconBg,
                 borderRadius: BorderRadius.circular(12),
+                border: isHighContrast
+                    ? Border.all(color: const Color(0xFF4B5563))
+                    : null,
               ),
               child: Icon(icon, color: iconColor, size: 22),
             ),
@@ -916,28 +1118,36 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
-                      color: Colors.black87,
+                      color: textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                    style: TextStyle(fontSize: 12, color: textSecondary),
                   ),
                 ],
               ),
             ),
-            const Icon(CupertinoIcons.chevron_right, color: Colors.black38),
+            Icon(
+              CupertinoIcons.chevron_right,
+              color: isHighContrast ? const Color(0xFF9CA3AF) : Colors.black38,
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLogoutButton() {
+  Widget _buildLogoutButton({
+    required bool isHighContrast,
+    required Color tealColor,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
     return SizedBox(
       width: double.infinity,
       height: 52,
@@ -949,11 +1159,16 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
             builder: (ctx) => Container(
               margin: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: isHighContrast ? const Color(0xFF121212) : Colors.white,
                 borderRadius: BorderRadius.circular(24),
+                border: isHighContrast
+                    ? Border.all(color: const Color(0xFF4B5563), width: 1.5)
+                    : null,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
+                    color: Colors.black.withValues(
+                      alpha: isHighContrast ? 0.35 : 0.1,
+                    ),
                     blurRadius: 20,
                     offset: const Offset(0, -4),
                   ),
@@ -968,39 +1183,48 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.grey[300],
+                        color: isHighContrast
+                            ? const Color(0xFF4B5563)
+                            : Colors.grey[300],
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                     const SizedBox(height: 20),
                     Container(
                       padding: const EdgeInsets.all(16),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFFFEBEE),
+                      decoration: BoxDecoration(
+                        color: isHighContrast
+                            ? const Color(0xFF450A0A)
+                            : const Color(0xFFFFEBEE),
                         shape: BoxShape.circle,
+                        border: isHighContrast
+                            ? Border.all(color: const Color(0xFFEF4444))
+                            : null,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         CupertinoIcons.arrow_right_square,
-                        color: Color(0xFFD32F2F),
+                        color: isHighContrast
+                            ? const Color(0xFFFCA5A5)
+                            : const Color(0xFFD32F2F),
                         size: 32,
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       'Keluar Akun',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF1A1A2E),
+                        color: textPrimary,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'Apakah Anda yakin ingin keluar dari akun ini?',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.black54,
+                        color: textSecondary,
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -1010,8 +1234,12 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                           child: OutlinedButton(
                             onPressed: () => Navigator.pop(ctx, false),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: primaryTeal,
-                              side: BorderSide(color: primaryTeal.withValues(alpha: 0.3)),
+                              foregroundColor: tealColor,
+                              side: BorderSide(
+                                color: isHighContrast
+                                    ? const Color(0xFF4B5563)
+                                    : tealColor.withValues(alpha: 0.3),
+                              ),
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
@@ -1028,12 +1256,20 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                           child: ElevatedButton(
                             onPressed: () => Navigator.pop(ctx, true),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFD32F2F),
+                              backgroundColor: isHighContrast
+                                  ? const Color(0xFFB91C1C)
+                                  : const Color(0xFFD32F2F),
                               foregroundColor: Colors.white,
                               elevation: 0,
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
+                                side: isHighContrast
+                                    ? const BorderSide(
+                                        color: Color(0xFFFCA5A5),
+                                        width: 1.5,
+                                      )
+                                    : BorderSide.none,
                               ),
                             ),
                             child: const Text(
@@ -1076,11 +1312,18 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFFFEBEE),
-          foregroundColor: const Color(0xFFD32F2F),
+          backgroundColor: isHighContrast
+              ? const Color(0xFF450A0A)
+              : const Color(0xFFFFEBEE),
+          foregroundColor: isHighContrast
+              ? const Color(0xFFFCA5A5)
+              : const Color(0xFFD32F2F),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
+            side: isHighContrast
+                ? const BorderSide(color: Color(0xFFEF4444), width: 1.5)
+                : BorderSide.none,
           ),
         ),
       ),

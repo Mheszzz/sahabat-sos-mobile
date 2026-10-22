@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
+import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
 import '../../data/models/tuya_device_model.dart';
 import '../../data/models/tuya_dp_event_model.dart';
 import '../../data/services/tuya_channel_service.dart';
@@ -41,6 +43,9 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
     super.initState();
     _loadDeviceInfo();
     _startListening();
+    unawaited(
+      AccessibilityService.instance.speak('Halaman detail perangkat SOS'),
+    );
   }
 
   Future<void> _loadDeviceInfo() async {
@@ -92,10 +97,19 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
   }
 
   Future<void> _testSosTrigger() async {
+    AccessibilityService.instance.hapticSelection();
+    unawaited(
+      AccessibilityService.instance.speak('Mengirimkan sinyal uji coba SOS'),
+    );
     setState(() => _isTestingTrigger = true);
     try {
       await _emergencyService.triggerTestEmergency(widget.deviceId);
       if (mounted) {
+        AccessibilityService.instance.hapticSelection();
+        unawaited(
+          AccessibilityService.instance
+              .speak('Test sinyal SOS berhasil dikirim ke server'),
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Test SOS berhasil dikirim ke server'),
@@ -105,6 +119,11 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
+        AccessibilityService.instance.hapticMedium();
+        unawaited(
+          AccessibilityService.instance
+              .speak('Gagal mengirim sinyal uji coba: $e'),
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Gagal: $e'),
@@ -118,10 +137,15 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
   }
 
   Future<void> _removeDevice() async {
+    AccessibilityService.instance.hapticSelection();
     setState(() => _isLoading = true);
     try {
       await _tuyaService.removeDevice(widget.deviceId);
       if (mounted) {
+        AccessibilityService.instance.hapticSelection();
+        unawaited(
+          AccessibilityService.instance.speak('Perangkat berhasil dihapus'),
+        );
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -133,6 +157,10 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
+        AccessibilityService.instance.hapticMedium();
+        unawaited(
+          AccessibilityService.instance.speak('Gagal menghapus perangkat: $e'),
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Gagal menghapus perangkat: $e'),
@@ -155,18 +183,21 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
     EdgeInsetsGeometry? padding,
     Color? color,
     Border? border,
+    bool isHighContrast = false,
   }) {
     return Container(
       padding: padding ?? const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color ?? Colors.white,
+        color: color ?? AccessibleColors.cardBackground(isHighContrast),
         borderRadius: BorderRadius.circular(16),
-        border: border ?? Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: const [
+        border: border ?? AccessibleColors.cardBorder(isHighContrast),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x06000000),
+            color: Colors.black.withValues(
+              alpha: isHighContrast ? 0.3 : 0.04,
+            ),
             blurRadius: 6,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -176,89 +207,115 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFF8FAFC),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        iconTheme: const IconThemeData(color: primaryTeal),
-        leading: widget.showBackButton
-            ? IconButton(
-                icon: const Icon(CupertinoIcons.back, color: primaryTeal),
-                onPressed: () => Navigator.of(context).pop(),
-              )
-            : null,
-        centerTitle: false,
-        titleSpacing: widget.showBackButton ? 0 : 16,
-        title: Row(
-          children: [
-            Image.asset('assets/images/logo.png', width: 24, height: 24),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                _device?.name ?? 'Detail Perangkat',
-                style: const TextStyle(
-                  color: primaryTeal,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final currentBg =
+            isHighContrast ? Colors.black : const Color(0xFFF8FAFC);
+        final tealColor =
+            isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
+        return Scaffold(
+          backgroundColor: currentBg,
+          appBar: AppBar(
+            backgroundColor: currentBg,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            iconTheme: IconThemeData(color: tealColor),
+            leading: widget.showBackButton
+                ? IconButton(
+                    icon: Icon(CupertinoIcons.back, color: tealColor),
+                    onPressed: () => Navigator.of(context).pop(),
+                  )
+                : null,
+            centerTitle: false,
+            titleSpacing: widget.showBackButton ? 0 : 16,
+            title: Row(
+              children: [
+                Image.asset('assets/images/logo.png', width: 24, height: 24),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _device?.name ?? 'Detail Perangkat',
+                    style: TextStyle(
+                      color: tealColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(CupertinoIcons.refresh, color: primaryTeal),
-            onPressed: _loadDeviceInfo,
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(
-                child: CupertinoActivityIndicator(radius: 16),
-              )
-            : SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildDeviceInfoCard(),
-                    const SizedBox(height: 14),
-                    _buildStatusGrid(),
-                    const SizedBox(height: 14),
-                    _buildTestCard(),
-                    const SizedBox(height: 14),
-                    _buildEventHistoryCard(),
-                    const SizedBox(height: 20),
-                    _buildDangerZone(),
-                    const SizedBox(height: 80),
-                  ],
-                ),
+            actions: [
+              IconButton(
+                icon: Icon(CupertinoIcons.refresh, color: tealColor),
+                onPressed: _loadDeviceInfo,
               ),
-      ),
+            ],
+          ),
+          body: SafeArea(
+            child: _isLoading
+                ? Center(
+                    child: CupertinoActivityIndicator(
+                      radius: 16,
+                      color: tealColor,
+                    ),
+                  )
+                : SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildDeviceInfoCard(isHighContrast),
+                        const SizedBox(height: 14),
+                        _buildStatusGrid(isHighContrast),
+                        const SizedBox(height: 14),
+                        _buildTestCard(isHighContrast),
+                        const SizedBox(height: 14),
+                        _buildEventHistoryCard(isHighContrast),
+                        const SizedBox(height: 20),
+                        _buildDangerZone(isHighContrast),
+                        const SizedBox(height: 80),
+                      ],
+                    ),
+                  ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildDeviceInfoCard() {
+  Widget _buildDeviceInfoCard(bool isHighContrast) {
     final isOnline = _device?.isOnline ?? false;
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
 
     return _buildCard(
+      isHighContrast: isHighContrast,
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: isOnline ? primaryLightTeal : const Color(0xFFFEF2F2),
+              color: isOnline
+                  ? (isHighContrast ? const Color(0xFF1E3A34) : primaryLightTeal)
+                  : (isHighContrast ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2)),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               CupertinoIcons.device_phone_portrait,
               size: 32,
-              color: isOnline ? primaryTeal : const Color(0xFFDC2626),
+              color: isOnline
+                  ? tealColor
+                  : (isHighContrast ? const Color(0xFFEF4444) : const Color(0xFFDC2626)),
             ),
           ),
           const SizedBox(width: 16),
@@ -268,16 +325,16 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
               children: [
                 Text(
                   _device?.name ?? 'Perangkat SOS',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 17,
-                    color: Color(0xFF111827),
+                    color: textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'ID: ${widget.deviceId}',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                  style: TextStyle(fontSize: 12, color: textSecondary),
                 ),
                 const SizedBox(height: 6),
                 Row(
@@ -286,7 +343,9 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: isOnline ? primaryTeal : const Color(0xFFDC2626),
+                        color: isOnline
+                            ? (isHighContrast ? const Color(0xFF4ADE80) : primaryTeal)
+                            : (isHighContrast ? const Color(0xFFEF4444) : const Color(0xFFDC2626)),
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -296,7 +355,9 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: isOnline ? primaryTeal : const Color(0xFFDC2626),
+                        color: isOnline
+                            ? (isHighContrast ? const Color(0xFF4ADE80) : primaryTeal)
+                            : (isHighContrast ? const Color(0xFFEF4444) : const Color(0xFFDC2626)),
                       ),
                     ),
                   ],
@@ -309,7 +370,7 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
     );
   }
 
-  Widget _buildStatusGrid() {
+  Widget _buildStatusGrid(bool isHighContrast) {
     return Row(
       children: [
         Expanded(
@@ -319,6 +380,7 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
             value: _device?.batteryLevel != null
                 ? '${_device!.batteryLevel}%'
                 : 'N/A',
+            isHighContrast: isHighContrast,
           ),
         ),
         const SizedBox(width: 10),
@@ -327,6 +389,7 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
             icon: CupertinoIcons.antenna_radiowaves_left_right,
             label: 'Sinyal',
             value: _device?.signalStrengthFormatted ?? 'N/A',
+            isHighContrast: isHighContrast,
           ),
         ),
         const SizedBox(width: 10),
@@ -335,6 +398,7 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
             icon: CupertinoIcons.clock,
             label: 'Total Event',
             value: '${_deviceEvents.length}',
+            isHighContrast: isHighContrast,
           ),
         ),
       ],
@@ -345,34 +409,45 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
     required IconData icon,
     required String label,
     required String value,
+    bool isHighContrast = false,
   }) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+
     return _buildCard(
+      isHighContrast: isHighContrast,
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
       child: Column(
         children: [
-          Icon(icon, color: primaryTeal, size: 22),
+          Icon(icon, color: tealColor, size: 22),
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 16,
-              color: Color(0xFF111827),
+              color: textPrimary,
             ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+            style: TextStyle(fontSize: 12, color: textSecondary),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTestCard() {
+  Widget _buildTestCard(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+
     return _buildCard(
+      isHighContrast: isHighContrast,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -381,30 +456,36 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: primaryLightTeal,
+                  color: isHighContrast
+                      ? const Color(0xFF1E3A34)
+                      : primaryLightTeal,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(
+                child: Icon(
                   CupertinoIcons.paperplane_fill,
-                  color: primaryTeal,
+                  color: tealColor,
                   size: 18,
                 ),
               ),
               const SizedBox(width: 12),
-              const Text(
+              Text(
                 'Uji Coba Respon SOS',
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 15,
-                  color: Color(0xFF111827),
+                  color: textPrimary,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Kirimkan sinyal uji coba ke server backend untuk memastikan integrasi tombol fisik berfungsi normal.',
-            style: TextStyle(fontSize: 13, color: Color(0xFF4B5563), height: 1.4),
+            style: TextStyle(
+              fontSize: 13,
+              color: textSecondary,
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 14),
           SizedBox(
@@ -413,10 +494,16 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
             child: ElevatedButton(
               onPressed: _isTestingTrigger ? null : _testSosTrigger,
               style: ElevatedButton.styleFrom(
-                backgroundColor: primaryTeal,
+                backgroundColor: isHighContrast
+                    ? const Color(0xFF00897B)
+                    : primaryTeal,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
+                  side: isHighContrast
+                      ? const BorderSide(
+                          color: Color(0xFF80CBC4), width: 1.5)
+                      : BorderSide.none,
                 ),
                 elevation: 0,
               ),
@@ -442,30 +529,34 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
     );
   }
 
-  Widget _buildEventHistoryCard() {
+  Widget _buildEventHistoryCard(bool isHighContrast) {
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(left: 2, bottom: 10, top: 4),
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 10, top: 4),
           child: Text(
             'Riwayat Sinyal Event',
             style: TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 16,
-              color: Color(0xFF111827),
+              color: textPrimary,
             ),
           ),
         ),
         _buildCard(
+          isHighContrast: isHighContrast,
           padding: EdgeInsets.zero,
           child: _deviceEvents.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
                   child: Center(
                     child: Text(
                       'Belum ada riwayat event dari perangkat ini',
-                      style: TextStyle(color: Color(0xFF6B7280), fontSize: 13),
+                      style: TextStyle(color: textSecondary, fontSize: 13),
                     ),
                   ),
                 )
@@ -490,8 +581,12 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
                                     color: event.isSosTriggered
-                                        ? const Color(0xFFFEF2F2)
-                                        : const Color(0xFFF3F4F6),
+                                        ? (isHighContrast
+                                            ? const Color(0xFF450A0A)
+                                            : const Color(0xFFFEF2F2))
+                                        : (isHighContrast
+                                            ? const Color(0xFF1E2430)
+                                            : const Color(0xFFF3F4F6)),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Icon(
@@ -501,8 +596,10 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
                                         : CupertinoIcons.info_circle_fill,
                                     size: 16,
                                     color: event.isSosTriggered
-                                        ? const Color(0xFFDC2626)
-                                        : const Color(0xFF6B7280),
+                                        ? (isHighContrast
+                                            ? const Color(0xFFEF4444)
+                                            : const Color(0xFFDC2626))
+                                        : textSecondary,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -521,8 +618,10 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
                                               ? FontWeight.w700
                                               : FontWeight.w600,
                                           color: event.isSosTriggered
-                                              ? const Color(0xFFDC2626)
-                                              : const Color(0xFF111827),
+                                              ? (isHighContrast
+                                                  ? const Color(0xFFEF4444)
+                                                  : const Color(0xFFDC2626))
+                                              : textPrimary,
                                         ),
                                       ),
                                       const SizedBox(height: 2),
@@ -530,9 +629,9 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
                                         '${event.timestamp.day}/${event.timestamp.month}/${event.timestamp.year} '
                                         '${event.timestamp.hour.toString().padLeft(2, '0')}:${event.timestamp.minute.toString().padLeft(2, '0')}\n'
                                         'Payload: ${event.dps.toString()}',
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 11.5,
-                                          color: Color(0xFF6B7280),
+                                          color: textSecondary,
                                         ),
                                       ),
                                     ],
@@ -545,14 +644,18 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
                                       vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFFFF7ED),
+                                      color: isHighContrast
+                                          ? const Color(0xFF431407)
+                                          : const Color(0xFFFFF7ED),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
-                                    child: const Text(
+                                    child: Text(
                                       'SIMULASI',
                                       style: TextStyle(
                                         fontSize: 10,
-                                        color: Color(0xFFEA580C),
+                                        color: isHighContrast
+                                            ? const Color(0xFFFB923C)
+                                            : const Color(0xFFEA580C),
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
@@ -561,9 +664,11 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
                             ),
                           ),
                           if (!isLast)
-                            const Divider(
+                            Divider(
                               height: 1,
-                              color: Color(0xFFF3F4F6),
+                              color: isHighContrast
+                                  ? const Color(0xFF374151)
+                                  : const Color(0xFFF3F4F6),
                               indent: 52,
                             ),
                         ],
@@ -576,8 +681,13 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
     );
   }
 
-  Widget _buildDangerZone() {
+  Widget _buildDangerZone(bool isHighContrast) {
+    final dialogBg = AccessibleColors.cardBackground(isHighContrast);
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+
     return _buildCard(
+      isHighContrast: isHighContrast,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -598,32 +708,35 @@ class _TuyaDeviceDetailScreenState extends State<TuyaDeviceDetailScreen> {
                 showDialog(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    backgroundColor: Colors.white,
+                    backgroundColor: dialogBg,
                     surfaceTintColor: Colors.transparent,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
-                      side: const BorderSide(color: Color(0xFFE5E7EB)),
+                      side: isHighContrast
+                          ? const BorderSide(
+                              color: Color(0xFF4B5563), width: 1.5)
+                          : const BorderSide(color: Color(0xFFE5E7EB)),
                     ),
-                    title: const Text(
+                    title: Text(
                       'Hapus Perangkat?',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 17,
-                        color: Color(0xFF111827),
+                        color: textPrimary,
                       ),
                     ),
-                    content: const Text(
+                    content: Text(
                       'Perangkat ini akan dihapus dari akun Sahabat SOS Anda. '
                       'Anda perlu melakukan proses pairing ulang jika ingin menghubungkannya kembali.',
-                      style: TextStyle(color: Color(0xFF4B5563), fontSize: 13.5),
+                      style: TextStyle(color: textSecondary, fontSize: 13.5),
                     ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.of(ctx).pop(),
-                        child: const Text(
+                        child: Text(
                           'Batal',
                           style: TextStyle(
-                            color: Color(0xFF6B7280),
+                            color: textSecondary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),

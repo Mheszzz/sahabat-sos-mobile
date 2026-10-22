@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
 
 class GlassContainer extends StatelessWidget {
   final Widget child;
@@ -25,6 +26,22 @@ class GlassContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isHighContrast =
+        AccessibilityService.instance.isHighContrastEnabled ||
+        Theme.of(context).brightness == Brightness.dark ||
+        MediaQuery.of(context).highContrast;
+
+    final effectiveColor = color ??
+        (isHighContrast
+            ? const Color(0xFF121212)
+            : Colors.white.withValues(alpha: opacity));
+
+    final effectiveBorder = border ??
+        (isHighContrast
+            ? Border.all(color: const Color(0xFF4B5563), width: 1.5)
+            : Border.all(
+                color: Colors.white.withValues(alpha: 0.5), width: 1.5));
+
     return Container(
       margin: margin,
       child: ClipRRect(
@@ -34,11 +51,9 @@ class GlassContainer extends StatelessWidget {
           child: Container(
             padding: padding,
             decoration: BoxDecoration(
-              color: color ?? Colors.white.withValues(alpha: opacity),
+              color: effectiveColor,
               borderRadius: borderRadius ?? BorderRadius.circular(20),
-              border:
-                  border ??
-                  Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1.5),
+              border: effectiveBorder,
             ),
             child: child,
           ),

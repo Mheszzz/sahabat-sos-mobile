@@ -7,7 +7,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
 import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
+import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
 import 'package:sahabat_sos_mobile/features/sos/data/datasources/sos_remote_data_source.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'widgets/slide_to_cancel_button.dart';
@@ -25,7 +27,6 @@ class _SosStatusPageState extends State<SosStatusPage>
   static const Color sosRed = Color(0xFFDC2626);
   static const Color warningOrange = Color(0xFFD97706);
   static const Color bgSurface = Color(0xFFF5F6F8);
-  static const Color cardBorder = Color(0xFFE5E7EB);
 
   Timer? _statusTimer;
   Timer? _selesaiTimer;
@@ -248,10 +249,10 @@ class _SosStatusPageState extends State<SosStatusPage>
     }
   }
 
-  void _showEmergencyHotlinesModal() {
+  void _showEmergencyHotlinesModal(bool isHighContrast) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: isHighContrast ? const Color(0xFF1E1E1E) : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -268,24 +269,29 @@ class _SosStatusPageState extends State<SosStatusPage>
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: isHighContrast
+                          ? const Color(0xFF4B5563)
+                          : Colors.grey.shade300,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Kontak Darurat Nasional',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF111827),
+                    color: AccessibleColors.textPrimary(isHighContrast),
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   'Hubungi layanan darurat resmi jika membutuhkan pertolongan cepat.',
-                  style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AccessibleColors.textSecondary(isHighContrast),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 _buildHotlineTile(
@@ -294,6 +300,7 @@ class _SosStatusPageState extends State<SosStatusPage>
                   phone: '112',
                   icon: CupertinoIcons.phone_fill,
                   color: sosRed,
+                  isHighContrast: isHighContrast,
                 ),
                 const SizedBox(height: 8),
                 _buildHotlineTile(
@@ -301,7 +308,10 @@ class _SosStatusPageState extends State<SosStatusPage>
                   subtitle: 'Keamanan, Kriminalitas, dan Gangguan Ketertiban',
                   phone: '110',
                   icon: CupertinoIcons.shield_fill,
-                  color: const Color(0xFF1E3A8A),
+                  color: isHighContrast
+                      ? const Color(0xFF60A5FA)
+                      : const Color(0xFF1E3A8A),
+                  isHighContrast: isHighContrast,
                 ),
                 const SizedBox(height: 8),
                 _buildHotlineTile(
@@ -310,6 +320,7 @@ class _SosStatusPageState extends State<SosStatusPage>
                   phone: '119',
                   icon: CupertinoIcons.heart_fill,
                   color: const Color(0xFFDC2626),
+                  isHighContrast: isHighContrast,
                 ),
                 const SizedBox(height: 16),
               ],
@@ -326,9 +337,13 @@ class _SosStatusPageState extends State<SosStatusPage>
     required String phone,
     required IconData icon,
     required Color color,
+    required bool isHighContrast,
   }) {
+    final tileBg = isHighContrast ? const Color(0xFF2D3748) : bgSurface;
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
     return Material(
-      color: bgSurface,
+      color: tileBg,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -344,7 +359,7 @@ class _SosStatusPageState extends State<SosStatusPage>
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
+                  color: color.withValues(alpha: isHighContrast ? 0.2 : 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: color, size: 20),
@@ -356,24 +371,24 @@ class _SosStatusPageState extends State<SosStatusPage>
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF111827),
+                        color: AccessibleColors.textPrimary(isHighContrast),
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
-                        color: Color(0xFF6B7280),
+                        color: AccessibleColors.textSecondary(isHighContrast),
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(CupertinoIcons.phone, color: primaryTeal, size: 20),
+              Icon(CupertinoIcons.phone, color: tealColor, size: 20),
             ],
           ),
         ),
@@ -426,190 +441,245 @@ class _SosStatusPageState extends State<SosStatusPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: bgSurface,
-      appBar: AppBar(
-        backgroundColor: bgSurface,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        iconTheme: const IconThemeData(color: primaryTeal),
-        leading: IconButton(
-          icon: const Icon(CupertinoIcons.back, color: primaryTeal),
-          onPressed: () => context.pop(),
-        ),
-        centerTitle: false,
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            Image.asset('assets/images/logo.png', width: 24, height: 24),
-            const SizedBox(width: 8),
-            const Expanded(
-              child: Text(
-                'Status Keadaan Darurat',
-                style: TextStyle(
-                  color: primaryTeal,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final currentBg = AccessibleColors.scaffoldBackground(isHighContrast);
+        final tealColor =
+            isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
+        return Scaffold(
+          backgroundColor: currentBg,
+          appBar: AppBar(
+            backgroundColor: currentBg,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            iconTheme: IconThemeData(color: tealColor),
+            leading: IconButton(
+              icon: Icon(CupertinoIcons.back, color: tealColor),
+              onPressed: () => context.pop(),
             ),
-          ],
-        ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 12),
-              Center(
-                child: AnimatedBuilder(
-                  animation: _pulseAnimation,
-                  builder: (context, child) {
-                    final scale = (!_isSelesai) ? _pulseAnimation.value : 1.0;
-                    return Transform.scale(
-                      scale: scale,
-                      child: Container(
-                        width: 110,
-                        height: 110,
-                        decoration: BoxDecoration(
-                          color: _statusColor,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: _statusColor.withValues(alpha: 0.35),
-                              blurRadius: 24,
-                              spreadRadius: 4,
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          _statusHeaderIcon,
-                          color: Colors.white,
-                          size: 52,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                _statusHeaderTitle,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: _statusColor,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _statusHeaderSubtitle,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFF4B5563),
-                  fontSize: 14,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 28),
-              _buildTimelineCard(),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: _showEmergencyHotlinesModal,
-                icon: const Icon(CupertinoIcons.headphones, color: Colors.white, size: 18),
-                label: const Text(
-                  'Hubungi Layanan Darurat',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryTeal,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  minimumSize: const Size(double.infinity, 48),
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (_isSelesai)
-                ElevatedButton(
-                  onPressed: () => context.pop(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryTeal,
-                    elevation: 0,
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: const Text(
-                    'Selesai',
+            centerTitle: false,
+            titleSpacing: 0,
+            title: Row(
+              children: [
+                Image.asset('assets/images/logo.png', width: 24, height: 24),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Status Keadaan Darurat',
                     style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
+                      color: tealColor,
                       fontWeight: FontWeight.bold,
+                      fontSize: 18,
                     ),
-                  ),
-                )
-              else ...[
-                SlideToCancelButton(
-                  onCancelled: _cancelSos,
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Geser ke kanan untuk membatalkan keadaan darurat.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFF6B7280),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
-              const SizedBox(height: 24),
-            ],
+            ),
           ),
-        ),
-      ),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (AccessibilityService.instance.isVisualAlertEnabled &&
+                      !_isSelesai) ...[
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isHighContrast
+                            ? const Color(0xFF3B1010)
+                            : const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: const Color(0xFFEF4444), width: 1.5),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(CupertinoIcons.lightbulb_fill,
+                              color: Color(0xFFDC2626), size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'PERINGATAN VISUAL: Sinyal darurat SOS aktif & sedang disiarkan ke relawan terdekat.',
+                              style: TextStyle(
+                                color: isHighContrast
+                                    ? Colors.white
+                                    : const Color(0xFF991B1B),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Center(
+                    child: AnimatedBuilder(
+                      animation: _pulseAnimation,
+                      builder: (context, child) {
+                        final scale =
+                            (!_isSelesai) ? _pulseAnimation.value : 1.0;
+                        return Transform.scale(
+                          scale: scale,
+                          child: Container(
+                            width: 110,
+                            height: 110,
+                            decoration: BoxDecoration(
+                              color: _statusColor,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _statusColor.withValues(alpha: 0.35),
+                                  blurRadius: 24,
+                                  spreadRadius: 4,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              _statusHeaderIcon,
+                              color: Colors.white,
+                              size: 52,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    _statusHeaderTitle,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: _statusColor,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _statusHeaderSubtitle,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AccessibleColors.textSecondary(isHighContrast),
+                      fontSize: 14,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  _buildTimelineCard(isHighContrast),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () =>
+                        _showEmergencyHotlinesModal(isHighContrast),
+                    icon: const Icon(CupertinoIcons.headphones,
+                        color: Colors.white, size: 18),
+                    label: const Text(
+                      'Hubungi Layanan Darurat',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryTeal,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      minimumSize: const Size(double.infinity, 48),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (_isSelesai)
+                    ElevatedButton(
+                      onPressed: () => context.pop(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryTeal,
+                        elevation: 0,
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Selesai',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    )
+                  else ...[
+                    SlideToCancelButton(
+                      onCancelled: _cancelSos,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Geser ke kanan untuk membatalkan keadaan darurat.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AccessibleColors.textSecondary(isHighContrast),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildTimelineCard() {
+  Widget _buildTimelineCard(bool isHighContrast) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AccessibleColors.cardBackground(isHighContrast),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cardBorder, width: 1.0),
-        boxShadow: const [
+        border: AccessibleColors.cardBorder(isHighContrast),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x06000000),
+            color: Colors.black.withValues(
+              alpha: isHighContrast ? 0.3 : 0.04,
+            ),
             blurRadius: 10,
-            offset: Offset(0, 3),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Alur Penanganan Darurat',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF111827),
+              color: AccessibleColors.textPrimary(isHighContrast),
             ),
           ),
           const SizedBox(height: 20),
@@ -620,6 +690,7 @@ class _SosStatusPageState extends State<SosStatusPage>
             title: 'Sinyal & Lokasi Terkirim',
             description: 'Koordinat GPS Anda telah diterima oleh sistem server.',
             showConnector: true,
+            isHighContrast: isHighContrast,
           ),
           _buildTimelineStep(
             icon: (_isDitangani || _isSelesai)
@@ -638,6 +709,7 @@ class _SosStatusPageState extends State<SosStatusPage>
                     ? 'Relawan telah tiba di lokasi kejadian.'
                     : 'Sistem sedang mencarikan relawan terdekat.'),
             showConnector: true,
+            isHighContrast: isHighContrast,
           ),
           _buildTimelineStep(
             icon: _isSelesai
@@ -650,6 +722,7 @@ class _SosStatusPageState extends State<SosStatusPage>
                 ? 'Proses penanganan darurat telah tuntas.'
                 : 'Menunggu penanganan selesai oleh relawan/tim medis.',
             showConnector: false,
+            isHighContrast: isHighContrast,
           ),
         ],
       ),
@@ -663,19 +736,26 @@ class _SosStatusPageState extends State<SosStatusPage>
     required String title,
     required String description,
     required bool showConnector,
+    required bool isHighContrast,
   }) {
     Color stepColor;
     Color stepBgColor;
 
     if (isCompleted) {
-      stepColor = primaryTeal;
-      stepBgColor = const Color(0xFFE0F2F1);
+      stepColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+      stepBgColor = isHighContrast
+          ? const Color(0xFF004D40)
+          : const Color(0xFFE0F2F1);
     } else if (isActive) {
       stepColor = warningOrange;
-      stepBgColor = const Color(0xFFFEF3C7);
+      stepBgColor = isHighContrast
+          ? const Color(0xFF78350F)
+          : const Color(0xFFFEF3C7);
     } else {
       stepColor = const Color(0xFF9CA3AF);
-      stepBgColor = const Color(0xFFF3F4F6);
+      stepBgColor = isHighContrast
+          ? const Color(0xFF374151)
+          : const Color(0xFFF3F4F6);
     }
 
     return IntrinsicHeight(
@@ -703,8 +783,12 @@ class _SosStatusPageState extends State<SosStatusPage>
                     width: 2,
                     margin: const EdgeInsets.symmetric(vertical: 4),
                     color: isCompleted
-                        ? primaryTeal.withValues(alpha: 0.4)
-                        : const Color(0xFFE5E7EB),
+                        ? (isHighContrast
+                            ? const Color(0xFF80CBC4)
+                            : primaryTeal.withValues(alpha: 0.4))
+                        : (isHighContrast
+                            ? const Color(0xFF4B5563)
+                            : const Color(0xFFE5E7EB)),
                   ),
                 ),
             ],
@@ -722,16 +806,16 @@ class _SosStatusPageState extends State<SosStatusPage>
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: (isCompleted || isActive)
-                          ? const Color(0xFF111827)
-                          : const Color(0xFF6B7280),
+                          ? AccessibleColors.textPrimary(isHighContrast)
+                          : AccessibleColors.textSecondary(isHighContrast),
                     ),
                   ),
                   const SizedBox(height: 3),
                   Text(
                     description,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: Color(0xFF4B5563),
+                      color: AccessibleColors.textSecondary(isHighContrast),
                       height: 1.35,
                     ),
                   ),

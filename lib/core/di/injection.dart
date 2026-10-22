@@ -10,6 +10,7 @@ import '../../features/dashboard/data/datasources/dashboard_remote_data_source.d
 import '../../features/reports/data/datasources/report_remote_data_source.dart';
 import '../../features/history/data/datasources/history_remote_data_source.dart';
 import '../services/location_service.dart';
+import '../services/accessibility_service.dart';
 import '../../features/tuya_device/data/services/tuya_channel_service.dart';
 import '../../features/tuya_device/data/services/emergency_trigger_service.dart';
 import '../../features/tuya_device/data/services/tuya_background_listener.dart';
@@ -20,6 +21,10 @@ Future<void> initInjection() async {
   // External
   final sharedPreferences = await SharedPreferences.getInstance();
   sl.registerLazySingleton(() => sharedPreferences);
+  await AccessibilityService.instance.init(sharedPreferences);
+  sl.registerLazySingleton<AccessibilityService>(
+    () => AccessibilityService.instance,
+  );
   sl.registerLazySingleton(
     () => Dio(
       BaseOptions(
@@ -35,7 +40,7 @@ Future<void> initInjection() async {
     () => AuthRemoteDataSourceImpl(dio: sl(), prefs: sl()),
   );
   sl.registerLazySingleton<ProfileRemoteDataSource>(
-    () => ProfileRemoteDataSourceImpl(prefs: sl()),
+    () => ProfileRemoteDataSourceImpl(dio: sl(), prefs: sl()),
   );
   sl.registerLazySingleton<VolunteerRemoteDataSource>(
     () => VolunteerRemoteDataSourceImpl(dio: sl(), prefs: sl()),

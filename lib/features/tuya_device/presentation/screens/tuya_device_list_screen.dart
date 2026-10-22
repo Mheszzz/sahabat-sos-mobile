@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
+import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
 import '../../data/models/tuya_device_model.dart';
 import '../../data/models/tuya_dp_event_model.dart';
 import '../../data/services/tuya_channel_service.dart';
@@ -144,18 +146,21 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
     EdgeInsetsGeometry? padding,
     Color? color,
     Border? border,
+    bool isHighContrast = false,
   }) {
     return Container(
       padding: padding ?? const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color ?? Colors.white,
+        color: color ?? AccessibleColors.cardBackground(isHighContrast),
         borderRadius: BorderRadius.circular(16),
-        border: border ?? Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: const [
+        border: border ?? AccessibleColors.cardBorder(isHighContrast),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x06000000),
+            color: Colors.black.withValues(
+              alpha: isHighContrast ? 0.3 : 0.04,
+            ),
             blurRadius: 6,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -165,118 +170,148 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: const Color(0xFFF8FAFC),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        iconTheme: const IconThemeData(color: primaryTeal),
-        leading: widget.showBackButton
-            ? IconButton(
-                icon: const Icon(CupertinoIcons.back, color: primaryTeal),
-                onPressed: () => Navigator.of(context).pop(),
-              )
-            : null,
-        centerTitle: false,
-        titleSpacing: widget.showBackButton ? 0 : 16,
-        title: Row(
-          children: [
-            Image.asset('assets/images/logo.png', width: 24, height: 24),
-            const SizedBox(width: 8),
-            const Text(
-              'Sahabat SOS',
-              style: TextStyle(
-                color: primaryTeal,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-          ],
-        ),
-      ),
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(
-                child: CupertinoActivityIndicator(radius: 16),
-              )
-            : RefreshIndicator(
-                onRefresh: _loadDevices,
-                color: primaryTeal,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Text(
-                        'Perangkat SOS',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF111827),
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Kelola tombol darurat fisik & smartwatch Tuya Anda.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF4B5563),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final currentBg =
+            isHighContrast ? Colors.black : const Color(0xFFF8FAFC);
+        final tealColor =
+            isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
 
-                      // Status Card
-                      _buildStatusCard(),
-                      const SizedBox(height: 14),
-
-                      // Simulation Test Card
-                      _buildSimulationCard(),
-                      const SizedBox(height: 14),
-
-                      // Action Buttons for Adding Devices
-                      _buildActionButtons(),
-                      const SizedBox(height: 22),
-
-                      // Device List
-                      _buildDeviceListSection(),
-                      const SizedBox(height: 22),
-
-                      // Recent Events Log
-                      if (_recentEvents.isNotEmpty) _buildEventLogCard(),
-
-                      const SizedBox(height: 80),
-                    ],
+        return Scaffold(
+          backgroundColor: currentBg,
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            backgroundColor: currentBg,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            iconTheme: IconThemeData(color: tealColor),
+            leading: widget.showBackButton
+                ? IconButton(
+                    icon: Icon(CupertinoIcons.back, color: tealColor),
+                    onPressed: () => Navigator.of(context).pop(),
+                  )
+                : null,
+            centerTitle: false,
+            titleSpacing: widget.showBackButton ? 0 : 16,
+            title: Row(
+              children: [
+                Image.asset('assets/images/logo.png', width: 24, height: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'Sahabat SOS',
+                  style: TextStyle(
+                    color: tealColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
                   ),
                 ),
-              ),
-      ),
+              ],
+            ),
+          ),
+          body: SafeArea(
+            child: _isLoading
+                ? Center(
+                    child: CupertinoActivityIndicator(
+                      radius: 16,
+                      color: tealColor,
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _loadDevices,
+                    color: tealColor,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Perangkat SOS',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: isHighContrast
+                                  ? Colors.white
+                                  : const Color(0xFF111827),
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Kelola tombol darurat fisik & smartwatch Tuya Anda.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isHighContrast
+                                  ? const Color(0xFFD1D5DB)
+                                  : const Color(0xFF4B5563),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+
+                          // Status Card
+                          _buildStatusCard(isHighContrast),
+                          const SizedBox(height: 14),
+
+                          // Simulation Test Card
+                          _buildSimulationCard(isHighContrast),
+                          const SizedBox(height: 14),
+
+                          // Action Buttons for Adding Devices
+                          _buildActionButtons(isHighContrast),
+                          const SizedBox(height: 22),
+
+                          // Device List
+                          _buildDeviceListSection(isHighContrast),
+                          const SizedBox(height: 22),
+
+                          // Recent Events Log
+                          if (_recentEvents.isNotEmpty)
+                            _buildEventLogCard(isHighContrast),
+
+                          const SizedBox(height: 80),
+                        ],
+                      ),
+                    ),
+                  ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildStatusCard() {
+  Widget _buildStatusCard(bool isHighContrast) {
     final isConnected = _tuyaService.isListening;
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
 
     return _buildCard(
+      isHighContrast: isHighContrast,
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isConnected ? primaryLightTeal : const Color(0xFFFEF2F2),
+              color: isConnected
+                  ? (isHighContrast
+                      ? const Color(0xFF1E3A34)
+                      : primaryLightTeal)
+                  : (isHighContrast
+                      ? const Color(0xFF3B1515)
+                      : const Color(0xFFFEF2F2)),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               isConnected
                   ? CupertinoIcons.antenna_radiowaves_left_right
                   : CupertinoIcons.exclamationmark_triangle_fill,
-              color: isConnected ? primaryTeal : const Color(0xFFDC2626),
+              color: isConnected ? tealColor : const Color(0xFFDC2626),
               size: 24,
             ),
           ),
@@ -287,10 +322,10 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
               children: [
                 Text(
                   isConnected ? 'Perangkat Terhubung' : 'Perangkat Terputus',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
-                    color: Color(0xFF111827),
+                    color: AccessibleColors.textPrimary(isHighContrast),
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -300,7 +335,7 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                       : 'Menghubungkan ke layanan Tuya Cloud...',
                   style: TextStyle(
                     color: isConnected
-                        ? const Color(0xFF4B5563)
+                        ? AccessibleColors.textSecondary(isHighContrast)
                         : const Color(0xFFDC2626),
                     fontSize: 13,
                   ),
@@ -313,8 +348,9 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
     );
   }
 
-  Widget _buildSimulationCard() {
+  Widget _buildSimulationCard(bool isHighContrast) {
     return _buildCard(
+      isHighContrast: isHighContrast,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -323,7 +359,9 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7ED),
+                  color: isHighContrast
+                      ? const Color(0xFF332015)
+                      : const Color(0xFFFFF7ED),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
@@ -333,27 +371,40 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              const Text(
+              Text(
                 'Mode Pengujian Tombol',
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 15,
-                  color: Color(0xFF111827),
+                  color: AccessibleColors.textPrimary(isHighContrast),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Kirim sinyal SOS simulasi untuk memverifikasi kesiapan respon sistem darurat.',
-            style: TextStyle(fontSize: 13, color: Color(0xFF4B5563), height: 1.4),
+            style: TextStyle(
+              fontSize: 13,
+              color: AccessibleColors.textSecondary(isHighContrast),
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
             height: 44,
             child: ElevatedButton.icon(
-              onPressed: _isSimulating ? null : _simulateSos,
+              onPressed: _isSimulating
+                  ? null
+                  : () {
+                      AccessibilityService.instance.hapticHeavy();
+                      unawaited(
+                        AccessibilityService.instance
+                            .speak("Menguji simulasi sinyal SOS"),
+                      );
+                      _simulateSos();
+                    },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFEA580C),
                 foregroundColor: Colors.white,
@@ -372,7 +423,9 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                     )
                   : const Icon(CupertinoIcons.bell_fill, size: 16),
               label: Text(
-                _isSimulating ? 'Mengirim Simulasi...' : 'Uji Simulasi Sinyal SOS',
+                _isSimulating
+                    ? 'Mengirim Simulasi...'
+                    : 'Uji Simulasi Sinyal SOS',
                 style: const TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 14,
@@ -385,7 +438,11 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
     );
   }
 
-  Widget _buildActionButtons() {
+  Widget _buildActionButtons(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final defaultBg = AccessibleColors.cardBackground(isHighContrast);
+    final cardBorder = AccessibleColors.cardBorder(isHighContrast);
+
     return Row(
       children: [
         Expanded(
@@ -393,32 +450,41 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: () => context.push('/tuya-devices/scan-wifi'),
+              onTap: () {
+                AccessibilityService.instance.hapticSelection();
+                unawaited(
+                  AccessibilityService.instance
+                      .speak("Membuka pairing Wi-Fi"),
+                );
+                context.push('/tuya-devices/scan-wifi');
+              },
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: defaultBg,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                  boxShadow: const [
+                  border: cardBorder,
+                  boxShadow: [
                     BoxShadow(
-                      color: Color(0x06000000),
+                      color: Colors.black.withValues(
+                        alpha: isHighContrast ? 0.25 : 0.04,
+                      ),
                       blurRadius: 4,
-                      offset: Offset(0, 1),
+                      offset: const Offset(0, 1),
                     ),
                   ],
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(CupertinoIcons.wifi, size: 18, color: primaryTeal),
-                    SizedBox(width: 8),
+                    Icon(CupertinoIcons.wifi, size: 18, color: tealColor),
+                    const SizedBox(width: 8),
                     Text(
                       'Pairing Wi-Fi',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 13.5,
-                        color: primaryTeal,
+                        color: tealColor,
                       ),
                     ),
                   ],
@@ -433,32 +499,41 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: () => context.push('/tuya-devices/scan'),
+              onTap: () {
+                AccessibilityService.instance.hapticSelection();
+                unawaited(
+                  AccessibilityService.instance
+                      .speak("Membuka scan Bluetooth"),
+                );
+                context.push('/tuya-devices/scan');
+              },
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: defaultBg,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                  boxShadow: const [
+                  border: cardBorder,
+                  boxShadow: [
                     BoxShadow(
-                      color: Color(0x06000000),
+                      color: Colors.black.withValues(
+                        alpha: isHighContrast ? 0.25 : 0.04,
+                      ),
                       blurRadius: 4,
-                      offset: Offset(0, 1),
+                      offset: const Offset(0, 1),
                     ),
                   ],
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(CupertinoIcons.bluetooth, size: 18, color: primaryTeal),
-                    SizedBox(width: 8),
+                    Icon(CupertinoIcons.bluetooth, size: 18, color: tealColor),
+                    const SizedBox(width: 8),
                     Text(
                       'Scan BLE',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 13.5,
-                        color: primaryTeal,
+                        color: tealColor,
                       ),
                     ),
                   ],
@@ -471,31 +546,38 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
     );
   }
 
-  Widget _buildDeviceListSection() {
+  Widget _buildDeviceListSection(bool isHighContrast) {
     if (_devices.isEmpty) {
       return _buildCard(
+        isHighContrast: isHighContrast,
         padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 24),
-        child: const Column(
+        child: Column(
           children: [
             Icon(
               CupertinoIcons.device_phone_portrait,
               size: 48,
-              color: Color(0xFF9CA3AF),
+              color: isHighContrast
+                  ? const Color(0xFF6B7280)
+                  : const Color(0xFF9CA3AF),
             ),
-            SizedBox(height: 14),
+            const SizedBox(height: 14),
             Text(
               'Belum Ada Perangkat Terhubung',
               style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 15,
-                color: Color(0xFF111827),
+                color: AccessibleColors.textPrimary(isHighContrast),
               ),
             ),
-            SizedBox(height: 6),
+            const SizedBox(height: 6),
             Text(
               'Hubungkan tombol darurat atau smartwatch Tuya melalui menu pairing di atas.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280), height: 1.4),
+              style: TextStyle(
+                fontSize: 13,
+                color: AccessibleColors.textSecondary(isHighContrast),
+                height: 1.4,
+              ),
             ),
           ],
         ),
@@ -505,14 +587,14 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(left: 2, bottom: 10),
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 10),
           child: Text(
             'Perangkat Saya',
             style: TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 16,
-              color: Color(0xFF111827),
+              color: AccessibleColors.textPrimary(isHighContrast),
             ),
           ),
         ),
@@ -520,27 +602,36 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
           final device = _devices[index];
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
-            child: _buildDeviceCard(device),
+            child: _buildDeviceCard(device, isHighContrast),
           );
         }),
       ],
     );
   }
 
-  Widget _buildDeviceCard(TuyaDeviceModel device) {
+  Widget _buildDeviceCard(TuyaDeviceModel device, bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
     return _buildCard(
+      isHighContrast: isHighContrast,
       padding: const EdgeInsets.all(14),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: device.isOnline ? primaryLightTeal : const Color(0xFFF3F4F6),
+              color: device.isOnline
+                  ? (isHighContrast
+                      ? const Color(0xFF1E3A34)
+                      : primaryLightTeal)
+                  : (isHighContrast
+                      ? const Color(0xFF263238)
+                      : const Color(0xFFF3F4F6)),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               CupertinoIcons.device_phone_portrait,
-              color: device.isOnline ? primaryTeal : const Color(0xFF9CA3AF),
+              color: device.isOnline ? tealColor : const Color(0xFF9CA3AF),
               size: 24,
             ),
           ),
@@ -551,10 +642,10 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
               children: [
                 Text(
                   device.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
-                    color: Color(0xFF111827),
+                    color: AccessibleColors.textPrimary(isHighContrast),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -565,7 +656,7 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                       height: 7,
                       decoration: BoxDecoration(
                         color: device.isOnline
-                            ? primaryTeal
+                            ? tealColor
                             : const Color(0xFF9CA3AF),
                         shape: BoxShape.circle,
                       ),
@@ -576,8 +667,8 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                       style: TextStyle(
                         fontSize: 12.5,
                         color: device.isOnline
-                            ? primaryTeal
-                            : const Color(0xFF9CA3AF),
+                            ? tealColor
+                            : AccessibleColors.textSecondary(isHighContrast),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -588,14 +679,14 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                             ? CupertinoIcons.battery_100
                             : CupertinoIcons.battery_25,
                         size: 14,
-                        color: const Color(0xFF6B7280),
+                        color: AccessibleColors.textSecondary(isHighContrast),
                       ),
                       const SizedBox(width: 4),
                       Text(
                         '${device.batteryLevel}%',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12.5,
-                          color: Color(0xFF4B5563),
+                          color: AccessibleColors.textSecondary(isHighContrast),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -609,17 +700,26 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
-              onTap: () => context.push('/tuya-devices/${device.deviceId}'),
+              onTap: () {
+                AccessibilityService.instance.hapticSelection();
+                unawaited(
+                  AccessibilityService.instance
+                      .speak("Membuka detail perangkat ${device.name}"),
+                );
+                context.push('/tuya-devices/${device.deviceId}');
+              },
               child: Container(
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: primaryLightTeal,
+                  color: isHighContrast
+                      ? const Color(0xFF1E3A34)
+                      : primaryLightTeal,
                   borderRadius: BorderRadius.circular(17),
                 ),
-                child: const Icon(
+                child: Icon(
                   CupertinoIcons.chevron_right,
-                  color: primaryTeal,
+                  color: tealColor,
                   size: 16,
                 ),
               ),
@@ -630,7 +730,9 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
     );
   }
 
-  Widget _buildEventLogCard() {
+  Widget _buildEventLogCard(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -639,21 +741,21 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Aktivitas Terbaru',
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 16,
-                  color: Color(0xFF111827),
+                  color: AccessibleColors.textPrimary(isHighContrast),
                 ),
               ),
               GestureDetector(
                 onTap: () => setState(() => _recentEvents.clear()),
-                child: const Text(
+                child: Text(
                   'Bersihkan',
                   style: TextStyle(
                     fontSize: 13,
-                    color: primaryTeal,
+                    color: tealColor,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -662,6 +764,7 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
           ),
         ),
         _buildCard(
+          isHighContrast: isHighContrast,
           padding: EdgeInsets.zero,
           child: Column(
             children: List.generate(
@@ -681,8 +784,12 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
                               color: event.isSosTriggered
-                                  ? const Color(0xFFFEF2F2)
-                                  : primaryLightTeal,
+                                  ? (isHighContrast
+                                      ? const Color(0xFF3B1515)
+                                      : const Color(0xFFFEF2F2))
+                                  : (isHighContrast
+                                      ? const Color(0xFF1E3A34)
+                                      : primaryLightTeal),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Icon(
@@ -692,7 +799,7 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                               size: 16,
                               color: event.isSosTriggered
                                   ? const Color(0xFFDC2626)
-                                  : primaryTeal,
+                                  : tealColor,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -710,16 +817,18 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                                         ? FontWeight.w700
                                         : FontWeight.w600,
                                     color: event.isSosTriggered
-                                        ? const Color(0xFFDC2626)
-                                        : const Color(0xFF111827),
+                                        ? const Color(0xFFEF4444)
+                                        : AccessibleColors.textPrimary(
+                                            isHighContrast),
                                   ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   '${event.timestamp.hour.toString().padLeft(2, '0')}:${event.timestamp.minute.toString().padLeft(2, '0')} • ${event.deviceId.length > 8 ? '${event.deviceId.substring(0, 8)}...' : event.deviceId}',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
-                                    color: Color(0xFF6B7280),
+                                    color: AccessibleColors.textSecondary(
+                                        isHighContrast),
                                   ),
                                 ),
                               ],
@@ -729,9 +838,11 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                       ),
                     ),
                     if (!isLast)
-                      const Divider(
+                      Divider(
                         height: 1,
-                        color: Color(0xFFF3F4F6),
+                        color: isHighContrast
+                            ? const Color(0xFF374151)
+                            : const Color(0xFFF3F4F6),
                         indent: 52,
                       ),
                   ],

@@ -35,7 +35,7 @@ class EmergencyTriggerService {
   Future<bool> triggerEmergency(TuyaDpEvent event) async {
     final token = _prefs.getString('auth_token');
     if (token == null || token.isEmpty) {
-      throw EmergencyTriggerException('User not authenticated');
+      throw const EmergencyTriggerException('User not authenticated');
     }
 
     // Try to get current location from cached position or Geolocator
@@ -103,7 +103,7 @@ class EmergencyTriggerService {
       'signal_strength': telemetryData['signal_strength'],
       'device_info': {
         'mobile': telemetryData['device_info'],
-        if (tuyaDeviceInfo != null) 'tuya': tuyaDeviceInfo,
+        'tuya': ?tuyaDeviceInfo,
       },
     };
 

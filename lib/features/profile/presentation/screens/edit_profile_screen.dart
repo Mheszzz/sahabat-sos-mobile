@@ -1,12 +1,17 @@
-import 'dart:ui';
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:geocoding/geocoding.dart' as geo;
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
+
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/services/accessibility_service.dart';
+import '../../../../core/services/location_service.dart';
 import '../../data/datasources/profile_remote_data_source.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -21,16 +26,17 @@ class EditProfileScreen extends StatefulWidget {
 class _EditProfileScreenState extends State<EditProfileScreen> {
   static const Color primaryTeal = Color(0xFF00695C);
 
-  late TextEditingController nameController;
-  late TextEditingController emailController;
-  late TextEditingController phoneController;
-  late TextEditingController addressController;
+  late final TextEditingController nameController;
+  late final TextEditingController emailController;
+  late final TextEditingController phoneController;
+  late final TextEditingController addressController;
   late String selectedCategory;
 
   XFile? _pickedImage;
   String _currentAvatarUrl = 'https://placehold.co/100x100.png';
 
   bool _isLoading = false;
+  bool _isFetchingGps = false;
 
   @override
   void initState() {
@@ -83,6 +89,70 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  Future<void> _fillAddressFromGps() async {
+    if (_isFetchingGps) return;
+    setState(() => _isFetchingGps = true);
+
+    try {
+      final locationService = GetIt.instance<LocationService>();
+      final hasPermission = await locationService.requestPermission();
+      if (!hasPermission) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content:
+                  Text('Izin akses GPS dibutuhkan untuk mendeteksi lokasi.'),
+              backgroundColor: Color(0xFFEF4444),
+            ),
+          );
+        }
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.high),
+      ).timeout(const Duration(seconds: 8));
+
+      final placemarks = await geo.Geocoding().placemarkFromCoordinates(
+        pos.latitude,
+        pos.longitude,
+      );
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+        final parts = [p.street, p.subLocality, p.locality, p.administrativeArea]
+            .where((s) => s != null && s.trim().isNotEmpty)
+            .toList();
+        if (parts.isNotEmpty) {
+          addressController.text = parts.join(', ');
+          AccessibilityService.instance.hapticLight();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content:
+                    Text('Alamat domisili berhasil diisi dari sensor GPS.'),
+                backgroundColor: primaryTeal,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mengambil lokasi GPS: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isFetchingGps = false);
+      }
+    }
+  }
+
   @override
   void dispose() {
     nameController.dispose();
@@ -101,28 +171,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token');
       if (token != null) {
-        bool haptic = true;
-        bool voiceGuide = true;
-        bool largeText = true;
+        // Terapkan adaptasi aksesibilitas otomatis jika kategori berubah
+        await AccessibilityService.instance.applyCategoryDefaults(
+          selectedCategory,
+          syncBackend: false,
+        );
 
-        if (widget.userData['aksesibilitas'] != null) {
-          voiceGuide =
-              widget.userData['aksesibilitas']['panduan_suara'] == true;
-          haptic = widget.userData['aksesibilitas']['getaran'] == true;
-          largeText = widget.userData['aksesibilitas']['text_besar'] == true;
-        } else {
-          voiceGuide =
-              (widget.userData['panduan_suara'] == 1 ||
-              widget.userData['panduan_suara'] == true);
-          haptic =
-              (widget.userData['getaran'] == 1 ||
-              widget.userData['getaran'] == true);
-          largeText =
-              (widget.userData['text_besar'] == 1 ||
-              widget.userData['text_besar'] == true);
-        }
+        final service = AccessibilityService.instance;
 
-        Map<String, dynamic> dataToUpdate = {
+        final Map<String, dynamic> dataToUpdate = {
           'name': nameController.text.isNotEmpty ? nameController.text : '-',
           'kategori_user': selectedCategory,
           'alamat': addressController.text.trim().isNotEmpty
@@ -131,9 +188,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           'no_telp': phoneController.text.isNotEmpty
               ? phoneController.text
               : '-',
-          'getaran': haptic ? 1 : 0,
-          'panduan_suara': voiceGuide ? 1 : 0,
-          'text_besar': largeText ? 1 : 0,
+          'getaran': service.isHapticEnabled ? 1 : 0,
+          'panduan_suara': service.isVoiceGuideEnabled ? 1 : 0,
+          'text_besar': service.isLargeTextEnabled ? 1 : 0,
+          'kontras_tinggi': service.isHighContrastEnabled ? 1 : 0,
         };
 
         final profileDataSource = GetIt.instance<ProfileRemoteDataSource>();
@@ -151,7 +209,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Profil berhasil diperbarui')),
           );
-          context.pop(true); // Return true to indicate success
+          context.pop(true);
         }
       }
     } catch (e) {
@@ -170,38 +228,73 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  Widget _buildGlassContainer({
-    required Widget child,
-    BorderRadius? borderRadius,
-  }) {
-    final radius = borderRadius ?? BorderRadius.circular(16);
+  Widget _buildCategoryAdaptationInfo(String category, bool isHighContrast) {
+    String text;
+    IconData icon;
+    Color iconColor;
+
+    switch (category.toLowerCase()) {
+      case 'tunanetra':
+        text =
+            'Optimasi Tunanetra: Panduan Suara TalkBack, Teks Besar, Kontras Tinggi, dan Umpan Balik Getaran Taktil akan diaktifkan secara otomatis.';
+        icon = CupertinoIcons.eye_slash_fill;
+        iconColor = const Color(0xFFEF6C00);
+        break;
+      case 'tunarungu':
+        text =
+            'Optimasi Tunarungu: Getaran Taktil Maksimal dan Peringatan Visual Flash diaktifkan. Panduan Suara dinonaktifkan.';
+        icon = CupertinoIcons.waveform_path_badge_plus;
+        iconColor = const Color(0xFF0284C7);
+        break;
+      case 'tunawicara':
+        text =
+            'Optimasi Tunawicara: Umpan Balik Getaran & Laporan Teks Cepat dioptimalkan untuk komunikasi non-verbal.';
+        icon = CupertinoIcons.text_bubble_fill;
+        iconColor = const Color(0xFF7C3AED);
+        break;
+      case 'umum':
+      default:
+        text =
+            'Mode Standar: Semua pengaturan aksesibilitas dapat disesuaikan secara manual di halaman profil.';
+        icon = CupertinoIcons.person_fill;
+        iconColor = primaryTeal;
+        break;
+    }
+
     return Container(
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        borderRadius: radius,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color:
+            isHighContrast ? const Color(0xFF262626) : const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isHighContrast
+              ? const Color(0xFF404040)
+              : const Color(0xFFE5E7EB),
+        ),
       ),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.4),
-              borderRadius: radius,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.6),
-                width: 1.5,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            color: isHighContrast ? const Color(0xFFFBBF24) : iconColor,
+            size: 18,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 12,
+                color: isHighContrast
+                    ? Colors.grey.shade300
+                    : const Color(0xFF4B5563),
+                height: 1.35,
               ),
             ),
-            child: child,
           ),
-        ),
+        ],
       ),
     );
   }
@@ -212,28 +305,61 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     IconData icon, {
     TextInputType? keyboardType,
     bool readOnly = false,
+    bool isHighContrast = false,
   }) {
-    return _buildGlassContainer(
+    return Container(
+      decoration: BoxDecoration(
+        color: readOnly
+            ? (isHighContrast
+                ? const Color(0xFF2A2A2A)
+                : const Color(0xFFF3F4F6))
+            : (isHighContrast ? const Color(0xFF1E1E1E) : Colors.white),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isHighContrast
+              ? const Color(0xFF4B5563)
+              : const Color(0xFFE5E7EB),
+          width: isHighContrast ? 1.5 : 1.0,
+        ),
+        boxShadow: isHighContrast
+            ? null
+            : const [
+                BoxShadow(
+                  color: Color(0x06000000),
+                  blurRadius: 6,
+                  offset: Offset(0, 1),
+                ),
+              ],
+      ),
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
         readOnly: readOnly,
         style: TextStyle(
           fontSize: 14,
-          color: readOnly ? Colors.black54 : Colors.black87,
+          color: readOnly
+              ? (isHighContrast
+                  ? Colors.grey.shade400
+                  : const Color(0xFF6B7280))
+              : (isHighContrast ? Colors.white : const Color(0xFF111827)),
         ),
         decoration: InputDecoration(
           border: InputBorder.none,
           hintText: hint,
           hintStyle: TextStyle(
             fontSize: 13,
-            color: Colors.black.withValues(alpha: 0.4),
+            color:
+                isHighContrast ? Colors.grey.shade500 : const Color(0xFF9CA3AF),
           ),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 14,
             vertical: 16,
           ),
-          prefixIcon: Icon(icon, color: primaryTeal.withValues(alpha: 0.7)),
+          prefixIcon: Icon(
+            icon,
+            color: isHighContrast ? const Color(0xFF14B8A6) : primaryTeal,
+            size: 20,
+          ),
         ),
       ),
     );
@@ -241,217 +367,319 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFF8FAFC),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        centerTitle: false,
-        titleSpacing: 0,
-        iconTheme: const IconThemeData(color: primaryTeal),
-        leading: IconButton(
-          icon: const Icon(CupertinoIcons.back, color: primaryTeal),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Row(
-          children: [
-            Image.asset('assets/images/logo.png', width: 24, height: 24),
-            const SizedBox(width: 8),
-            const Text(
-              'Edit Profil',
-              style: TextStyle(
-                color: primaryTeal,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled;
+        final bgColor = isHighContrast ? Colors.black : const Color(0xFFF8FAFC);
+
+        return Scaffold(
+          backgroundColor: bgColor,
+          appBar: AppBar(
+            backgroundColor: bgColor,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            centerTitle: false,
+            titleSpacing: 0,
+            iconTheme: IconThemeData(
+              color: isHighContrast ? const Color(0xFF14B8A6) : primaryTeal,
             ),
-          ],
-        ),
-      ),
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(
-                child: CupertinoActivityIndicator(radius: 16),
-              )
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Center(
-                        child: GestureDetector(
-                          onTap: _pickImage,
-                          child: Stack(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: primaryTeal.withValues(alpha: 0.3),
-                                    width: 3,
-                                  ),
-                                ),
-                                child: CircleAvatar(
-                                  radius: 46,
-                                  backgroundColor: Colors.grey.shade200,
-                                  backgroundImage: _pickedImage != null
-                                      ? FileImage(File(_pickedImage!.path))
-                                            as ImageProvider
-                                      : NetworkImage(_currentAvatarUrl),
-                                  onBackgroundImageError: (_, _) {},
-                                ),
-                              ),
-                              Positioned(
-                                bottom: 0,
-                                right: 0,
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: primaryTeal,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 2,
-                                    ),
-                                  ),
-                                  child: const Icon(
-                                    CupertinoIcons.camera_fill,
-                                    color: Colors.white,
-                                    size: 18,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      _buildModernTextField(
-                        nameController,
-                        'Nama Lengkap',
-                        CupertinoIcons.person,
-                      ),
-                      const SizedBox(height: 16),
-                      _buildModernTextField(
-                        emailController,
-                        'Email',
-                        CupertinoIcons.mail,
-                        keyboardType: TextInputType.emailAddress,
-                        readOnly: true,
-                      ),
-                      const SizedBox(height: 16),
-
-                      _buildGlassContainer(
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: selectedCategory,
-                            isExpanded: true,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 4,
-                            ),
-                            icon: Icon(
-                              CupertinoIcons.chevron_down,
-                              color: primaryTeal.withValues(alpha: 0.7),
-                            ),
-                            dropdownColor: const Color(0xFFF5F6F8),
-                            items:
-                                [
-                                  {
-                                    'value': 'umum',
-                                    'label': 'Umum',
-                                    'icon': CupertinoIcons.person,
-                                  },
-                                  {
-                                    'value': 'tunanetra',
-                                    'label': 'Tunanetra',
-                                    'icon': CupertinoIcons.eye_slash,
-                                  },
-                                  {
-                                    'value': 'tunarungu',
-                                    'label': 'Tunarungu',
-                                    'icon': CupertinoIcons.ear,
-                                  },
-                                  {
-                                    'value': 'tunawicara',
-                                    'label': 'Tunawicara',
-                                    'icon': CupertinoIcons.mic_slash,
-                                  },
-                                ].map((item) {
-                                  return DropdownMenuItem<String>(
-                                    value: item['value'] as String,
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          item['icon'] as IconData,
-                                          color: primaryTeal.withValues(
-                                            alpha: 0.7,
-                                          ),
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          item['label'] as String,
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.black87,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
-                            onChanged: (String? newValue) {
-                              if (newValue != null) {
-                                setState(() {
-                                  selectedCategory = newValue;
-                                });
-                              }
-                            },
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-                      _buildModernTextField(
-                        phoneController,
-                        'Nomor Telepon',
-                        CupertinoIcons.phone,
-                        keyboardType: TextInputType.phone,
-                      ),
-                      const SizedBox(height: 16),
-                      _buildModernTextField(
-                        addressController,
-                        'Alamat Tempat Tinggal',
-                        CupertinoIcons.house,
-                      ),
-                      const SizedBox(height: 32),
-                      ElevatedButton(
-                        onPressed: _saveProfile,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryTeal,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 4,
-                          shadowColor: primaryTeal.withValues(alpha: 0.5),
-                        ),
-                        child: const Text(
-                          'Simpan Perubahan',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
+            leading: IconButton(
+              icon: Icon(
+                CupertinoIcons.back,
+                color: isHighContrast ? const Color(0xFF14B8A6) : primaryTeal,
+              ),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            title: Row(
+              children: [
+                Image.asset('assets/images/logo.png', width: 24, height: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'Edit Profil',
+                  style: TextStyle(
+                    color:
+                        isHighContrast ? const Color(0xFF14B8A6) : primaryTeal,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
                   ),
                 ),
-        ),
+              ],
+            ),
+          ),
+          body: SafeArea(
+            child: _isLoading
+                ? const Center(
+                    child: CupertinoActivityIndicator(radius: 16),
+                  )
+                : SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: GestureDetector(
+                            onTap: _pickImage,
+                            child: Stack(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: isHighContrast
+                                          ? Colors.white
+                                          : primaryTeal.withValues(alpha: 0.3),
+                                      width: 3,
+                                    ),
+                                  ),
+                                  child: CircleAvatar(
+                                    radius: 46,
+                                    backgroundColor: isHighContrast
+                                        ? Colors.grey.shade800
+                                        : Colors.grey.shade200,
+                                    backgroundImage: _pickedImage != null
+                                        ? FileImage(File(_pickedImage!.path))
+                                            as ImageProvider
+                                        : NetworkImage(_currentAvatarUrl),
+                                    onBackgroundImageError: (_, _) {},
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: primaryTeal,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: isHighContrast
+                                            ? Colors.black
+                                            : Colors.white,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      CupertinoIcons.camera_fill,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        _buildModernTextField(
+                          nameController,
+                          'Nama Lengkap',
+                          CupertinoIcons.person,
+                          isHighContrast: isHighContrast,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildModernTextField(
+                          emailController,
+                          'Email',
+                          CupertinoIcons.mail,
+                          keyboardType: TextInputType.emailAddress,
+                          readOnly: true,
+                          isHighContrast: isHighContrast,
+                        ),
+                        const SizedBox(height: 16),
+                        // Dropdown Kategori Disabilitas
+                        Container(
+                          decoration: BoxDecoration(
+                            color: isHighContrast
+                                ? const Color(0xFF1E1E1E)
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isHighContrast
+                                  ? const Color(0xFF4B5563)
+                                  : const Color(0xFFE5E7EB),
+                              width: isHighContrast ? 1.5 : 1.0,
+                            ),
+                            boxShadow: isHighContrast
+                                ? null
+                                : const [
+                                    BoxShadow(
+                                      color: Color(0x06000000),
+                                      blurRadius: 6,
+                                      offset: Offset(0, 1),
+                                    ),
+                                  ],
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: selectedCategory,
+                              isExpanded: true,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 4,
+                              ),
+                              icon: Icon(
+                                CupertinoIcons.chevron_down,
+                                color: isHighContrast
+                                    ? const Color(0xFF14B8A6)
+                                    : primaryTeal,
+                                size: 18,
+                              ),
+                              dropdownColor: isHighContrast
+                                  ? const Color(0xFF1E1E1E)
+                                  : Colors.white,
+                              items: [
+                                {
+                                  'value': 'umum',
+                                  'label': 'Umum',
+                                  'icon': CupertinoIcons.person,
+                                },
+                                {
+                                  'value': 'tunanetra',
+                                  'label': 'Tunanetra',
+                                  'icon': CupertinoIcons.eye_slash,
+                                },
+                                {
+                                  'value': 'tunarungu',
+                                  'label': 'Tunarungu',
+                                  'icon': CupertinoIcons.ear,
+                                },
+                                {
+                                  'value': 'tunawicara',
+                                  'label': 'Tunawicara',
+                                  'icon': CupertinoIcons.mic_slash,
+                                },
+                              ].map((item) {
+                                return DropdownMenuItem<String>(
+                                  value: item['value'] as String,
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        item['icon'] as IconData,
+                                        color: isHighContrast
+                                            ? const Color(0xFF14B8A6)
+                                            : primaryTeal,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        item['label'] as String,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: isHighContrast
+                                              ? Colors.white
+                                              : const Color(0xFF111827),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (String? newValue) {
+                                if (newValue != null) {
+                                  setState(() {
+                                    selectedCategory = newValue;
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Banner Informasi Adaptasi Aksesibilitas
+                        _buildCategoryAdaptationInfo(
+                          selectedCategory,
+                          isHighContrast,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildModernTextField(
+                          phoneController,
+                          'Nomor Telepon Darurat',
+                          CupertinoIcons.phone,
+                          keyboardType: TextInputType.phone,
+                          isHighContrast: isHighContrast,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildModernTextField(
+                          addressController,
+                          'Alamat Tempat Tinggal (Domisili Tetap)',
+                          CupertinoIcons.house,
+                          isHighContrast: isHighContrast,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Catatan: Alamat ini adalah domisili tetap tempat tinggal Anda untuk rujukan penyelamat. Berbeda dengan Lokasi GPS real-time yang dideteksi otomatis saat keadaan darurat.',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: isHighContrast
+                                ? Colors.grey.shade400
+                                : const Color(0xFF6B7280),
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed:
+                                _isFetchingGps ? null : _fillAddressFromGps,
+                            icon: _isFetchingGps
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child:
+                                        CupertinoActivityIndicator(radius: 7),
+                                  )
+                                : Icon(
+                                    CupertinoIcons.location_fill,
+                                    color: isHighContrast
+                                        ? const Color(0xFF14B8A6)
+                                        : primaryTeal,
+                                    size: 16,
+                                  ),
+                            label: Text(
+                              _isFetchingGps
+                                  ? 'Mendeteksi koordinat GPS...'
+                                  : 'Gunakan Lokasi GPS Saat Ini sebagai Alamat',
+                              style: TextStyle(
+                                color: isHighContrast
+                                    ? const Color(0xFF14B8A6)
+                                    : primaryTeal,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                        ElevatedButton(
+                          onPressed: _saveProfile,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryTeal,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: isHighContrast ? 0 : 2,
+                          ),
+                          child: const Text(
+                            'Simpan Perubahan',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
+          ),
+        );
+      },
     );
   }
 }

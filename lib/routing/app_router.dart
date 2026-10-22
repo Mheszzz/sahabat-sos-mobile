@@ -15,6 +15,7 @@ import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuy
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_wifi_scan_screen.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_detail_screen.dart';
 import 'package:sahabat_sos_mobile/features/profile/presentation/screens/edit_profile_screen.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
 
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -64,11 +65,21 @@ class AppRouter {
     routes: [
       GoRoute(
         path: AppRoutes.splash,
-        builder: (context, state) => Scaffold(
-          backgroundColor: const Color(0xFFF5F6F8),
-          body: Center(
-            child: Image.asset('assets/images/logo.png', width: 120),
-          ),
+        builder: (context, state) => ListenableBuilder(
+          listenable: AccessibilityService.instance,
+          builder: (context, _) {
+            final isHighContrast =
+                AccessibilityService.instance.isHighContrastEnabled ||
+                Theme.of(context).brightness == Brightness.dark ||
+                MediaQuery.of(context).highContrast;
+            return Scaffold(
+              backgroundColor:
+                  isHighContrast ? Colors.black : const Color(0xFFF5F6F8),
+              body: Center(
+                child: Image.asset('assets/images/logo.png', width: 120),
+              ),
+            );
+          },
         ),
       ),
       GoRoute(
@@ -99,7 +110,7 @@ class AppRouter {
           return MainVolunteerScreen(initialIndex: tabIndex);
         },
       ),
-      GoRoute(path: '/map', builder: (context, state) => const MapPage()),
+      GoRoute(path: AppRoutes.map, builder: (context, state) => const MapPage()),
       GoRoute(
         path: AppRoutes.quickReport,
         builder: (context, state) => const QuickReportScreen(),

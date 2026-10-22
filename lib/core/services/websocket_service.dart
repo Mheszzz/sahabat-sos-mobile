@@ -322,7 +322,7 @@ class WebsocketService {
     }
 
     // ─── 2. Channel umum semua relawan ───
-    final publicChannelName = 'private-relawan-channel';
+    const publicChannelName = 'private-relawan-channel';
     debugPrint("👂 Listening private broadcast channel: $publicChannelName");
     final publicChannel = _pusher!.subscribe(publicChannelName);
     setupChannelBindings(publicChannel, publicChannelName);

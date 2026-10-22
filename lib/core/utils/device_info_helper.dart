@@ -60,7 +60,7 @@ class DeviceInfoHelper {
       // Ignored
     }
 
-    String signalStrength = '4G / Wi-Fi';
+    const String signalStrength = '4G / Wi-Fi';
 
     final mobileMap = {
       'brand': brand,
@@ -70,7 +70,7 @@ class DeviceInfoHelper {
       'is_charging': isCharging,
       'battery_state': batteryState,
       'signal_strength': signalStrength,
-      if (gpsAccuracy != null) 'gps_accuracy': gpsAccuracy,
+      'gps_accuracy': ?gpsAccuracy,
       'updated_at': DateTime.now().toIso8601String(),
     };
 

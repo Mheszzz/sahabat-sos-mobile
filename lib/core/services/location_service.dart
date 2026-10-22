@@ -115,7 +115,7 @@ class LocationService {
 
       // Throttle geocoding: hanya geocode jika bergerak > 50 meter dari posisi terakhir
       try {
-        bool shouldGeocode =
+        final bool shouldGeocode =
             _lastGeocodedPosition == null ||
             Geolocator.distanceBetween(
                   _lastGeocodedPosition!.latitude,
@@ -126,10 +126,10 @@ class LocationService {
                 50;
 
         if (shouldGeocode) {
-          List<geo.Placemark> placemarks = await geo.Geocoding()
+          final List<geo.Placemark> placemarks = await geo.Geocoding()
               .placemarkFromCoordinates(position.latitude, position.longitude);
           if (placemarks.isNotEmpty) {
-            geo.Placemark place = placemarks.first;
+            final geo.Placemark place = placemarks.first;
             _lastGeocodedAddress =
                 "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
           }
