@@ -14,6 +14,7 @@ import 'package:sahabat_sos_mobile/core/utils/device_info_helper.dart';
 import 'package:sahabat_sos_mobile/core/widgets/app_loading_indicator.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/data/services/tuya_channel_service.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/data/models/tuya_device_model.dart';
+import 'package:sahabat_sos_mobile/core/services/health_connect_service.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -153,6 +154,7 @@ class _DashboardPageState extends State<DashboardPage>
                     ),
                   ),
                   const Spacer(flex: 1),
+                  _buildHeartRateBanner(),
                   _buildDeviceStatusCard(),
                   const SizedBox(height: 12),
                   _buildMenuGrid(),
@@ -505,6 +507,115 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
+  Widget _buildHeartRateBanner() {
+    final healthService = sl<HealthConnectService>();
+    return ValueListenableBuilder<int?>(
+      valueListenable: healthService.currentBpm,
+      builder: (context, bpm, _) {
+        if (bpm == null) return const SizedBox.shrink();
+
+        return ValueListenableBuilder<HeartRateStatus>(
+          valueListenable: healthService.currentStatus,
+          builder: (context, status, _) {
+            Color color;
+            String statusText;
+            switch (status) {
+              case HeartRateStatus.normal:
+                color = Colors.green;
+                statusText = 'Normal';
+                break;
+              case HeartRateStatus.warning:
+                color = Colors.orange;
+                statusText = 'Waspada';
+                break;
+              case HeartRateStatus.critical:
+                color = Colors.red;
+                statusText = 'Kritis';
+                break;
+              case HeartRateStatus.unknown:
+                color = Colors.grey;
+                statusText = 'Terhubung';
+                break;
+            }
+
+            return InkWell(
+              onTap: () => context.push('/smartband'),
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: color.withValues(alpha: 0.3)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.favorite, color: color, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      '$bpm BPM',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    ValueListenableBuilder<String>(
+                      valueListenable: healthService.connectedDeviceName,
+                      builder: (context, deviceName, _) {
+                        return Text(
+                          deviceName,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600,
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      CupertinoIcons.chevron_right,
+                      size: 14,
+                      color: Colors.grey.shade400,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildDeviceStatusCard() {
     return Container(
       decoration: BoxDecoration(
@@ -634,7 +745,7 @@ class _DashboardPageState extends State<DashboardPage>
       _MenuItemData(
         icon: CupertinoIcons.antenna_radiowaves_left_right,
         label: 'Perangkat Saya',
-        route: '/tuya-devices',
+        route: '/smartband',
       ),
       _MenuItemData(
         icon: CupertinoIcons.phone,

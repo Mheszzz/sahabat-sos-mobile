@@ -51,11 +51,15 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
 
       await _loadDevices();
     } catch (e) {
+      debugPrint('Tuya init warning: $e');
       if (mounted) {
+        // Tampilkan pesan informatif hanya jika diperlukan tanpa mengganggu alur utama
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal inisialisasi: $e'),
-            backgroundColor: Colors.red,
+            content: Text(
+              'Layanan Tombol Fisik (Tuya) belum aktif: Pastikan AppKey Tuya cocok dengan paket com.sossahabatsos.app',
+            ),
+            backgroundColor: Colors.orange.shade800,
           ),
         );
       }

@@ -17,4 +17,7 @@ class AppRoutes {
   static const String tuyaDeviceScan = '/tuya-devices/scan';
   static const String tuyaDeviceWifiScan = '/tuya-devices/scan-wifi';
   static const String tuyaDeviceDetail = '/tuya-devices/:id';
+
+  // Smartband / Health Connect
+  static const String smartband = '/smartband';
 }
