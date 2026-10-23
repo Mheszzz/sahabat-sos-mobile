@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/services/location_service.dart';
+import '../../../../core/services/health_connect_service.dart';
 import '../../../../core/utils/device_info_helper.dart';
 import '../models/tuya_dp_event_model.dart';
 import 'package:get_it/get_it.dart';
@@ -158,6 +159,106 @@ class EmergencyTriggerService {
       isSimulation: true,
     );
     return triggerEmergency(testEvent);
+  }
+
+  /// Trigger emergency alert triggered by abnormal heart rate detection
+  /// from Huawei Band / Health Connect
+  Future<bool> triggerHeartRateEmergency({
+    required int bpm,
+    String? reason,
+  }) async {
+    final token = _prefs.getString('auth_token');
+    if (token == null || token.isEmpty) {
+      throw const EmergencyTriggerException('User not authenticated');
+    }
+
+    double? latitude;
+    double? longitude;
+    try {
+      final cachedPosition = _locationService.currentPosition.value;
+      if (cachedPosition != null) {
+        latitude = cachedPosition.latitude;
+        longitude = cachedPosition.longitude;
+      } else {
+        final position = await Geolocator.getLastKnownPosition();
+        if (position != null) {
+          latitude = position.latitude;
+          longitude = position.longitude;
+        } else {
+          final quickPosition = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.low,
+            ),
+          ).timeout(const Duration(seconds: 1));
+          latitude = quickPosition.latitude;
+          longitude = quickPosition.longitude;
+        }
+      }
+    } catch (_) {}
+
+    final telemetryData = await DeviceInfoHelper.getSosTelemetryData();
+
+    String smartbandName = 'Smartband';
+    try {
+      smartbandName = GetIt.instance<HealthConnectService>().connectedDeviceName.value;
+    } catch (_) {}
+
+    final payload = {
+      'timestamp': DateTime.now().toIso8601String(),
+      'trigger_source': 'smartband_heart_rate',
+      'heart_rate': bpm,
+      'keterangan': 'Detak Jantung Kritis: $bpm BPM (${reason ?? 'Abnormal'})',
+      'latitude': latitude ?? 0.0,
+      'longitude': longitude ?? 0.0,
+      'lokasi_user': _locationService.lastGeocodedAddress,
+      'battery_level': telemetryData['battery_level'],
+      'signal_strength': telemetryData['signal_strength'],
+      'device_info': {
+        'mobile': telemetryData['device_info'],
+        'smartband': {
+          'type': '$smartbandName / Health Connect',
+          'bpm': bpm,
+          'status': reason ?? 'Kritis',
+          'detected_at': DateTime.now().toIso8601String(),
+        },
+      },
+    };
+
+    for (int attempt = 1; attempt <= _maxRetries; attempt++) {
+      try {
+        final response = await _dio.post(
+          ApiConstants.emergencyTrigger,
+          data: payload,
+          options: Options(
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+            validateStatus: (status) =>
+                status != null &&
+                ((status >= 200 && status < 300) || status == 422),
+          ),
+        );
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          return true;
+        } else if (response.statusCode == 422) {
+          final message =
+              response.data['message'] ?? 'Data tidak lengkap / Error 422';
+          throw EmergencyTriggerException(message.toString());
+        }
+      } on DioException catch (e) {
+        if (attempt == _maxRetries) {
+          throw EmergencyTriggerException(
+            'Gagal mengirim sinyal darurat: ${e.message}',
+          );
+        }
+        await Future.delayed(_retryDelay * attempt);
+      }
+    }
+
+    return false;
   }
 }
 

@@ -13,6 +13,7 @@ import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuy
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_scan_screen.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_wifi_scan_screen.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_detail_screen.dart';
+import 'package:sahabat_sos_mobile/features/device/presentation/screens/smartband_screen.dart';
 import 'package:sahabat_sos_mobile/features/profile/presentation/screens/edit_profile_screen.dart';
 
 import 'package:get_it/get_it.dart';
@@ -21,7 +22,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'routes.dart';
 
 class AppRouter {
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+
   static final GoRouter router = GoRouter(
+    navigatorKey: navigatorKey,
     initialLocation: AppRoutes.login,
     redirect: (context, state) {
       final prefs = GetIt.instance<SharedPreferences>();
@@ -137,6 +142,10 @@ class AppRouter {
           final deviceId = state.pathParameters['id'] ?? '';
           return TuyaDeviceDetailScreen(deviceId: deviceId);
         },
+      ),
+      GoRoute(
+        path: AppRoutes.smartband,
+        builder: (context, state) => const SmartbandScreen(showBackButton: true),
       ),
     ],
   );

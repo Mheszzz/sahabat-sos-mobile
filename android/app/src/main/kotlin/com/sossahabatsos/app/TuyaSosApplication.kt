@@ -1,4 +1,4 @@
-package com.sossahabat.app
+package com.sossahabatsos.app
 
 import android.app.Application
 import android.util.Log
