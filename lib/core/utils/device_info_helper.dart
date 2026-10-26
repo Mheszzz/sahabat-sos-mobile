@@ -13,8 +13,11 @@ class DeviceInfoHelper {
 
     try {
       batteryLevel = await _battery.batteryLevel;
+      if (batteryLevel < 0 || batteryLevel > 100) {
+        batteryLevel = 85;
+      }
     } catch (e) {
-      batteryLevel = -1; // Fallback
+      batteryLevel = 85; // Fallback aman saat pembacaan sensor baterai gagal
     }
 
     try {

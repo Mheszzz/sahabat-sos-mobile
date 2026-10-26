@@ -4,7 +4,7 @@ import '../../../../core/constants/api_constants.dart';
 
 abstract class DashboardRemoteDataSource {
   Future<Map<String, dynamic>> getBerandaData();
-  Future<void> triggerEmergency({
+  Future<int?> triggerEmergency({
     required double latitude,
     required double longitude,
     required String address,
@@ -46,7 +46,7 @@ class DashboardRemoteDataSourceImpl implements DashboardRemoteDataSource {
   }
 
   @override
-  Future<void> triggerEmergency({
+  Future<int?> triggerEmergency({
     required double latitude,
     required double longitude,
     required String address,
@@ -96,5 +96,17 @@ class DashboardRemoteDataSourceImpl implements DashboardRemoteDataSource {
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception('Gagal mengirim sinyal darurat (Kode: ${response.statusCode})');
     }
+
+    final resData = response.data;
+    if (resData is Map<String, dynamic>) {
+      final sosData = resData['data'];
+      if (sosData is Map<String, dynamic> && sosData['id'] != null) {
+        return (sosData['id'] as num).toInt();
+      }
+      if (resData['id'] != null) {
+        return (resData['id'] as num).toInt();
+      }
+    }
+    return null;
   }
 }

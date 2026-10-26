@@ -33,7 +33,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late String selectedCategory;
 
   XFile? _pickedImage;
-  String _currentAvatarUrl = 'https://placehold.co/100x100.png';
+  String? _currentAvatarUrl;
+  bool _avatarError = false;
 
   bool _isLoading = false;
   bool _isFetchingGps = false;
@@ -63,14 +64,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       selectedCategory = 'umum';
     }
 
-    final foto = widget.userData['foto_profile'];
+    final foto = widget.userData['foto_profile_url'] ?? widget.userData['foto_profile'];
     if (foto != null && foto.toString().isNotEmpty) {
-      if (foto.toString().startsWith('http://') ||
-          foto.toString().startsWith('https://')) {
-        _currentAvatarUrl = foto;
+      final String fotoStr = foto.toString();
+      if (fotoStr.startsWith('http://') ||
+          fotoStr.startsWith('https://')) {
+        _currentAvatarUrl = fotoStr;
       } else {
-        _currentAvatarUrl = '${ApiConstants.baseUrl}/storage-file/$foto';
+        String cleanPath =
+            fotoStr.startsWith('/') ? fotoStr.substring(1) : fotoStr;
+        if (cleanPath.startsWith('public/')) {
+          cleanPath = cleanPath.substring(7);
+        }
+        _currentAvatarUrl = '${ApiConstants.storageUrl}/$cleanPath';
       }
+    } else {
+      _currentAvatarUrl = null;
     }
   }
 
@@ -85,6 +94,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (pickedFile != null) {
       setState(() {
         _pickedImage = pickedFile;
+        _avatarError = false;
       });
     }
   }
@@ -438,12 +448,37 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                     radius: 46,
                                     backgroundColor: isHighContrast
                                         ? Colors.grey.shade800
-                                        : Colors.grey.shade200,
+                                        : primaryTeal.withValues(alpha: 0.1),
                                     backgroundImage: _pickedImage != null
                                         ? FileImage(File(_pickedImage!.path))
                                             as ImageProvider
-                                        : NetworkImage(_currentAvatarUrl),
-                                    onBackgroundImageError: (_, _) {},
+                                        : (_currentAvatarUrl != null &&
+                                                _currentAvatarUrl!.isNotEmpty &&
+                                                !_avatarError)
+                                            ? NetworkImage(_currentAvatarUrl!)
+                                            : null,
+                                    onBackgroundImageError: (_pickedImage ==
+                                                null &&
+                                            _currentAvatarUrl != null &&
+                                            _currentAvatarUrl!.isNotEmpty)
+                                        ? (_, _) {
+                                            if (mounted && !_avatarError) {
+                                              setState(() => _avatarError = true);
+                                            }
+                                          }
+                                        : null,
+                                    child: (_pickedImage == null &&
+                                            (_currentAvatarUrl == null ||
+                                                _currentAvatarUrl!.isEmpty ||
+                                                _avatarError))
+                                        ? Icon(
+                                            CupertinoIcons.person_fill,
+                                            size: 46,
+                                            color: isHighContrast
+                                                ? const Color(0xFF14B8A6)
+                                                : primaryTeal,
+                                          )
+                                        : null,
                                   ),
                                 ),
                                 Positioned(

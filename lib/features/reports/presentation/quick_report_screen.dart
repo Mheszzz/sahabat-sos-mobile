@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart' as geo;
 import 'package:go_router/go_router.dart';
@@ -42,21 +43,89 @@ class _QuickReportScreenState extends State<QuickReportScreen>
   static const Color primaryLightTeal = Color(0xFFE0F2F1);
 
   int _selectedCategory = 0;
-  int _selectedQuickMessage = 0;
+  int? _selectedQuickMessage;
+  double _selectedRadius = 5.0;
   final TextEditingController _notesController = TextEditingController();
   bool _isLoading = false;
   File? _selectedImage;
   File? _selectedAudio;
 
   bool _isRecording = false;
+  AudioPlayer? _audioPlayer;
+  bool _isPlayingAudio = false;
   late final AudioRecorder _audioRecorder;
   late final AnimationController _pulseController;
+
+  static const List<_ReportCategory> _defaultCategories = [
+    _ReportCategory(
+      'Butuh Pendamping',
+      'Relawan & Petugas',
+      'butuh_pendamping',
+      CupertinoIcons.person_2_fill,
+      Color(0xFF1565C0),
+    ),
+    _ReportCategory(
+      'Kondisi Medis',
+      'Ambulans & Obat',
+      'kondisi_medis',
+      CupertinoIcons.add_circled,
+      Color(0xFFD32F2F),
+    ),
+    _ReportCategory(
+      'Ancaman / Bahaya',
+      'Keamanan Cepat',
+      'ancaman_bahaya',
+      CupertinoIcons.exclamationmark_triangle_fill,
+      Color(0xFFE65100),
+    ),
+    _ReportCategory(
+      'Tersesat',
+      'Panduan Arah',
+      'tersesat',
+      CupertinoIcons.compass_fill,
+      Color(0xFF00838F),
+    ),
+    _ReportCategory(
+      'Aksesibilitas Rusak',
+      'Bantuan Akses',
+      'aksesibilitas_rusak',
+      CupertinoIcons.person_crop_circle,
+      Color(0xFF6A1B9A),
+    ),
+    _ReportCategory(
+      'Lainnya',
+      'Bantuan Khusus',
+      'lainnya',
+      CupertinoIcons.ellipsis_circle_fill,
+      Color(0xFF546E7A),
+    ),
+  ];
+
+  static const List<Map<String, dynamic>> _defaultQuickMessages = [
+    {
+      'icon': CupertinoIcons.checkmark_circle_fill,
+      'text': 'Saya butuh bantuan di lokasi saya',
+    },
+    {
+      'icon': CupertinoIcons.checkmark_circle_fill,
+      'text': 'Saya tidak dapat berbicara / mendengar',
+    },
+    {
+      'icon': CupertinoIcons.checkmark_circle_fill,
+      'text': 'Tolong hubungi kontak keluarga saya',
+    },
+    {
+      'icon': CupertinoIcons.checkmark_circle_fill,
+      'text': 'Saya butuh bantuan mobilitas / kursi roda',
+    },
+  ];
 
   bool _isLoadingOptions = true;
   String? _optionsError;
 
-  final List<_ReportCategory> _categories = [];
-  final List<Map<String, dynamic>> _quickMessages = [];
+  final List<_ReportCategory> _categories = List.from(_defaultCategories);
+  final List<Map<String, dynamic>> _quickMessages =
+      List.from(_defaultQuickMessages);
 
   Position? _cachedPosition;
   String? _cachedAddress;
@@ -79,6 +148,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     _pulseController.dispose();
     _audioRecorder.dispose();
     _notesController.dispose();
+    _audioPlayer?.dispose();
     super.dispose();
   }
 
@@ -98,17 +168,27 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         final List? apiKategori = data['kategori_laporan'] as List?;
         if (apiKategori != null && apiKategori.isNotEmpty) {
           final newCategories = apiKategori.map<_ReportCategory>((item) {
+            final id = (item['id'] ?? item['nama_kategori'] ?? '').toString();
+            final title =
+                (item['title'] ?? item['nama_kategori'] ?? id).toString();
+            final subtitle =
+                (item['subtitle'] ?? item['deskripsi'] ?? '').toString();
+            final rawIcon = item['icon']?.toString();
+            final rawColor = item['color']?.toString();
             return _ReportCategory(
-              item['nama_kategori'] ?? item['title'] ?? '',
-              item['deskripsi'] ?? item['subtitle'] ?? '',
-              item['nama_kategori'] ?? item['id'] ?? '',
-              _getCategoryIcon(item['id'] ?? ''),
-              _getCategoryColor(item['id'] ?? ''),
+              title,
+              subtitle,
+              id,
+              _parseCategoryIcon(rawIcon, id),
+              _parseCategoryColor(rawColor, id),
             );
           }).toList();
 
           _categories.clear();
           _categories.addAll(newCategories);
+          if (_selectedCategory >= _categories.length) {
+            _selectedCategory = 0;
+          }
         }
 
         // Parse pesan cepat
@@ -123,11 +203,13 @@ class _QuickReportScreenState extends State<QuickReportScreen>
 
           _quickMessages.clear();
           _quickMessages.addAll(newMessages);
+          if (_selectedQuickMessage != null &&
+              _selectedQuickMessage! >= _quickMessages.length) {
+            _selectedQuickMessage = null;
+          }
         }
 
         setState(() {
-          _selectedCategory = 0;
-          _selectedQuickMessage = 0;
           _isLoadingOptions = false;
         });
       }
@@ -136,11 +218,97 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       if (mounted) {
         setState(() {
           _optionsError =
-              'Gagal memuat data opsi laporan. Periksa koneksi internet Anda.';
+              'Gagal memuat opsi terbaru. Menggunakan opsi bawaan.';
           _isLoadingOptions = false;
         });
       }
     }
+  }
+
+  IconData _parseCategoryIcon(String? rawIcon, String id) {
+    final searchTarget = '${rawIcon ?? ''} $id'.toLowerCase();
+    if (searchTarget.contains('medis') ||
+        searchTarget.contains('medical') ||
+        searchTarget.contains('obat') ||
+        searchTarget.contains('hospital') ||
+        searchTarget.contains('ambulance')) {
+      return CupertinoIcons.add_circled;
+    }
+    if (searchTarget.contains('access') ||
+        searchTarget.contains('kursi') ||
+        searchTarget.contains('wheelchair') ||
+        searchTarget.contains('disabilitas')) {
+      return CupertinoIcons.person_crop_circle;
+    }
+    if (searchTarget.contains('compass') ||
+        searchTarget.contains('sesat') ||
+        searchTarget.contains('arah') ||
+        searchTarget.contains('peta') ||
+        searchTarget.contains('nav')) {
+      return CupertinoIcons.compass_fill;
+    }
+    if (searchTarget.contains('danger') ||
+        searchTarget.contains('warning') ||
+        searchTarget.contains('bahaya') ||
+        searchTarget.contains('ancaman')) {
+      return CupertinoIcons.exclamationmark_triangle_fill;
+    }
+    if (searchTarget.contains('fire') ||
+        searchTarget.contains('kebakaran') ||
+        searchTarget.contains('api') ||
+        searchTarget.contains('flame')) {
+      return CupertinoIcons.flame_fill;
+    }
+    if (searchTarget.contains('banjir') ||
+        searchTarget.contains('gempa') ||
+        searchTarget.contains('bencana') ||
+        searchTarget.contains('tsunami') ||
+        searchTarget.contains('storm')) {
+      return CupertinoIcons.cloud_bolt_rain_fill;
+    }
+    if (searchTarget.contains('tabrakan') ||
+        searchTarget.contains('kecelakaan') ||
+        searchTarget.contains('car') ||
+        searchTarget.contains('mobil') ||
+        searchTarget.contains('motor')) {
+      return CupertinoIcons.car_fill;
+    }
+    if (searchTarget.contains('police') ||
+        searchTarget.contains('polisi') ||
+        searchTarget.contains('shield') ||
+        searchTarget.contains('keamanan')) {
+      return CupertinoIcons.shield_fill;
+    }
+    if (searchTarget.contains('person') ||
+        searchTarget.contains('pendamping') ||
+        searchTarget.contains('relawan')) {
+      return CupertinoIcons.person_2_fill;
+    }
+    if (searchTarget.contains('phone') ||
+        searchTarget.contains('kontak') ||
+        searchTarget.contains('call')) {
+      return CupertinoIcons.phone_fill;
+    }
+    if (searchTarget.contains('bell') ||
+        searchTarget.contains('sirene') ||
+        searchTarget.contains('alarm')) {
+      return CupertinoIcons.bell_fill;
+    }
+    return _getCategoryIcon(id);
+  }
+
+  Color _parseCategoryColor(String? rawColor, String id) {
+    if (rawColor != null && rawColor.isNotEmpty) {
+      try {
+        final clean = rawColor.replaceFirst('#', '').trim();
+        if (clean.length == 6) {
+          return Color(int.parse('FF$clean', radix: 16));
+        } else if (clean.length == 8) {
+          return Color(int.parse(clean, radix: 16));
+        }
+      } catch (_) {}
+    }
+    return _getCategoryColor(id);
   }
 
   IconData _getCategoryIcon(String id) {
@@ -213,17 +381,163 @@ class _QuickReportScreenState extends State<QuickReportScreen>
   }
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 50,
-      maxWidth: 1080,
+    final isHighContrast =
+        AccessibilityService.instance.isHighContrastEnabled ||
+        Theme.of(context).brightness == Brightness.dark ||
+        MediaQuery.of(context).highContrast;
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: isHighContrast ? const Color(0xFF1E1E1E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Pilih Sumber Foto Bukti Kejadian',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: isHighContrast ? Colors.white : const Color(0xFF111827),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Maksimal ukuran file foto adalah 5 MB.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isHighContrast
+                      ? const Color(0xFFD1D5DB)
+                      : const Color(0xFF6B7280),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isHighContrast
+                        ? const Color(0xFF1E3A34)
+                        : primaryLightTeal,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(CupertinoIcons.camera_fill,
+                      color: primaryTeal),
+                ),
+                title: Text(
+                  'Kamera',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color:
+                        isHighContrast ? Colors.white : const Color(0xFF111827),
+                  ),
+                ),
+                subtitle: Text(
+                  'Ambil foto langsung di lokasi kejadian',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isHighContrast
+                        ? const Color(0xFF9CA3AF)
+                        : const Color(0xFF6B7280),
+                  ),
+                ),
+                onTap: () => Navigator.pop(ctx, ImageSource.camera),
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isHighContrast
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(CupertinoIcons.photo_fill,
+                      color: Color(0xFF2563EB)),
+                ),
+                title: Text(
+                  'Galeri',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color:
+                        isHighContrast ? Colors.white : const Color(0xFF111827),
+                  ),
+                ),
+                subtitle: Text(
+                  'Pilih foto dari penyimpanan perangkat',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isHighContrast
+                        ? const Color(0xFF9CA3AF)
+                        : const Color(0xFF6B7280),
+                  ),
+                ),
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
-    if (pickedFile != null) {
-      setState(() {
-        _selectedImage = File(pickedFile.path);
-      });
+
+    if (source == null) return;
+
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: source,
+        imageQuality: 75,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
+
+      if (pickedFile != null) {
+        final file = File(pickedFile.path);
+        final fileSize = await file.length();
+        const maxSizeBytes = 5 * 1024 * 1024; // 5 MB
+
+        if (fileSize > maxSizeBytes) {
+          if (mounted) {
+            final sizeMb = (fileSize / (1024 * 1024)).toStringAsFixed(1);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Ukuran foto terlalu besar ($sizeMb MB). Batas maksimal 5 MB.',
+                ),
+                backgroundColor: const Color(0xFFDC2626),
+              ),
+            );
+          }
+          return;
+        }
+
+        setState(() {
+          _selectedImage = file;
+        });
+        AccessibilityService.instance.hapticMedium();
+        unawaited(
+          AccessibilityService.instance.speak("Foto bukti berhasil dilampirkan"),
+        );
+      }
+    } catch (e) {
+      debugPrint("Gagal mengambil foto: $e");
     }
+  }
+
+  void _removeImage() {
+    setState(() {
+      _selectedImage = null;
+    });
+    AccessibilityService.instance.hapticMedium();
+    unawaited(AccessibilityService.instance.speak("Lampiran foto dihapus"));
   }
 
   Future<void> _pickAudio() async {
@@ -231,22 +545,51 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       if (_isRecording) {
         final path = await _audioRecorder.stop();
         _pulseController.stop();
-        AccessibilityService.instance.hapticMedium();
-        unawaited(
-          AccessibilityService.instance.speak("Rekaman suara selesai disimpan"),
-        );
-        setState(() {
-          _isRecording = false;
-          if (path != null) {
-            _selectedAudio = File(path);
+
+        if (path != null) {
+          final file = File(path);
+          final fileSize = await file.length();
+          const maxAudioBytes = 10 * 1024 * 1024; // 10 MB
+
+          if (fileSize > maxAudioBytes) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Ukuran rekaman suara melebihi batas 10 MB.'),
+                  backgroundColor: Color(0xFFDC2626),
+                ),
+              );
+            }
+            setState(() {
+              _isRecording = false;
+              _selectedAudio = null;
+            });
+            return;
           }
-        });
+
+          AccessibilityService.instance.hapticMedium();
+          unawaited(
+            AccessibilityService.instance.speak("Rekaman suara selesai disimpan"),
+          );
+          setState(() {
+            _isRecording = false;
+            _selectedAudio = file;
+          });
+        } else {
+          setState(() {
+            _isRecording = false;
+          });
+        }
       } else {
         if (await _audioRecorder.hasPermission()) {
           AccessibilityService.instance.hapticMedium();
           unawaited(
-            AccessibilityService.instance.speak("Merekam suara darurat"),
+            AccessibilityService.instance.speak("Merekam suara"),
           );
+          if (_audioPlayer != null && _isPlayingAudio) {
+            await _audioPlayer!.stop();
+            _isPlayingAudio = false;
+          }
           setState(() {
             _isRecording = true;
             _selectedAudio = null;
@@ -259,7 +602,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                 '${tempDir.path}/rekaman_sos_${DateTime.now().millisecondsSinceEpoch}.wav';
             const config = RecordConfig(
               encoder: AudioEncoder.wav,
-              sampleRate: 8000,
+              sampleRate: 16000,
               numChannels: 1,
             );
 
@@ -291,10 +634,76 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     }
   }
 
+  Future<void> _toggleAudioPreview() async {
+    if (_selectedAudio == null) return;
+
+    if (_audioPlayer == null) {
+      _audioPlayer = AudioPlayer();
+      _audioPlayer!.onPlayerComplete.listen((_) {
+        if (mounted) {
+          setState(() {
+            _isPlayingAudio = false;
+          });
+        }
+      });
+    }
+
+    if (_isPlayingAudio) {
+      await _audioPlayer!.pause();
+      if (mounted) {
+        setState(() {
+          _isPlayingAudio = false;
+        });
+      }
+    } else {
+      await _audioPlayer!.play(DeviceFileSource(_selectedAudio!.path));
+      if (mounted) {
+        setState(() {
+          _isPlayingAudio = true;
+        });
+      }
+    }
+  }
+
+  void _removeAudio() {
+    if (_audioPlayer != null && _isPlayingAudio) {
+      _audioPlayer!.stop();
+    }
+    setState(() {
+      _selectedAudio = null;
+      _isPlayingAudio = false;
+    });
+    AccessibilityService.instance.hapticMedium();
+    unawaited(AccessibilityService.instance.speak("Rekaman suara dihapus"));
+  }
+
   Future<void> _submitReport() async {
-    if (_categories.isEmpty || _quickMessages.isEmpty) {
+    if (_categories.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Data formulir laporan belum siap.')),
+      );
+      return;
+    }
+
+    final selectedCategory = _categories[_selectedCategory];
+    final selectedQuickMessage = _selectedQuickMessage != null &&
+            _selectedQuickMessage! < _quickMessages.length
+        ? _quickMessages[_selectedQuickMessage!]['text'] as String
+        : null;
+    final notes = _notesController.text.trim();
+
+    // Validasi kelengkapan minimal: harus ada pesan cepat, catatan, foto, atau rekaman suara
+    if (selectedQuickMessage == null &&
+        notes.isEmpty &&
+        _selectedImage == null &&
+        _selectedAudio == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Mohon sertakan pesan cepat, keterangan tambahan, foto, atau rekaman suara.',
+          ),
+          backgroundColor: Color(0xFFDC2626),
+        ),
       );
       return;
     }
@@ -355,10 +764,6 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         } catch (_) {}
       }
 
-      final selectedCategory = _categories[_selectedCategory];
-      final selectedQuickMessage =
-          _quickMessages[_selectedQuickMessage]['text'] as String;
-
       final reportDataSource = sl<ReportRemoteDataSource>();
       await reportDataSource.submitReport(
         categoryId: selectedCategory.id,
@@ -366,9 +771,8 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         latitude: position.latitude,
         longitude: position.longitude,
         quickMessage: selectedQuickMessage,
-        additionalNotes: _notesController.text.trim().isNotEmpty
-            ? _notesController.text.trim()
-            : null,
+        additionalNotes: notes.isNotEmpty ? notes : null,
+        radius: _selectedRadius,
         photoFile: _selectedImage,
         audioFile: _selectedAudio,
       );
@@ -384,11 +788,12 @@ class _QuickReportScreenState extends State<QuickReportScreen>
 
         setState(() {
           _selectedCategory = 0;
-          _selectedQuickMessage = 0;
+          _selectedQuickMessage = null;
           _notesController.clear();
           _selectedImage = null;
           _selectedAudio = null;
           _isRecording = false;
+          _isPlayingAudio = false;
         });
 
         // Clean Solid Surface Dialog (Anti-Slop & Accessible)
@@ -520,11 +925,11 @@ class _QuickReportScreenState extends State<QuickReportScreen>
           backgroundColor: currentBg,
           appBar: _buildAppBar(isHighContrast),
           body: SafeArea(
-            child: _isLoadingOptions
+            child: _categories.isEmpty && _isLoadingOptions
                 ? const Center(
                     child: CupertinoActivityIndicator(radius: 16),
                   )
-                : _optionsError != null
+                : _categories.isEmpty && _optionsError != null
                     ? Center(
                         child: Padding(
                           padding: const EdgeInsets.all(24),
@@ -571,6 +976,63 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            if (_isLoadingOptions)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: const LinearProgressIndicator(
+                                    minHeight: 2,
+                                    backgroundColor: Colors.transparent,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      primaryTeal,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            else if (_optionsError != null)
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isHighContrast
+                                      ? const Color(0xFF1E293B)
+                                      : const Color(0xFFFFFBEB),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: isHighContrast
+                                        ? const Color(0xFFF59E0B)
+                                        : const Color(0xFFFCD34D),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      CupertinoIcons.info_circle_fill,
+                                      size: 16,
+                                      color: isHighContrast
+                                          ? const Color(0xFFFBBF24)
+                                          : const Color(0xFFD97706),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Mode offline: Form menggunakan opsi darurat bawaan.',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          color: isHighContrast
+                                              ? const Color(0xFFFDE68A)
+                                              : const Color(0xFF92400E),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             Text(
                               'Kirim Laporan Cepat',
                               style: TextStyle(
@@ -614,6 +1076,14 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                             ),
                             const SizedBox(height: 10),
                             _buildNotesField(isHighContrast),
+                            const SizedBox(height: 20),
+                            _buildSectionHeader(
+                              'Radius Jangkauan Relawan',
+                              isHighContrast,
+                              trailing: '${_selectedRadius.toStringAsFixed(1)} KM',
+                            ),
+                            const SizedBox(height: 10),
+                            _buildRadiusSelector(isHighContrast),
                             const SizedBox(height: 20),
                             _buildSectionHeader(
                               'Lampiran & Koordinat Otomatis',
@@ -820,11 +1290,21 @@ class _QuickReportScreenState extends State<QuickReportScreen>
               borderRadius: BorderRadius.circular(12),
               onTap: () {
                 AccessibilityService.instance.hapticSelection();
-                unawaited(
-                  AccessibilityService.instance
-                      .speak("Pesan ${item['text']} dipilih"),
-                );
-                setState(() => _selectedQuickMessage = index);
+                setState(() {
+                  if (_selectedQuickMessage == index) {
+                    _selectedQuickMessage = null;
+                    unawaited(
+                      AccessibilityService.instance
+                          .speak("Pesan cepat dibatalkan"),
+                    );
+                  } else {
+                    _selectedQuickMessage = index;
+                    unawaited(
+                      AccessibilityService.instance
+                          .speak("Pesan ${item['text']} dipilih"),
+                    );
+                  }
+                });
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
@@ -923,6 +1403,136 @@ class _QuickReportScreenState extends State<QuickReportScreen>
             fontSize: 13,
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildRadiusSelector(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final defaultBg = AccessibleColors.cardBackground(isHighContrast);
+    final selectedBg =
+        isHighContrast ? const Color(0xFF1E3A34) : primaryLightTeal;
+
+    const presetRadii = [1.0, 3.0, 5.0, 10.0, 25.0, 50.0];
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: defaultBg,
+        borderRadius: BorderRadius.circular(16),
+        border: AccessibleColors.cardBorder(isHighContrast),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: isHighContrast ? 0.25 : 0.04,
+            ),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                CupertinoIcons.location_circle_fill,
+                color: tealColor,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Radius Notifikasi Relawan: ${_selectedRadius.toStringAsFixed(1)} KM',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AccessibleColors.textPrimary(isHighContrast),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: tealColor,
+              inactiveTrackColor: isHighContrast
+                  ? const Color(0xFF374151)
+                  : const Color(0xFFE5E7EB),
+              thumbColor: tealColor,
+              overlayColor: tealColor.withValues(alpha: 0.2),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: _selectedRadius,
+              min: 0.5,
+              max: 50.0,
+              divisions: 99,
+              label: '${_selectedRadius.toStringAsFixed(1)} KM',
+              onChanged: (val) {
+                setState(() {
+                  _selectedRadius = double.parse(val.toStringAsFixed(1));
+                });
+              },
+            ),
+          ),
+          const SizedBox(height: 6),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: presetRadii.map((r) {
+                final isSelected = (_selectedRadius - r).abs() < 0.1;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () {
+                      AccessibilityService.instance.hapticSelection();
+                      unawaited(
+                        AccessibilityService.instance
+                            .speak("Radius ${r.toInt()} kilometer dipilih"),
+                      );
+                      setState(() {
+                        _selectedRadius = r;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected ? selectedBg : Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isSelected
+                              ? tealColor
+                              : (isHighContrast
+                                  ? const Color(0xFF4B5563)
+                                  : const Color(0xFFD1D5DB)),
+                          width: isSelected || isHighContrast ? 1.5 : 1.0,
+                        ),
+                      ),
+                      child: Text(
+                        '${r.toInt()} KM',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.w500,
+                          color: isSelected
+                              ? tealColor
+                              : AccessibleColors.textSecondary(isHighContrast),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1062,53 +1672,64 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                   ],
                 ),
               ),
-              if (!_isRecording)
+              if (!_isRecording && hasAudio) ...[
+                IconButton(
+                  tooltip: _isPlayingAudio ? 'Jeda Suara' : 'Putar Suara',
+                  icon: Icon(
+                    _isPlayingAudio
+                        ? CupertinoIcons.pause_circle_fill
+                        : CupertinoIcons.play_circle_fill,
+                    color: tealColor,
+                    size: 28,
+                  ),
+                  onPressed: _toggleAudioPreview,
+                ),
+                IconButton(
+                  tooltip: 'Hapus Rekaman',
+                  icon: const Icon(
+                    CupertinoIcons.trash,
+                    color: Color(0xFFEF4444),
+                    size: 20,
+                  ),
+                  onPressed: _removeAudio,
+                ),
+              ] else if (!_isRecording) ...[
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: hasAudio
-                        ? (isHighContrast
-                            ? const Color(0xFF1E3A34)
-                            : primaryLightTeal)
-                        : (isHighContrast
-                            ? const Color(0xFF332015)
-                            : const Color(0xFFFFF7ED)),
+                    color: isHighContrast
+                        ? const Color(0xFF332015)
+                        : const Color(0xFFFFF7ED),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        hasAudio
-                            ? CupertinoIcons.checkmark_circle_fill
-                            : CupertinoIcons.mic,
+                        CupertinoIcons.mic,
                         size: 15,
-                        color: hasAudio
-                            ? tealColor
-                            : (isHighContrast
-                                ? const Color(0xFFFB923C)
-                                : const Color(0xFFEA580C)),
+                        color: isHighContrast
+                            ? const Color(0xFFFB923C)
+                            : const Color(0xFFEA580C),
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        hasAudio ? 'Selesai' : 'Rekam',
+                        'Rekam',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: hasAudio
-                              ? tealColor
-                              : (isHighContrast
-                                  ? const Color(0xFFFB923C)
-                                  : const Color(0xFFEA580C)),
+                          color: isHighContrast
+                              ? const Color(0xFFFB923C)
+                              : const Color(0xFFEA580C),
                         ),
                       ),
                     ],
                   ),
-                )
-              else
+                ),
+              ] else
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -1220,6 +1841,16 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                   ],
                 ),
               ),
+              if (hasPhoto)
+                IconButton(
+                  tooltip: 'Hapus Foto',
+                  icon: const Icon(
+                    CupertinoIcons.trash,
+                    color: Color(0xFFEF4444),
+                    size: 20,
+                  ),
+                  onPressed: _removeImage,
+                ),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,

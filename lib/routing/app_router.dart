@@ -15,6 +15,7 @@ import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuy
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_wifi_scan_screen.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_detail_screen.dart';
 import 'package:sahabat_sos_mobile/features/profile/presentation/screens/edit_profile_screen.dart';
+import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/volunteer_active_task_page.dart';
 import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
 
 import 'package:get_it/get_it.dart';
@@ -110,6 +111,13 @@ class AppRouter {
           return MainVolunteerScreen(initialIndex: tabIndex);
         },
       ),
+      GoRoute(
+        path: AppRoutes.volunteerActiveTask,
+        builder: (context, state) {
+          final task = state.extra as Map<String, dynamic>?;
+          return VolunteerActiveTaskPage(initialTask: task);
+        },
+      ),
       GoRoute(path: AppRoutes.map, builder: (context, state) => const MapPage()),
       GoRoute(
         path: AppRoutes.quickReport,
@@ -128,7 +136,16 @@ class AppRouter {
       ),
       GoRoute(
         path: AppRoutes.sosStatus,
-        builder: (context, state) => const SosStatusPage(),
+        builder: (context, state) {
+          final extra = state.extra;
+          int? id;
+          if (extra is Map) {
+            id = extra['sos_id'] as int?;
+          } else if (extra is int) {
+            id = extra;
+          }
+          return SosStatusPage(initialSosId: id);
+        },
       ),
       GoRoute(
         path: AppRoutes.editProfile,

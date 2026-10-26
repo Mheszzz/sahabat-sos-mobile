@@ -6,6 +6,7 @@ abstract class SosRemoteDataSource {
   Future<Map<String, dynamic>?> getActiveEmergency();
   Future<bool> cancelEmergency(int sosId, {String? reason});
   Future<List<dynamic>> getSosActivities(int sosId);
+  Future<Map<String, dynamic>?> getSosDetail(int sosId);
 }
 
 class SosRemoteDataSourceImpl implements SosRemoteDataSource {
@@ -78,5 +79,26 @@ class SosRemoteDataSourceImpl implements SosRemoteDataSource {
       return (response.data['data'] as List<dynamic>?) ?? [];
     }
     return [];
+  }
+
+  @override
+  Future<Map<String, dynamic>?> getSosDetail(int sosId) async {
+    final token = prefs.getString('auth_token');
+    try {
+      final response = await dio.get(
+        ApiConstants.sosDetail(sosId),
+        options: Options(
+          headers: {
+            if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
+        return response.data['data'] as Map<String, dynamic>?;
+      }
+    } catch (_) {}
+    return null;
   }
 }

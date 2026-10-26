@@ -36,7 +36,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _phone = '-';
   String _location = '-';
   String _address = '-';
-  String _avatarUrl = 'https://placehold.co/100x100.png';
+  String? _avatarUrl;
+  bool _avatarError = false;
 
   Dio get _dio => GetIt.instance<Dio>();
 
@@ -86,14 +87,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
             final cat = rawCat.isEmpty ? 'umum' : rawCat;
             _category = cat.substring(0, 1).toUpperCase() + cat.substring(1);
 
-            if (userData['foto_profile'] != null &&
-                userData['foto_profile'].toString().isNotEmpty) {
-              final String foto = userData['foto_profile'].toString();
+            _avatarError = false;
+            final rawFoto = userData['foto_profile_url'] ?? userData['foto_profile'];
+            if (rawFoto != null && rawFoto.toString().isNotEmpty) {
+              final String foto = rawFoto.toString();
               if (foto.startsWith('http://') || foto.startsWith('https://')) {
                 _avatarUrl = foto;
               } else {
-                _avatarUrl = '${ApiConstants.baseUrl}/storage-file/$foto';
+                String cleanPath =
+                    foto.startsWith('/') ? foto.substring(1) : foto;
+                if (cleanPath.startsWith('public/')) {
+                  cleanPath = cleanPath.substring(7);
+                }
+                _avatarUrl = '${ApiConstants.storageUrl}/$cleanPath';
               }
+            } else {
+              _avatarUrl = null;
             }
 
             _isLoading = false;
@@ -952,9 +961,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
               radius: 44,
               backgroundColor: isHighContrast
                   ? Colors.grey.shade800
-                  : Colors.grey.shade200,
-              backgroundImage: NetworkImage(_avatarUrl),
-              onBackgroundImageError: (_, _) {},
+                  : primaryTeal.withValues(alpha: 0.1),
+              backgroundImage: (_avatarUrl != null &&
+                      _avatarUrl!.isNotEmpty &&
+                      !_avatarError)
+                  ? NetworkImage(_avatarUrl!)
+                  : null,
+              onBackgroundImageError: (_avatarUrl != null &&
+                      _avatarUrl!.isNotEmpty)
+                  ? (_, _) {
+                      if (mounted && !_avatarError) {
+                        setState(() => _avatarError = true);
+                      }
+                    }
+                  : null,
+              child: (_avatarUrl == null ||
+                      _avatarUrl!.isEmpty ||
+                      _avatarError)
+                  ? Icon(
+                      CupertinoIcons.person_fill,
+                      size: 44,
+                      color: isHighContrast
+                          ? const Color(0xFF14B8A6)
+                          : primaryTeal,
+                    )
+                  : null,
             ),
           ),
           const SizedBox(height: 14),

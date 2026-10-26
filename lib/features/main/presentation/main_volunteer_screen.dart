@@ -17,6 +17,7 @@ import 'package:sahabat_sos_mobile/features/volunteer_task/data/datasources/volu
 import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/widgets/new_assignment_dialog.dart';
 import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/volunteer_active_task_page.dart';
 import 'package:sahabat_sos_mobile/core/services/notification_service.dart';
+import 'package:sahabat_sos_mobile/core/services/sos_rejection_storage.dart';
 
 class MainVolunteerScreen extends StatefulWidget {
   final int initialIndex;
@@ -30,6 +31,8 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
   late int _selectedIndex;
   bool? _isVerified;
   bool _isActive = true;
+  String _verificationStatus = 'pending';
+  String? _rejectionReason;
   bool _isSosDialogShowing = false;
   final List<int> _rejectedSosIds = [];
   final LocationService _locationService = sl<LocationService>();
@@ -76,6 +79,7 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
     if (status == true && _isVerified != true) {
       setState(() {
         _isVerified = true;
+        _verificationStatus = 'terverifikasi';
       });
       if (_isActive) {
         _startOperationalServices();
@@ -93,7 +97,9 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
     final targetIndex = event_bus.GlobalEventBus.changeVolunteerTab.value;
     if (targetIndex != null) {
       if ((_isVerified == false || !_isActive) && targetIndex != 3) {
-        if (!_isActive) {
+        if (_verificationStatus == 'ditolak') {
+          _showRejectedDialog();
+        } else if (!_isActive) {
           _showDeactivatedDialog();
         } else {
           _showUnverifiedDialog();
@@ -105,6 +111,40 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
       }
       event_bus.GlobalEventBus.changeVolunteerTab.value = null;
     }
+  }
+
+  void _showRejectedDialog() {
+    final isHighContrast =
+        AccessibilityService.instance.isHighContrastEnabled ||
+        Theme.of(context).brightness == Brightness.dark ||
+        MediaQuery.of(context).highContrast;
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoTheme(
+        data: CupertinoThemeData(
+          brightness: isHighContrast ? Brightness.dark : Brightness.light,
+          primaryColor: isHighContrast ? const Color(0xFF80CBC4) : primaryTeal,
+        ),
+        child: CupertinoAlertDialog(
+          title: const Text('Pengajuan Relawan Ditolak'),
+          content: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              _rejectionReason != null && _rejectionReason!.isNotEmpty
+                  ? 'Pengajuan verifikasi relawan Anda ditolak oleh admin dengan catatan:\n\n"$_rejectionReason"\n\nSilakan periksa halaman Profil untuk informasi lebih lanjut atau hubungi admin posko.'
+                  : 'Pengajuan relawan Anda belum memenuhi kualifikasi verifikasi administrator.\n\nSilakan cek status di tab Profil atau hubungi admin posko koordinasi.',
+            ),
+          ),
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Mengerti'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showDeactivatedDialog() {
@@ -202,7 +242,8 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
     final dynamic rawId = sosData['id'];
     final int sosId =
         (rawId is int) ? rawId : int.tryParse(rawId?.toString() ?? '0') ?? 0;
-    if (_rejectedSosIds.contains(sosId)) {
+    if (_rejectedSosIds.contains(sosId) ||
+        (sosId > 0 && SosRejectionStorage.isRejected(sosId))) {
       debugPrint("ℹ️ SOS #$sosId sudah pernah ditolak.");
       event_bus.GlobalEventBus.showSosAssignmentPopup.value = null;
       return;
@@ -248,22 +289,32 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
             );
           }
         },
-        onReject: () async {
+        onReject: (String? reason) async {
           _isSosDialogShowing = false;
           _rejectedSosIds.add(sosId);
-          Navigator.pop(ctx);
+          if (sosId > 0) {
+            final prefs = sl<SharedPreferences>();
+            await SosRejectionStorage.addRejectedId(sosId, prefs);
+          }
+          if (ctx.mounted) {
+            Navigator.pop(ctx);
+          }
 
           try {
             final volunteerDataSource = sl<VolunteerRemoteDataSource>();
-            await volunteerDataSource.rejectSos(sosId);
+            await volunteerDataSource.rejectSos(sosId, alasan: reason);
 
             event_bus.GlobalEventBus.refreshMap.value =
                 !event_bus.GlobalEventBus.refreshMap.value;
 
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Tugas dialihkan ke relawan lain.'),
+              SnackBar(
+                content: Text(
+                  reason != null && reason.isNotEmpty
+                      ? 'Tugas dialihkan ($reason).'
+                      : 'Tugas dialihkan ke relawan lain.',
+                ),
               ),
             );
           } catch (e) {
@@ -322,10 +373,13 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
       final prefs = sl<SharedPreferences>();
       final cachedStatus = prefs.getString('verification_status');
       final cachedActive = prefs.getBool('user_is_active') ?? true;
+      final cachedReason = prefs.getString('rejection_reason');
       if (mounted) {
         setState(() {
           _isActive = cachedActive;
+          _rejectionReason = cachedReason;
           if (cachedStatus != null) {
+            _verificationStatus = cachedStatus;
             _isVerified = cachedStatus == 'terverifikasi';
           }
           if ((_isVerified == false || !_isActive) && _selectedIndex != 3) {
@@ -343,14 +397,28 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
       if (userData != null) {
         final status = (userData['status_verifikasi'] ?? 'pending').toString().toLowerCase();
         final active = (userData['is_active'] == true || userData['is_active'] == 1);
+        final reason = userData['alasan_penolakan']?.toString();
+        final volunteerId = (userData['id'] is int)
+            ? userData['id'] as int
+            : int.tryParse(userData['id']?.toString() ?? '');
         final prefs = sl<SharedPreferences>();
+        if (volunteerId != null && volunteerId > 0) {
+          await prefs.setInt('volunteer_id', volunteerId);
+        }
         await prefs.setString('verification_status', status);
         await prefs.setBool('user_is_active', active);
+        if (reason != null && reason.isNotEmpty) {
+          await prefs.setString('rejection_reason', reason);
+        } else {
+          await prefs.remove('rejection_reason');
+        }
 
         if (mounted) {
           setState(() {
+            _verificationStatus = status;
             _isVerified = status == 'terverifikasi';
             _isActive = active;
+            _rejectionReason = reason;
             if ((_isVerified == false || !_isActive) && _selectedIndex != 3) {
               _selectedIndex = 3; // Force to Profile tab
             }
@@ -485,7 +553,9 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
                             onTap: () {
                               AccessibilityService.instance.hapticSelection();
                               if (isLocked) {
-                                if (!_isActive) {
+                                if (_verificationStatus == 'ditolak') {
+                                  _showRejectedDialog();
+                                } else if (!_isActive) {
                                   _showDeactivatedDialog();
                                 } else {
                                   _showUnverifiedDialog();

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:get_it/get_it.dart' as get_it;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/api_constants.dart';
@@ -35,11 +36,29 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
   final TextEditingController _userPhoneController = TextEditingController();
   final TextEditingController _jobController = TextEditingController();
   final TextEditingController _reasonController = TextEditingController();
+  XFile? _kycDocument;
 
   bool _voiceGuidanceEnabled = true;
   bool _hapticVibrationEnabled = true;
   bool _talkbackEnabled = false;
   bool _largeTextEnabled = false;
+
+  Future<void> _pickKycDocument() async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+      if (picked != null) {
+        setState(() {
+          _kycDocument = picked;
+        });
+      }
+    } catch (e) {
+      debugPrint('Gagal memilih berkas KYC: $e');
+    }
+  }
 
   @override
   void initState() {
@@ -526,6 +545,95 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            Text(
+              'Dokumen Identitas & Kualifikasi (KYC)',
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Lampirkan foto KTP, KTA, atau sertifikat relawan untuk diverifikasi oleh administrator posko.',
+              style: TextStyle(
+                fontSize: 12,
+                color: textSecondary,
+                height: 1.3,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: inputBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isHighContrast
+                      ? const Color(0xFF4B5563)
+                      : (_kycDocument != null ? const Color(0xFF10B981) : const Color(0xFFCBD0DE)),
+                  width: _kycDocument != null ? 1.5 : 1.0,
+                ),
+              ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                leading: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: _kycDocument != null
+                        ? (isHighContrast ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5))
+                        : (isHighContrast ? const Color(0xFF1E2430) : const Color(0xFFE2E8F0)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    _kycDocument != null
+                        ? CupertinoIcons.doc_checkmark_fill
+                        : CupertinoIcons.doc_text,
+                    color: _kycDocument != null
+                        ? (isHighContrast ? const Color(0xFF6EE7B7) : const Color(0xFF059669))
+                        : (isHighContrast ? const Color(0xFF9CA3AF) : const Color(0xFF64748B)),
+                    size: 20,
+                  ),
+                ),
+                title: Text(
+                  _kycDocument != null
+                      ? _kycDocument!.name
+                      : 'Pilih Berkas KYC (Foto / Dokumen)',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: _kycDocument != null ? FontWeight.bold : FontWeight.w500,
+                    color: textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  _kycDocument != null
+                      ? 'Dokumen siap dilampirkan'
+                      : 'Format: JPG, PNG, atau scan dokumen',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _kycDocument != null
+                        ? (isHighContrast ? const Color(0xFF6EE7B7) : const Color(0xFF059669))
+                        : textSecondary,
+                  ),
+                ),
+                trailing: _kycDocument != null
+                    ? IconButton(
+                        icon: const Icon(CupertinoIcons.clear_circled, size: 20),
+                        color: Colors.redAccent,
+                        tooltip: 'Hapus berkas',
+                        onPressed: () => setState(() => _kycDocument = null),
+                      )
+                    : Icon(
+                        CupertinoIcons.photo_camera,
+                        size: 20,
+                        color: isHighContrast ? const Color(0xFF9CA3AF) : const Color(0xFF64748B),
+                      ),
+                onTap: _pickKycDocument,
+              ),
+            ),
           ],
         ],
       ),
@@ -986,9 +1094,20 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
         payload['text_besar'] = _largeTextEnabled;
       }
 
+      dynamic requestBody = payload;
+      if (_selectedRole == _RoleType.relawan && _kycDocument != null) {
+        final formMap = Map<String, dynamic>.from(payload);
+        final bytes = await _kycDocument!.readAsBytes();
+        formMap['dokumen_kyc'] = MultipartFile.fromBytes(
+          bytes,
+          filename: _kycDocument!.name,
+        );
+        requestBody = FormData.fromMap(formMap);
+      }
+
       final response = await dio.post(
         ApiConstants.completeProfile,
-        data: payload,
+        data: requestBody,
         options: Options(
           headers: {
             'Authorization': 'Bearer $token',

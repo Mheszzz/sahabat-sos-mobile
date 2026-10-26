@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
@@ -15,7 +16,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'widgets/slide_to_cancel_button.dart';
 
 class SosStatusPage extends StatefulWidget {
-  const SosStatusPage({super.key});
+  final int? initialSosId;
+
+  const SosStatusPage({super.key, this.initialSosId});
 
   @override
   State<SosStatusPage> createState() => _SosStatusPageState();
@@ -34,6 +37,7 @@ class _SosStatusPageState extends State<SosStatusPage>
   String _sosStatus = 'belum ditangani';
   int? _sosId;
   double? _relawanDistance;
+  Map<String, dynamic>? _assignedRelawan;
 
   bool get _isDitangani => _sosStatus == 'ditangani';
   bool get _isSelesai => _sosStatus == 'selesai';
@@ -53,6 +57,7 @@ class _SosStatusPageState extends State<SosStatusPage>
   @override
   void initState() {
     super.initState();
+    _sosId = widget.initialSosId;
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1600),
@@ -103,10 +108,22 @@ class _SosStatusPageState extends State<SosStatusPage>
 
       setState(() {
         _sosStatus = rawStatus;
+        if (payload['relawan'] != null && payload['relawan'] is Map) {
+          final relawanData =
+              Map<String, dynamic>.from(payload['relawan'] as Map);
+          if (_assignedRelawan != null) {
+            _assignedRelawan = {..._assignedRelawan!, ...relawanData};
+          } else {
+            _assignedRelawan = relawanData;
+          }
+        }
       });
 
-      if (_isDitangani && !_isListeningRelawan) {
-        _listenToRelawanLocation(sosId);
+      if (_isDitangani) {
+        if (!_isListeningRelawan) {
+          _listenToRelawanLocation(sosId);
+        }
+        _fetchSosStatus();
       }
 
       if (_isSelesai || _isBatal) {
@@ -122,11 +139,26 @@ class _SosStatusPageState extends State<SosStatusPage>
   void _listenToRelawanLocation(int sosId) {
     _isListeningRelawan = true;
     WebsocketService.listenToRelawanLocation(sosId, (payload) {
-      if (mounted && payload != null && payload['distance'] != null) {
-        setState(() {
+      if (!mounted || payload == null) return;
+      setState(() {
+        if (payload['distance'] != null) {
           _relawanDistance = (payload['distance'] as num).toDouble();
-        });
-      }
+        }
+        final volunteerName = payload['nama'] ?? payload['name'];
+        if (volunteerName != null &&
+            volunteerName.toString().trim().isNotEmpty) {
+          final nameStr = volunteerName.toString().trim();
+          if (_assignedRelawan == null) {
+            _assignedRelawan = {'name': nameStr, 'nama': nameStr};
+          } else {
+            _assignedRelawan = {
+              ..._assignedRelawan!,
+              'name': _assignedRelawan!['name'] ?? nameStr,
+              'nama': _assignedRelawan!['nama'] ?? nameStr,
+            };
+          }
+        }
+      });
     });
   }
 
@@ -162,6 +194,10 @@ class _SosStatusPageState extends State<SosStatusPage>
           _sosId = data['id'];
           _sosStatus = rawStatus;
           _emptyPollCount = 0;
+          if (data['relawan'] != null && data['relawan'] is Map) {
+            _assignedRelawan =
+                Map<String, dynamic>.from(data['relawan'] as Map);
+          }
         });
 
         if (_sosId != null) {
@@ -179,10 +215,33 @@ class _SosStatusPageState extends State<SosStatusPage>
         // 15-second grace period (3 polls) for async backend processing
         _emptyPollCount++;
         if (_emptyPollCount > 3) {
-          setState(() {
-            _sosStatus = 'selesai';
-          });
-          _startSelesaiTimer();
+          if (_isBatal) {
+            _startSelesaiTimer();
+          } else if (_sosId != null) {
+            try {
+              final detail = await _sosRemoteDataSource.getSosDetail(_sosId!);
+              if (!mounted) return;
+              final actualStatus =
+                  (detail?['status_sos'] ?? '').toString().toLowerCase();
+              if (actualStatus == 'batal') {
+                setState(() {
+                  _sosStatus = 'batal';
+                });
+                _startSelesaiTimer();
+                return;
+              }
+            } catch (_) {}
+
+            setState(() {
+              _sosStatus = 'selesai';
+            });
+            _startSelesaiTimer();
+          } else {
+            setState(() {
+              _sosStatus = 'selesai';
+            });
+            _startSelesaiTimer();
+          }
         }
       }
     } catch (e) {
@@ -193,6 +252,8 @@ class _SosStatusPageState extends State<SosStatusPage>
   void _startSelesaiTimer() {
     if (_isSelesaiTimerStarted) return;
     _isSelesaiTimerStarted = true;
+    _statusTimer?.cancel();
+    _locationService.stopTracking();
     _selesaiTimer = Timer(const Duration(seconds: 10), () {
       if (mounted) {
         context.pop();
@@ -200,30 +261,247 @@ class _SosStatusPageState extends State<SosStatusPage>
     });
   }
 
+  Future<String?> _promptCancellationReason() async {
+    final reasons = [
+      'Tidak sengaja tertekan (Salah tekan)',
+      'Uji coba / Pengetesan sistem',
+      'Situasi darurat sudah teratasi mandiri',
+      'Bantuan pihak lain sudah tiba di lokasi',
+      'Lainnya',
+    ];
+    String selectedReason = reasons[0];
+    final customReasonController = TextEditingController();
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final isHighContrast =
+                AccessibilityService.instance.isHighContrastEnabled ||
+                Theme.of(context).brightness == Brightness.dark ||
+                MediaQuery.of(context).highContrast;
+
+            return Container(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
+                top: 24,
+                left: 20,
+                right: 20,
+              ),
+              decoration: BoxDecoration(
+                color: AccessibleColors.cardBackground(isHighContrast),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: AccessibleColors.cardBorder(isHighContrast),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AccessibleColors.cardBorderColor(isHighContrast),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Alasan Pembatalan SOS',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AccessibleColors.textPrimary(isHighContrast),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Pilih alasan mengapa sinyal darurat ini dibatalkan untuk catatan riwayat laporan:',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AccessibleColors.textSecondary(isHighContrast),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ...reasons.map((reason) {
+                      final isSelected = selectedReason == reason;
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? (isHighContrast ? const Color(0xFF1E2430) : const Color(0xFFE0F2F1))
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected
+                                ? primaryTeal
+                                : AccessibleColors.cardBorderColor(isHighContrast),
+                            width: isSelected ? 1.5 : 1.0,
+                          ),
+                        ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () {
+                            setModalState(() {
+                              selectedReason = reason;
+                            });
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isSelected
+                                      ? CupertinoIcons.check_mark_circled_solid
+                                      : CupertinoIcons.circle,
+                                  size: 20,
+                                  color: isSelected
+                                      ? primaryTeal
+                                      : (isHighContrast ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    reason,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                      color: AccessibleColors.textPrimary(isHighContrast),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                    if (selectedReason == 'Lainnya') ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: customReasonController,
+                        autofocus: true,
+                        maxLength: 100,
+                        style: TextStyle(color: AccessibleColors.textPrimary(isHighContrast)),
+                        decoration: InputDecoration(
+                          hintText: 'Tuliskan alasan pembatalan...',
+                          hintStyle: TextStyle(color: AccessibleColors.textSecondary(isHighContrast)),
+                          filled: true,
+                          fillColor: AccessibleColors.fieldBackground(isHighContrast),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: AccessibleColors.cardBorderColor(isHighContrast)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: primaryTeal, width: 1.5),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(sheetContext).pop(null),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 48),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Tetap Aktifkan'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              if (selectedReason == 'Lainnya') {
+                                final customText = customReasonController.text.trim();
+                                Navigator.of(sheetContext).pop(
+                                  customText.isNotEmpty ? customText : 'Dibatalkan oleh pengguna',
+                                );
+                              } else {
+                                Navigator.of(sheetContext).pop(selectedReason);
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: sosRed,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(0, 48),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Ya, Batalkan SOS',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    return result;
+  }
+
   Future<void> _cancelSos() async {
     if (_sosId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tidak dapat membatalkan: ID SOS tidak ditemukan'),
-        ),
-      );
-      context.pop();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tidak dapat membatalkan: ID SOS tidak ditemukan'),
+          ),
+        );
+        context.pop();
+      }
       return;
+    }
+
+    final reason = await _promptCancellationReason();
+    if (reason == null || reason.trim().isEmpty) {
+      // Pembatalan dibatalkan oleh pengguna, lemparkan error agar slider snap-back
+      throw Exception('Pembatalan dibatalkan');
     }
 
     try {
       final success = await _sosRemoteDataSource.cancelEmergency(
         _sosId!,
-        reason: 'Dibatalkan oleh pengguna',
+        reason: reason.trim(),
       );
 
       if (mounted) {
         if (success) {
+          setState(() {
+            _sosStatus = 'batal';
+          });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Sinyal SOS berhasil dibatalkan.')),
+            SnackBar(content: Text('Sinyal SOS dibatalkan ($reason)')),
           );
+          _startSelesaiTimer();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Gagal membatalkan SOS')),
+          );
+          throw Exception('Gagal membatalkan SOS di server');
         }
-        context.pop();
       }
     } catch (e) {
       debugPrint('Gagal membatalkan SOS: $e');
@@ -231,9 +509,394 @@ class _SosStatusPageState extends State<SosStatusPage>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Gagal membatalkan SOS')),
         );
-        context.pop();
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _callVolunteer(String? phone) async {
+    if (phone == null || phone.trim().isEmpty || phone == '-') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nomor telepon relawan tidak tersedia.')),
+      );
+      return;
+    }
+    final clean = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (clean.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Format nomor telepon relawan tidak valid.'),
+        ),
+      );
+      return;
+    }
+    final uri = Uri.parse('tel:$clean');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        await launchUrl(uri);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Tidak dapat memanggil nomor $phone')),
+        );
       }
     }
+  }
+
+  Future<void> _openWhatsAppVolunteer(String? phone, String? name) async {
+    if (phone == null || phone.trim().isEmpty || phone == '-') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nomor WhatsApp relawan tidak tersedia.')),
+      );
+      return;
+    }
+    String clean = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (clean.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Format nomor WhatsApp relawan tidak valid.'),
+        ),
+      );
+      return;
+    }
+    if (clean.startsWith('0')) {
+      clean = '62${clean.substring(1)}';
+    } else if (clean.startsWith('+')) {
+      clean = clean.substring(1);
+    }
+
+    final volunteerName =
+        (name != null && name.trim().isNotEmpty) ? name.trim() : 'Relawan';
+    final message = Uri.encodeComponent(
+      'Halo $volunteerName, saya membutuhkan bantuan terkait panggilan darurat SOS ini.',
+    );
+    final uri = Uri.parse('https://wa.me/$clean?text=$message');
+
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal membuka aplikasi WhatsApp.')),
+        );
+      }
+    }
+  }
+
+  String _getInitials(String name) {
+    final clean = name.trim();
+    if (clean.isEmpty) return 'R';
+    final parts = clean.split(RegExp(r'\s+'));
+    if (parts.length == 1) {
+      return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
+    }
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  }
+
+  String? _getRelawanPhotoUrl(dynamic foto) {
+    if (foto == null) return null;
+    final str = foto.toString().trim();
+    if (str.isEmpty || str == 'null') return null;
+    if (str.startsWith('http://') || str.startsWith('https://')) {
+      return str;
+    }
+    final cleanPath = str
+        .replaceFirst(RegExp(r'^/?public/'), '')
+        .replaceFirst(RegExp(r'^/?storage/'), '');
+    return '${ApiConstants.storageUrl}/$cleanPath';
+  }
+
+  Widget _buildRelawanAvatar({
+    required String name,
+    required String? photoUrl,
+    required bool isHighContrast,
+  }) {
+    final fullUrl = _getRelawanPhotoUrl(photoUrl);
+
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        color: isHighContrast
+            ? const Color(0xFF004D40)
+            : const Color(0xFFE0F2F1),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isHighContrast
+              ? const Color(0xFF80CBC4)
+              : primaryTeal.withValues(alpha: 0.3),
+          width: 2,
+        ),
+      ),
+      child: ClipOval(
+        child: fullUrl != null
+            ? Image.network(
+                fullUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    _buildInitialsFallback(name, isHighContrast),
+              )
+            : _buildInitialsFallback(name, isHighContrast),
+      ),
+    );
+  }
+
+  Widget _buildInitialsFallback(String name, bool isHighContrast) {
+    final initials = _getInitials(name);
+    return Center(
+      child: Text(
+        initials,
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: isHighContrast ? const Color(0xFF80CBC4) : primaryTeal,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAssignedRelawanCard(bool isHighContrast) {
+    final relawan = _assignedRelawan;
+    final name = (relawan?['name'] ??
+            relawan?['nama'] ??
+            'Relawan Penanggung Jawab')
+        .toString();
+    final rawPhone = relawan?['no_telp'] ??
+        relawan?['phone'] ??
+        relawan?['nomor_telepon'];
+    final phone = rawPhone?.toString().trim();
+    final photo = relawan?['foto_profile'] ??
+        relawan?['foto'] ??
+        relawan?['foto_profile_url'];
+
+    final distanceText = _relawanDistance != null
+        ? (_relawanDistance! < 1000
+            ? '${_relawanDistance!.toStringAsFixed(0)} m dari Anda'
+            : '${(_relawanDistance! / 1000).toStringAsFixed(1)} km dari Anda')
+        : 'Sedang menuju ke lokasi Anda';
+
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AccessibleColors.cardBackground(isHighContrast),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isHighContrast
+              ? const Color(0xFF80CBC4)
+              : const Color(0xFFB2DFDB),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: isHighContrast ? 0.3 : 0.05,
+            ),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isHighContrast
+                      ? const Color(0xFF004D40)
+                      : const Color(0xFFE0F2F1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      CupertinoIcons.shield_fill,
+                      size: 13,
+                      color: tealColor,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      'RELAWAN PENANGGUNG JAWAB',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                        color: tealColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF16A34A),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Dalam Perjalanan',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isHighContrast
+                      ? const Color(0xFF86EFAC)
+                      : const Color(0xFF16A34A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _buildRelawanAvatar(
+                name: name,
+                photoUrl: photo?.toString(),
+                isHighContrast: isHighContrast,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AccessibleColors.textPrimary(isHighContrast),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(
+                          CupertinoIcons.location_solid,
+                          size: 14,
+                          color: warningOrange,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            distanceText,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AccessibleColors.textSecondary(
+                                isHighContrast,
+                              ),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Divider(
+            height: 1,
+            thickness: 0.5,
+            color: isHighContrast
+                ? const Color(0xFF4B5563)
+                : const Color(0xFFE5E7EB),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      AccessibilityService.instance.hapticLight();
+                      _callVolunteer(phone);
+                    },
+                    icon: Icon(
+                      CupertinoIcons.phone_fill,
+                      size: 16,
+                      color: tealColor,
+                    ),
+                    label: Text(
+                      'Hubungi Relawan',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: tealColor,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(
+                        color: tealColor,
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      AccessibilityService.instance.hapticLight();
+                      _openWhatsAppVolunteer(phone, name);
+                    },
+                    icon: const Icon(
+                      CupertinoIcons.chat_bubble_2_fill,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    label: const Text(
+                      'Chat WA',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF16A34A),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _callNumber(String phone) async {
@@ -411,29 +1074,37 @@ class _SosStatusPageState extends State<SosStatusPage>
   }
 
   Color get _statusColor {
+    if (_isBatal) return const Color(0xFF6B7280);
     if (_isSelesai) return primaryTeal;
     if (_isDitangani) return warningOrange;
     return sosRed;
   }
 
   String get _statusHeaderTitle {
+    if (_isBatal) return 'PANGGILAN DIBATALKAN';
     if (_isSelesai) return 'BANTUAN SELESAI';
     if (_isDitangani) return 'RELAWAN DALAM PERJALANAN';
     return 'MENUNGGU RELAWAN';
   }
 
   String get _statusHeaderSubtitle {
+    if (_isBatal) return 'Panggilan darurat Anda telah dibatalkan.';
     if (_isSelesai) return 'Panggilan darurat Anda telah selesai ditangani.';
     if (_isDitangani) {
+      final name = _assignedRelawan?['name'] ?? _assignedRelawan?['nama'];
+      final namePrefix = (name != null && name.toString().trim().isNotEmpty)
+          ? '${name.toString().trim()} sedang'
+          : 'Relawan sedang';
       if (_relawanDistance != null) {
-        return 'Relawan sedang menuju ke lokasi Anda (jarak ~${_relawanDistance!.toStringAsFixed(0)} m).';
+        return '$namePrefix menuju ke lokasi Anda (jarak ~${_relawanDistance!.toStringAsFixed(0)} m).';
       }
-      return 'Relawan sedang bergerak menuju lokasi Anda.';
+      return '$namePrefix bergerak menuju lokasi Anda.';
     }
     return 'Menunggu relawan terdekat menerima panggilan darurat...';
   }
 
   IconData get _statusHeaderIcon {
+    if (_isBatal) return CupertinoIcons.xmark_circle_fill;
     if (_isSelesai) return CupertinoIcons.checkmark_circle_fill;
     if (_isDitangani) return CupertinoIcons.car_detailed;
     return CupertinoIcons.speaker_3_fill;
@@ -493,7 +1164,8 @@ class _SosStatusPageState extends State<SosStatusPage>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (AccessibilityService.instance.isVisualAlertEnabled &&
-                      !_isSelesai) ...[
+                      !_isSelesai &&
+                      !_isBatal) ...[
                     Container(
                       margin: const EdgeInsets.only(bottom: 12),
                       padding: const EdgeInsets.symmetric(
@@ -534,7 +1206,7 @@ class _SosStatusPageState extends State<SosStatusPage>
                       animation: _pulseAnimation,
                       builder: (context, child) {
                         final scale =
-                            (!_isSelesai) ? _pulseAnimation.value : 1.0;
+                            (!_isSelesai && !_isBatal) ? _pulseAnimation.value : 1.0;
                         return Transform.scale(
                           scale: scale,
                           child: Container(
@@ -583,6 +1255,10 @@ class _SosStatusPageState extends State<SosStatusPage>
                     ),
                   ),
                   const SizedBox(height: 28),
+                  if (_isDitangani) ...[
+                    _buildAssignedRelawanCard(isHighContrast),
+                    const SizedBox(height: 20),
+                  ],
                   _buildTimelineCard(isHighContrast),
                   const SizedBox(height: 24),
                   ElevatedButton.icon(
@@ -609,20 +1285,21 @@ class _SosStatusPageState extends State<SosStatusPage>
                     ),
                   ),
                   const SizedBox(height: 16),
-                  if (_isSelesai)
+                  if (_isSelesai || _isBatal)
                     ElevatedButton(
                       onPressed: () => context.pop(),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryTeal,
+                        backgroundColor:
+                            _isBatal ? const Color(0xFF6B7280) : primaryTeal,
                         elevation: 0,
                         minimumSize: const Size(double.infinity, 50),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      child: const Text(
-                        'Selesai',
-                        style: TextStyle(
+                      child: Text(
+                        _isBatal ? 'Kembali' : 'Selesai',
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -693,34 +1370,47 @@ class _SosStatusPageState extends State<SosStatusPage>
             isHighContrast: isHighContrast,
           ),
           _buildTimelineStep(
-            icon: (_isDitangani || _isSelesai)
-                ? CupertinoIcons.checkmark_alt
-                : CupertinoIcons.refresh,
+            icon: _isBatal
+                ? CupertinoIcons.xmark
+                : ((_isDitangani || _isSelesai)
+                    ? CupertinoIcons.checkmark_alt
+                    : CupertinoIcons.refresh),
             isCompleted: _isSelesai,
-            isActive: _isDitangani,
-            title: (_isDitangani || _isSelesai)
-                ? 'Relawan Menuju Lokasi'
-                : 'Mencari Relawan Terdekat',
-            description: _isDitangani
-                ? (_relawanDistance != null
-                    ? 'Relawan telah menerima panggilan dan berjarak ${_relawanDistance!.toStringAsFixed(0)} m.'
-                    : 'Relawan telah menerima panggilan dan sedang dalam perjalanan.')
-                : (_isSelesai
-                    ? 'Relawan telah tiba di lokasi kejadian.'
-                    : 'Sistem sedang mencarikan relawan terdekat.'),
+            isActive: _isDitangani && !_isBatal,
+            title: _isBatal
+                ? 'Pencarian Relawan Dibatalkan'
+                : ((_isDitangani || _isSelesai)
+                    ? 'Relawan Menuju Lokasi'
+                    : 'Mencari Relawan Terdekat'),
+            description: _isBatal
+                ? 'Panggilan darurat telah dibatalkan.'
+                : (_isDitangani
+                    ? (_assignedRelawan?['name'] != null ||
+                            _assignedRelawan?['nama'] != null
+                        ? '${_assignedRelawan?['name'] ?? _assignedRelawan?['nama']} telah menerima panggilan dan sedang menuju lokasi${_relawanDistance != null ? ' (~${_relawanDistance!.toStringAsFixed(0)} m)' : ''}.'
+                        : (_relawanDistance != null
+                            ? 'Relawan telah menerima panggilan dan berjarak ${_relawanDistance!.toStringAsFixed(0)} m.'
+                            : 'Relawan telah menerima panggilan dan sedang dalam perjalanan.'))
+                    : (_isSelesai
+                        ? 'Relawan telah tiba di lokasi kejadian.'
+                        : 'Sistem sedang mencarikan relawan terdekat.')),
             showConnector: true,
             isHighContrast: isHighContrast,
           ),
           _buildTimelineStep(
-            icon: _isSelesai
-                ? CupertinoIcons.checkmark_alt
-                : CupertinoIcons.flag,
+            icon: _isBatal
+                ? CupertinoIcons.xmark_circle
+                : (_isSelesai
+                    ? CupertinoIcons.checkmark_alt
+                    : CupertinoIcons.flag),
             isCompleted: _isSelesai,
             isActive: false,
-            title: 'Bantuan Selesai',
-            description: _isSelesai
-                ? 'Proses penanganan darurat telah tuntas.'
-                : 'Menunggu penanganan selesai oleh relawan/tim medis.',
+            title: _isBatal ? 'Panggilan Dibatalkan' : 'Bantuan Selesai',
+            description: _isBatal
+                ? 'Permintaan bantuan darurat telah dibatalkan.'
+                : (_isSelesai
+                    ? 'Proses penanganan darurat telah tuntas.'
+                    : 'Menunggu penanganan selesai oleh relawan/tim medis.'),
             showConnector: false,
             isHighContrast: isHighContrast,
           ),

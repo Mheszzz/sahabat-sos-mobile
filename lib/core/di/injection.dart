@@ -11,6 +11,7 @@ import '../../features/reports/data/datasources/report_remote_data_source.dart';
 import '../../features/history/data/datasources/history_remote_data_source.dart';
 import '../services/location_service.dart';
 import '../services/accessibility_service.dart';
+import '../services/sos_rejection_storage.dart';
 import '../../features/tuya_device/data/services/tuya_channel_service.dart';
 import '../../features/tuya_device/data/services/emergency_trigger_service.dart';
 import '../../features/tuya_device/data/services/tuya_background_listener.dart';
@@ -22,6 +23,7 @@ Future<void> initInjection() async {
   final sharedPreferences = await SharedPreferences.getInstance();
   sl.registerLazySingleton(() => sharedPreferences);
   await AccessibilityService.instance.init(sharedPreferences);
+  await SosRejectionStorage.init(sharedPreferences);
   sl.registerLazySingleton<AccessibilityService>(
     () => AccessibilityService.instance,
   );

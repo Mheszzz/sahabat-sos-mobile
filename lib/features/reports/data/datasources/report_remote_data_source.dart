@@ -11,8 +11,9 @@ abstract class ReportRemoteDataSource {
     required String address,
     required double latitude,
     required double longitude,
-    required String quickMessage,
+    String? quickMessage,
     String? additionalNotes,
+    double? radius,
     File? photoFile,
     File? audioFile,
   });
@@ -56,8 +57,9 @@ class ReportRemoteDataSourceImpl implements ReportRemoteDataSource {
     required String address,
     required double latitude,
     required double longitude,
-    required String quickMessage,
+    String? quickMessage,
     String? additionalNotes,
+    double? radius,
     File? photoFile,
     File? audioFile,
   }) async {
@@ -66,14 +68,24 @@ class ReportRemoteDataSourceImpl implements ReportRemoteDataSource {
       throw Exception('Token otentikasi tidak ditemukan. Silakan login kembali.');
     }
 
-    final formData = FormData.fromMap({
+    final Map<String, dynamic> formMap = {
       'kategori_laporan': categoryId,
       'lokasi_laporan': address,
       'latitude': latitude,
       'longitude': longitude,
-      'pesan_cepat': quickMessage,
-      'keterangan_tambahan': additionalNotes ?? '',
-    });
+    };
+
+    if (quickMessage != null && quickMessage.trim().isNotEmpty) {
+      formMap['pesan_cepat'] = quickMessage.trim();
+    }
+    if (additionalNotes != null && additionalNotes.trim().isNotEmpty) {
+      formMap['keterangan_tambahan'] = additionalNotes.trim();
+    }
+    if (radius != null) {
+      formMap['radius'] = radius;
+    }
+
+    final formData = FormData.fromMap(formMap);
 
     if (photoFile != null) {
       formData.files.add(

@@ -263,7 +263,7 @@ class _DashboardPageState extends State<DashboardPage>
     return Center(
       child: Semantics(
         label:
-            'Tombol Darurat SOS. Tekan lima kali dengan cepat untuk memicu bantuan darurat.',
+            'Tombol Darurat SOS. Tekan dan tahan atau ketuk lima kali dengan cepat untuk memicu bantuan darurat.',
         button: true,
         child: Listener(
           onPointerDown: (_) => _animationController.forward(),
@@ -271,6 +271,7 @@ class _DashboardPageState extends State<DashboardPage>
           onPointerCancel: (_) => _animationController.reverse(),
           child: GestureDetector(
             onTap: _handleSosTap,
+            onLongPress: _handleSosLongPress,
             child: ScaleTransition(
               scale: _scaleAnimation,
               child: FittedBox(
@@ -391,6 +392,17 @@ class _DashboardPageState extends State<DashboardPage>
     });
   }
 
+  // Alternatif aksesibilitas: Tekan tahan tombol SOS untuk memicu darurat langsung
+  void _handleSosLongPress() async {
+    _tapTimer?.cancel();
+    _tapCount = 0;
+    AccessibilityService.instance.hapticHeavy();
+    unawaited(
+      AccessibilityService.instance.speak("Sinyal darurat SOS diaktifkan melalui tekan tahan!"),
+    );
+    await _executeEmergencySos();
+  }
+
   Future<void> _executeEmergencySos() async {
     unawaited(
       showDialog(
@@ -463,7 +475,7 @@ class _DashboardPageState extends State<DashboardPage>
 
     try {
       final dashboardSource = sl<DashboardRemoteDataSource>();
-      await dashboardSource.triggerEmergency(
+      final newSosId = await dashboardSource.triggerEmergency(
         latitude: latitude,
         longitude: longitude,
         address: locationService.lastGeocodedAddress,
@@ -485,7 +497,12 @@ class _DashboardPageState extends State<DashboardPage>
           duration: const Duration(seconds: 4),
         ),
       );
-      unawaited(context.push(AppRoutes.sosStatus));
+      unawaited(
+        context.push(
+          AppRoutes.sosStatus,
+          extra: {'sos_id': newSosId},
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
@@ -494,9 +511,25 @@ class _DashboardPageState extends State<DashboardPage>
         final message =
             e.response?.data['message'] ?? 'Sinyal SOS darurat masih aktif';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message.toString())),
+          SnackBar(
+            content: Text(message.toString()),
+            backgroundColor: Colors.red.shade700,
+          ),
         );
-        unawaited(context.push(AppRoutes.sosStatus));
+        final existingData = e.response?.data is Map ? e.response?.data['data'] : null;
+        final existingSosId = (existingData is Map && existingData['id'] != null)
+            ? (existingData['id'] as num).toInt()
+            : null;
+
+        // Hanya arahkan ke halaman status jika benar-benar ada ID kasus SOS aktif
+        if (existingSosId != null) {
+          unawaited(
+            context.push(
+              AppRoutes.sosStatus,
+              extra: {'sos_id': existingSosId},
+            ),
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Gagal mengirim SOS: $e')),

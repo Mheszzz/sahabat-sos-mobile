@@ -1,26 +1,30 @@
-import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
-    as import_event_bus;
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
-import 'package:sahabat_sos_mobile/core/services/location_service.dart';
-import 'package:geocoding/geocoding.dart';
-import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
 import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
-import 'package:sahabat_sos_mobile/features/volunteer_task/data/datasources/volunteer_remote_data_source.dart'
-    as import_volunteer;
-import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/volunteer_active_task_page.dart'
-    as import_active_task;
+import 'package:sahabat_sos_mobile/core/services/location_service.dart';
+import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
 import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
+import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart' as event_bus;
+import 'package:sahabat_sos_mobile/features/volunteer_task/data/datasources/volunteer_remote_data_source.dart';
+import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/volunteer_active_task_page.dart';
+import 'package:sahabat_sos_mobile/features/dashboard/presentation/widgets/volunteer_sos_detail_sheet.dart';
+
+enum RadarFilter {
+  all,
+  inRadius,
+  assigned,
+}
 
 class VolunteerMapPage extends StatefulWidget {
   const VolunteerMapPage({super.key});
@@ -31,7 +35,8 @@ class VolunteerMapPage extends StatefulWidget {
 
 class VolunteerMapPageState extends State<VolunteerMapPage>
     with SingleTickerProviderStateMixin {
-  static const Color sosRed = Color(0xFFE50000);
+  static const Color sosRed = Color(0xFFDC2626);
+  static const Color sosAmber = Color(0xFFD97706);
 
   final LocationService _locationService = sl<LocationService>();
   final MapController _mapController = MapController();
@@ -49,9 +54,15 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
   List<LatLng> _routePoints = [];
   bool _isFetchingRoute = false;
   Map<String, dynamic>? _acceptedSos;
+  final Map<String, String> _addressCache = {};
 
-  /// Dipanggil dari MainVolunteerScreen saat relawan menerima tugas baru.
-  /// Langsung set SOS yang diterima dan fetch rute menuju lokasi korban.
+  double _radarRadiusMeters = double.tryParse(
+        const String.fromEnvironment('RADAR_RADIUS_METERS'),
+      ) ??
+      2000.0;
+  RadarFilter _selectedFilter = RadarFilter.all;
+
+  /// Dipanggil dari MainVolunteerScreen saat relawan menerima tugas baru
   void acceptSosAndRoute(Map<String, dynamic> sosData) {
     final pos = _locationService.currentPosition.value;
     final lat = double.tryParse(sosData['latitude']?.toString() ?? '');
@@ -60,7 +71,6 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
     if (!mounted) return;
     setState(() {
       _acceptedSos = sosData;
-      // Tandai sebagai assigned agar marker berubah warna
       final idx = _activeSosList.indexWhere((e) => e['id'] == sosData['id']);
       if (idx != -1) {
         _activeSosList[idx]['is_assigned'] = true;
@@ -68,7 +78,7 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
     });
 
     if (lat != null && lng != null && pos != null) {
-      _fetchRoute(LatLng(pos.latitude, pos.longitude), LatLng(lat, lng));
+      unawaited(_fetchRoute(LatLng(pos.latitude, pos.longitude), LatLng(lat, lng)));
     }
   }
 
@@ -78,8 +88,12 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
     });
     try {
       final dio = Dio();
+      const osrmBaseUrl = String.fromEnvironment(
+        'OSRM_ROUTING_URL',
+        defaultValue: 'https://router.project-osrm.org',
+      );
       final url =
-          'https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?geometries=geojson';
+          '$osrmBaseUrl/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?geometries=geojson';
       final response = await dio.get(url);
 
       if (response.statusCode == 200) {
@@ -94,7 +108,6 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
             }).toList();
           });
 
-          // Fit bounds to show the route
           if (_routePoints.length > 1) {
             final bounds = LatLngBounds.fromPoints(_routePoints);
             _mapController.fitCamera(
@@ -109,9 +122,9 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
     } catch (e) {
       debugPrint('Error fetching route: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal membuat rute: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal membuat rute: $e')),
+        );
       }
     } finally {
       if (mounted) {
@@ -125,13 +138,13 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
   @override
   void initState() {
     super.initState();
-    import_event_bus.GlobalEventBus.refreshMap.addListener(_fetchActiveSos);
+    event_bus.GlobalEventBus.refreshMap.addListener(_fetchActiveSos);
 
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 1800),
     )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.4, end: 1.0).animate(
+    _pulseAnimation = Tween<double>(begin: 0.35, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
@@ -151,14 +164,13 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
     }
   }
 
-  /// Memusatkan kamera peta untuk menampilkan semua titik darurat SOS dan posisi relawan
   void _fitAllSosMarkers() {
     final points = <LatLng>[];
     final myPos = _locationService.currentPosition.value;
     if (myPos != null) {
       points.add(LatLng(myPos.latitude, myPos.longitude));
     }
-    for (final sos in _activeSosList) {
+    for (final sos in _filteredSosList) {
       final lat = double.tryParse(sos['latitude']?.toString() ?? '');
       final lng = double.tryParse(sos['longitude']?.toString() ?? '');
       if (lat != null && lng != null && lat != 0.0 && lng != 0.0) {
@@ -187,7 +199,7 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
       _locationService.startTracking();
       _listenToLocationServiceChanges();
       await _fetchActiveSos();
-      _initWebSocket();
+      unawaited(_initWebSocket());
       _startPolling();
     } else {
       if (mounted) {
@@ -264,13 +276,11 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
       final dio = sl<Dio>();
       final options = Options(headers: _getHeaders());
 
-      // 1. Fetch SOS yang belum diambil
       final responseUnassigned = await dio.get(
         ApiConstants.sosActiveRelawan,
         options: options,
       );
 
-      // 2. Fetch SOS yang SEDANG diproses oleh relawan ini
       final responseAssigned = await dio.get(
         ApiConstants.sosRelawanTasks,
         options: options,
@@ -279,7 +289,6 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
       if (mounted) {
         final List<Map<String, dynamic>> combinedList = [];
 
-        // Parse Unassigned
         if (responseUnassigned.statusCode == 200) {
           final dynamic rawData = responseUnassigned.data['data'];
           if (rawData != null && rawData is Map<String, dynamic>) {
@@ -293,7 +302,6 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
 
         bool hasAssigned = false;
 
-        // Parse Assigned (yang sudah diterima/diproses relawan ini)
         if (responseAssigned.statusCode == 200) {
           final dynamic rawData = responseAssigned.data['data'];
           if (rawData != null && rawData is Map<String, dynamic>) {
@@ -314,7 +322,7 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
           }
         }
 
-        // Filter duplicates just in case
+        // Deduplikasi kasus berdasarkan ID unik
         final uniqueMap = <int, Map<String, dynamic>>{};
         for (var item in combinedList) {
           final rawId = item['id'];
@@ -343,14 +351,23 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
             _routePoints.clear();
           } else if (_acceptedSos == null) {
             try {
-              final assignedSos = finalUniqueList.firstWhere((e) => e['is_assigned'] == true);
+              final assignedSos = finalUniqueList.firstWhere(
+                (e) => e['is_assigned'] == true,
+              );
               _acceptedSos = assignedSos;
-              
-              final sosLat = double.tryParse(assignedSos['latitude']?.toString() ?? '');
-              final sosLng = double.tryParse(assignedSos['longitude']?.toString() ?? '');
+
+              final sosLat = double.tryParse(
+                assignedSos['latitude']?.toString() ?? '',
+              );
+              final sosLng = double.tryParse(
+                assignedSos['longitude']?.toString() ?? '',
+              );
               final volunteerPos = _locationService.currentPosition.value;
-              
-              if (sosLat != null && sosLng != null && volunteerPos != null && _routePoints.isEmpty) {
+
+              if (sosLat != null &&
+                  sosLng != null &&
+                  volunteerPos != null &&
+                  _routePoints.isEmpty) {
                 _fetchRoute(
                   LatLng(volunteerPos.latitude, volunteerPos.longitude),
                   LatLng(sosLat, sosLng),
@@ -401,7 +418,7 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
 
   @override
   void dispose() {
-    import_event_bus.GlobalEventBus.refreshMap.removeListener(_fetchActiveSos);
+    event_bus.GlobalEventBus.refreshMap.removeListener(_fetchActiveSos);
     _locationService.currentPosition.removeListener(_onPositionUpdate);
     _pulseController.dispose();
     _pollingTimer?.cancel();
@@ -425,527 +442,66 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
     return const Distance().as(LengthUnit.Kilometer, a, b);
   }
 
-  // ──────────────────────────── UI ────────────────────────────
+  List<Map<String, dynamic>> get _filteredSosList {
+    final myPos = _locationService.currentPosition.value;
+    if (myPos == null) return _activeSosList;
 
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: AccessibilityService.instance,
-      builder: (context, _) {
-        final theme = Theme.of(context);
-        final isHighContrast =
-            AccessibilityService.instance.isHighContrastEnabled ||
-            theme.brightness == Brightness.dark ||
-            MediaQuery.of(context).highContrast;
-        final isDarkMode =
-            isHighContrast || theme.brightness == Brightness.dark;
-        final primaryColor = isHighContrast
-            ? const Color(0xFF80CBC4)
-            : theme.colorScheme.primary;
+    final myLatLng = LatLng(myPos.latitude, myPos.longitude);
 
-        return Scaffold(
-          extendBodyBehindAppBar: true,
-          backgroundColor: isHighContrast ? Colors.black : null,
-          body: ValueListenableBuilder<Position?>(
-            valueListenable: _locationService.currentPosition,
-            builder: (context, position, _) {
-              if (_isLoading || position == null) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CupertinoActivityIndicator(
-                        radius: 16,
-                        color: primaryColor,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Menunggu Sinyal GPS...',
-                        style: TextStyle(
-                          color: primaryColor,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-          final myLatLng = LatLng(position.latitude, position.longitude);
-
-          return Stack(
-            children: [
-              // ── Map ──
-              FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(initialCenter: myLatLng, initialZoom: 15.0),
-                children: [
-                  ColorFiltered(
-                    colorFilter: isDarkMode
-                        ? const ColorFilter.matrix([
-                            -1,
-                            0,
-                            0,
-                            0,
-                            255,
-                            0,
-                            -1,
-                            0,
-                            0,
-                            255,
-                            0,
-                            0,
-                            -1,
-                            0,
-                            255,
-                            0,
-                            0,
-                            0,
-                            1,
-                            0,
-                          ])
-                        : const ColorFilter.mode(
-                            Colors.transparent,
-                            BlendMode.multiply,
-                          ),
-                    child: TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.sahabat_sos_mobile.app',
-                    ),
-                  ),
-                  if (_routePoints.isNotEmpty)
-                    PolylineLayer(
-                      polylines: [
-                        Polyline(
-                          points: _routePoints,
-                          color: Colors.blueAccent,
-                          strokeWidth: 5.0,
-                        ),
-                      ],
-                    ),
-                  MarkerLayer(
-                    markers: [
-                      // ── Volunteer Marker (Pulsing Blue Dot) ──
-                      Marker(
-                        point: myLatLng,
-                        width: 70,
-                        height: 70,
-                        child: AnimatedBuilder(
-                          animation: _pulseAnimation,
-                          builder: (context, child) {
-                            return Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Container(
-                                  width: 60 * _pulseAnimation.value,
-                                  height: 60 * _pulseAnimation.value,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.blue.withValues(alpha: 0.25),
-                                  ),
-                                ),
-                                Container(
-                                  width: 22,
-                                  height: 22,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.blue,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 3,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.2,
-                                        ),
-                                        blurRadius: 6,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-
-                      // ── SOS User Markers ──
-                      ...(() {
-                        final Map<String, int> coordOffsets = {};
-                        return _activeSosList.map((sos) {
-                          final latRaw =
-                              double.tryParse(sos['latitude'].toString()) ??
-                              0.0;
-                          final lngRaw =
-                              double.tryParse(sos['longitude'].toString()) ??
-                              0.0;
-
-                          final coordKey = "${latRaw}_$lngRaw";
-                          final offsetIndex = coordOffsets[coordKey] ?? 0;
-                          coordOffsets[coordKey] = offsetIndex + 1;
-
-                          // Geser sedikit jika tumpang tindih agar tetap terlihat terpisah
-                          final lat = latRaw + (offsetIndex * 0.00025);
-                          final lng = lngRaw + (offsetIndex * 0.00025);
-
-                          final name = sos['pengguna']?['name'] ?? 'SOS';
-                          final isAssigned = sos['is_assigned'] == true;
-
-                          return Marker(
-                            point: LatLng(lat, lng),
-                            width: 140,
-                            height: 90,
-                            child: GestureDetector(
-                              onTap: () => _showSosDetails(sos),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: isAssigned
-                                          ? Colors.amber.shade100
-                                          : Colors.white,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: isAssigned
-                                          ? Border.all(
-                                              color: Colors.amber.shade800,
-                                              width: 1.5,
-                                            )
-                                          : Border.all(
-                                              color: sosRed,
-                                              width: 1.5,
-                                            ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.15,
-                                          ),
-                                          blurRadius: 4,
-                                        ),
-                                      ],
-                                    ),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          name,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: isAssigned
-                                                ? Colors.amber.shade900
-                                                : sosRed,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                          FutureBuilder<String>(
-                                            future: _getMarkerAddress(sos, latRaw, lngRaw),
-                                            builder: (context, snapshot) {
-                                              return Text(
-                                                snapshot.data ?? 'Memuat...',
-                                                style: TextStyle(
-                                                  fontSize: 9,
-                                                  color: isDarkMode
-                                                      ? Colors.black87
-                                                      : Colors.grey[800],
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              );
-                                            },
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Icon(
-                                    isAssigned
-                                        ? CupertinoIcons.location_solid
-                                        : CupertinoIcons
-                                              .exclamationmark_triangle_fill,
-                                    color: isAssigned
-                                        ? Colors.amber.shade800
-                                        : sosRed,
-                                    size: 32,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }).toList();
-                      })(),
-                    ],
-                  ),
-                ],
-              ),
-
-              // ── Top SOS Target Info ──
-              if (_acceptedSos != null)
-                Positioned(
-                  top: MediaQuery.paddingOf(context).top + 16,
-                  left: 16,
-                  right: 16,
-                  child: _buildGlassContainer(
-                    context,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'Menuju Lokasi Darurat',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                            color: sosRed,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        FutureBuilder<String>(
-                          future: _getMarkerAddress(
-                            _acceptedSos!,
-                            double.tryParse(_acceptedSos!['latitude']?.toString() ?? '') ?? 0.0,
-                            double.tryParse(_acceptedSos!['longitude']?.toString() ?? '') ?? 0.0,
-                          ),
-                          builder: (context, snapshot) {
-                            return Text(
-                              snapshot.data ?? 'Memuat...',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: isDarkMode ? Colors.white : Colors.black87,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-              // ── SOS Counter Badge (Moved down if accepted SOS is shown) ──
-              if (_activeSosList.isNotEmpty && _acceptedSos == null)
-                Positioned(
-                  top: MediaQuery.paddingOf(context).top + 16,
-                  left: 16,
-                  child: GestureDetector(
-                    onTap: _fitAllSosMarkers,
-                    child: _buildGlassContainer(
-                      context,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 10,
-                            height: 10,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: sosRed,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${_activeSosList.length} SOS Aktif',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              color: sosRed,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          const Icon(
-                            CupertinoIcons.zoom_in,
-                            size: 14,
-                            color: sosRed,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-              // ── Bottom Info Card ──
-              Positioned(
-                bottom: 100, // Diperbesar agar tidak tertimpa navbar
-                left: 16,
-                right: 16,
-                child: SafeArea(
-                  child: _buildGlassContainer(
-                    context,
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: primaryColor.withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            CupertinoIcons.location_fill,
-                            color: primaryColor,
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Lokasi Anda (Relawan)',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                  color: primaryColor,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}  ·  ±${position.accuracy.toStringAsFixed(0)}m',
-                                style: TextStyle(
-                                  color: isDarkMode
-                                      ? Colors.white70
-                                      : Colors.grey[600],
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              // ── Bottom Right: Fit All SOS Button ──
-              if (_activeSosList.isNotEmpty)
-                Positioned(
-                  bottom: 236,
-                  right: 16,
-                  child: SafeArea(
-                    top: false,
-                    child: _buildGlassContainer(
-                      context,
-                      padding: const EdgeInsets.all(4),
-                      borderRadius: BorderRadius.circular(20),
-                      child: IconButton(
-                        icon: const Icon(
-                          CupertinoIcons.exclamationmark_triangle_fill,
-                          color: sosRed,
-                          size: 20,
-                        ),
-                        tooltip: 'Lihat Semua Titik SOS',
-                        onPressed: _fitAllSosMarkers,
-                      ),
-                    ),
-                  ),
-                ),
-
-              // ── Bottom Right: Recenter Button ──
-              Positioned(
-                bottom: 180,
-                right: 16,
-                child: SafeArea(
-                  top: false,
-                  child: _buildGlassContainer(
-                    context,
-                    padding: const EdgeInsets.all(4),
-                    borderRadius: BorderRadius.circular(20),
-                    child: IconButton(
-                      icon: const Icon(
-                        CupertinoIcons.location,
-                        color: Colors.blue,
-                      ),
-                      onPressed: _recenterMap,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-      },
-    );
+    switch (_selectedFilter) {
+      case RadarFilter.all:
+        return _activeSosList;
+      case RadarFilter.inRadius:
+        return _activeSosList.where((sos) {
+          final lat = double.tryParse(sos['latitude']?.toString() ?? '');
+          final lng = double.tryParse(sos['longitude']?.toString() ?? '');
+          if (lat == null || lng == null || lat == 0.0 || lng == 0.0) return false;
+          final distKm = _calculateDistanceKm(myLatLng, LatLng(lat, lng));
+          return distKm <= (_radarRadiusMeters / 1000.0);
+        }).toList();
+      case RadarFilter.assigned:
+        return _activeSosList.where((sos) => sos['is_assigned'] == true).toList();
+    }
   }
 
-  // ──────────────────── Glass Container ────────────────────
-
-  Widget _buildGlassContainer(
-    BuildContext context, {
-    required Widget child,
-    EdgeInsetsGeometry? padding,
-    BorderRadius? borderRadius,
-    bool? isHighContrast,
-  }) {
-    final contrast = isHighContrast ??
-        (AccessibilityService.instance.isHighContrastEnabled ||
-            Theme.of(context).brightness == Brightness.dark ||
-            MediaQuery.of(context).highContrast);
-    final isDarkMode =
-        contrast || Theme.of(context).brightness == Brightness.dark;
-    final radius = borderRadius ?? BorderRadius.circular(24);
-    return ClipRRect(
-      borderRadius: radius,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: padding ?? const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: contrast
-                ? const Color(0xFF121212)
-                : (isDarkMode
-                    ? Colors.black.withValues(alpha: 0.4)
-                    : Colors.white.withValues(alpha: 0.5)),
-            borderRadius: radius,
-            border: Border.all(
-              color: contrast
-                  ? const Color(0xFF4B5563)
-                  : (isDarkMode
-                      ? Colors.white.withValues(alpha: 0.1)
-                      : Colors.white.withValues(alpha: 0.3)),
-              width: contrast ? 1.5 : 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(
-                  alpha: contrast ? 0.35 : 0.05,
-                ),
-                blurRadius: 15,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-          child: child,
-        ),
-      ),
-    );
+  int get _inRadiusCount {
+    final myPos = _locationService.currentPosition.value;
+    if (myPos == null) return _activeSosList.length;
+    final myLatLng = LatLng(myPos.latitude, myPos.longitude);
+    return _activeSosList.where((sos) {
+      final lat = double.tryParse(sos['latitude']?.toString() ?? '');
+      final lng = double.tryParse(sos['longitude']?.toString() ?? '');
+      if (lat == null || lng == null || lat == 0.0 || lng == 0.0) return false;
+      return _calculateDistanceKm(myLatLng, LatLng(lat, lng)) <=
+          (_radarRadiusMeters / 1000.0);
+    }).length;
   }
 
-  // ──────────────────── SOS Detail Sheet ────────────────────
+  int get _assignedCount {
+    return _activeSosList.where((sos) => sos['is_assigned'] == true).length;
+  }
 
-  final Map<String, String> _addressCache = {};
-  
-  Future<String> _getMarkerAddress(Map<String, dynamic> sos, double lat, double lng) async {
+  void _toggleRadarRadius() {
+    setState(() {
+      if (_radarRadiusMeters == 2000.0) {
+        _radarRadiusMeters = 3000.0;
+        AccessibilityService.instance.speak(
+          'Radius jangkauan radar diperluas ke 3 kilometer',
+        );
+      } else {
+        _radarRadiusMeters = 2000.0;
+        AccessibilityService.instance.speak(
+          'Radius jangkauan radar kembali ke 2 kilometer standar',
+        );
+      }
+    });
+  }
+
+  Future<String> _getMarkerAddress(
+    Map<String, dynamic> sos,
+    double lat,
+    double lng,
+  ) async {
     final id = sos['id']?.toString() ?? '${lat}_$lng';
     if (_addressCache.containsKey(id)) return _addressCache[id]!;
     final address = await _resolveAddress(sos, lat, lng);
@@ -953,7 +509,11 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
     return address;
   }
 
-  Future<String> _resolveAddress(Map<String, dynamic> sos, double lat, double lng) async {
+  Future<String> _resolveAddress(
+    Map<String, dynamic> sos,
+    double lat,
+    double lng,
+  ) async {
     String alamat = sos['pengguna']?['alamat']?.toString() ??
         sos['pengguna']?['lokasi_user']?.toString() ??
         sos['lokasi_user']?.toString() ??
@@ -964,7 +524,7 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
     if (alamatMatch != null) {
       alamat = alamatMatch.group(1)!.trim();
     }
-    
+
     if (lat != 0.0 && lng != 0.0) {
       try {
         final placemarks = await Geocoding().placemarkFromCoordinates(lat, lng);
@@ -986,381 +546,930 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
     return "Lat: ${lat.toStringAsFixed(4)}, Lng: ${lng.toStringAsFixed(4)}";
   }
 
-  void _showSosDetails(Map<String, dynamic> sos) {
-    final theme = Theme.of(context);
-    final isHighContrast =
-        AccessibilityService.instance.isHighContrastEnabled ||
-        theme.brightness == Brightness.dark ||
-        MediaQuery.of(context).highContrast;
-    final isDarkMode = isHighContrast || theme.brightness == Brightness.dark;
-    final primaryColor = isHighContrast
-        ? const Color(0xFF80CBC4)
-        : theme.colorScheme.primary;
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final theme = Theme.of(context);
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            theme.brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final isDarkMode =
+            isHighContrast || theme.brightness == Brightness.dark;
+        final primaryColor = isHighContrast
+            ? const Color(0xFF80CBC4)
+            : theme.colorScheme.primary;
+        final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+        final textSecondary = AccessibleColors.textSecondary(isHighContrast);
 
-    final volunteerPos = _locationService.currentPosition.value;
-    final sosLat = double.tryParse(sos['latitude'].toString()) ?? 0.0;
-    final sosLng = double.tryParse(sos['longitude'].toString()) ?? 0.0;
+        return Scaffold(
+          extendBodyBehindAppBar: true,
+          backgroundColor: isHighContrast ? Colors.black : null,
+          body: ValueListenableBuilder<Position?>(
+            valueListenable: _locationService.currentPosition,
+            builder: (context, position, _) {
+              if (_isLoading || position == null) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CupertinoActivityIndicator(
+                        radius: 16,
+                        color: primaryColor,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Menghubungkan ke Radar GPS...',
+                        style: TextStyle(
+                          color: primaryColor,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
 
-    double? distanceKm;
-    if (volunteerPos != null) {
-      distanceKm = _calculateDistanceKm(
-        LatLng(volunteerPos.latitude, volunteerPos.longitude),
-        LatLng(sosLat, sosLng),
+              final myLatLng = LatLng(position.latitude, position.longitude);
+              final filteredList = _filteredSosList;
+
+              return Stack(
+                children: [
+                  FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter: myLatLng,
+                      initialZoom: 15.0,
+                    ),
+                    children: [
+                      ColorFiltered(
+                        colorFilter: isDarkMode
+                            ? const ColorFilter.matrix([
+                                -1, 0, 0, 0, 255,
+                                0, -1, 0, 0, 255,
+                                0, 0, -1, 0, 255,
+                                0, 0, 0, 1, 0,
+                              ])
+                            : const ColorFilter.mode(
+                                Colors.transparent,
+                                BlendMode.multiply,
+                              ),
+                        child: TileLayer(
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'com.sahabat_sos_mobile.app',
+                        ),
+                      ),
+
+                      // Lingkaran Jangkauan Radar Relawan
+                      CircleLayer(
+                        circles: [
+                          CircleMarker(
+                            point: myLatLng,
+                            radius: _radarRadiusMeters,
+                            useRadiusInMeter: true,
+                            color: primaryColor.withValues(
+                              alpha: isDarkMode ? 0.08 : 0.05,
+                            ),
+                            borderColor: primaryColor.withValues(
+                              alpha: isDarkMode ? 0.45 : 0.35,
+                            ),
+                            borderStrokeWidth: 1.5,
+                          ),
+                          if (_radarRadiusMeters > 2000.0)
+                            CircleMarker(
+                              point: myLatLng,
+                              radius: 3000.0,
+                              useRadiusInMeter: true,
+                              color: sosAmber.withValues(alpha: 0.03),
+                              borderColor: sosAmber.withValues(alpha: 0.35),
+                              borderStrokeWidth: 1.2,
+                            ),
+                        ],
+                      ),
+
+                      if (_routePoints.isNotEmpty)
+                        PolylineLayer(
+                          polylines: [
+                            Polyline(
+                              points: _routePoints,
+                              color: const Color(0xFF2563EB),
+                              strokeWidth: 5.0,
+                            ),
+                          ],
+                        ),
+
+                      MarkerLayer(
+                        markers: [
+                          // Marker Posisi Relawan dengan Animasi Beacon Radar
+                          Marker(
+                            point: myLatLng,
+                            width: 72,
+                            height: 72,
+                            child: AnimatedBuilder(
+                              animation: _pulseAnimation,
+                              builder: (context, child) {
+                                return Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    Container(
+                                      width: 66 * _pulseAnimation.value,
+                                      height: 66 * _pulseAnimation.value,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: primaryColor.withValues(
+                                          alpha: (1.0 - _pulseAnimation.value) *
+                                              0.45,
+                                        ),
+                                      ),
+                                    ),
+                                    Container(
+                                      width: 24,
+                                      height: 24,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: primaryColor,
+                                        border: Border.all(
+                                          color: Colors.white,
+                                          width: 3,
+                                        ),
+                                        boxShadow: isHighContrast
+                                            ? null
+                                            : [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withValues(alpha: 0.25),
+                                                  blurRadius: 6,
+                                                ),
+                                              ],
+                                      ),
+                                      child: const Icon(
+                                        CupertinoIcons.shield_fill,
+                                        color: Colors.white,
+                                        size: 11,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+
+                          // Marker Panggilan Kasus Darurat SOS
+                          ...(() {
+                            final Map<String, int> coordOffsets = {};
+                            return filteredList.map((sos) {
+                              final latRaw =
+                                  double.tryParse(sos['latitude'].toString()) ??
+                                  0.0;
+                              final lngRaw =
+                                  double.tryParse(sos['longitude'].toString()) ??
+                                  0.0;
+
+                              final coordKey = "${latRaw}_$lngRaw";
+                              final offsetIndex = coordOffsets[coordKey] ?? 0;
+                              coordOffsets[coordKey] = offsetIndex + 1;
+
+                              // Menggeser sedikit jika terdapat koordinat identik agar tidak bertumpuk
+                              final lat = latRaw + (offsetIndex * 0.00025);
+                              final lng = lngRaw + (offsetIndex * 0.00025);
+
+                              final name = sos['pengguna']?['name'] ?? 'SOS';
+                              final isAssigned = sos['is_assigned'] == true;
+                              final distanceKm = _calculateDistanceKm(
+                                myLatLng,
+                                LatLng(latRaw, lngRaw),
+                              );
+
+                              return Marker(
+                                point: LatLng(lat, lng),
+                                width: 140,
+                                height: 90,
+                                child: GestureDetector(
+                                  onTap: () => _showSosDetailSheet(sos),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: isHighContrast
+                                              ? const Color(0xFF1E2430)
+                                              : (isAssigned
+                                                  ? Colors.amber.shade50
+                                                  : Colors.white),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: isAssigned
+                                                ? sosAmber
+                                                : (isHighContrast
+                                                    ? const Color(0xFFEF4444)
+                                                    : sosRed),
+                                            width: isHighContrast ? 1.5 : 1.2,
+                                          ),
+                                          boxShadow: isHighContrast
+                                              ? null
+                                              : [
+                                                  BoxShadow(
+                                                    color: Colors.black
+                                                        .withValues(alpha: 0.12),
+                                                    blurRadius: 4,
+                                                    offset: const Offset(0, 1),
+                                                  ),
+                                                ],
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              '${distanceKm.toStringAsFixed(1)} km · $name',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                                color: isAssigned
+                                                    ? sosAmber
+                                                    : (isHighContrast
+                                                        ? Colors.white
+                                                        : sosRed),
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            FutureBuilder<String>(
+                                              future: _getMarkerAddress(
+                                                sos,
+                                                latRaw,
+                                                lngRaw,
+                                              ),
+                                              builder: (context, snapshot) {
+                                                return Text(
+                                                  snapshot.data ?? 'Memuat...',
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    color: isHighContrast
+                                                        ? const Color(0xFFD1D5DB)
+                                                        : (isDarkMode
+                                                            ? Colors.white70
+                                                            : Colors.grey[700]),
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                );
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Icon(
+                                        isAssigned
+                                            ? CupertinoIcons.location_solid
+                                            : CupertinoIcons
+                                                .exclamationmark_triangle_fill,
+                                        color: isAssigned ? sosAmber : sosRed,
+                                        size: 30,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }).toList();
+                          })(),
+                        ],
+                      ),
+                    ],
+                  ),
+
+                  // Area Kontrol Atas: Radar Siaga Status & Filter Situasional
+                  Positioned(
+                    top: MediaQuery.paddingOf(context).top + 12,
+                    left: 16,
+                    right: 16,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildTopStatusPanel(
+                          context,
+                          isHighContrast: isHighContrast,
+                          primaryColor: primaryColor,
+                          textPrimary: textPrimary,
+                          textSecondary: textSecondary,
+                        ),
+                        const SizedBox(height: 8),
+                        _buildFilterRow(
+                          isHighContrast: isHighContrast,
+                          isDarkMode: isDarkMode,
+                          primaryColor: primaryColor,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Klaster Tombol Aksi Peta (Sebelah Kanan)
+                  Positioned(
+                    right: 16,
+                    bottom: MediaQuery.paddingOf(context).bottom + 145,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildFloatingActionButton(
+                          icon: CupertinoIcons.square_stack_3d_up,
+                          tooltip: 'Lihat Semua Titik Darurat',
+                          onPressed: _fitAllSosMarkers,
+                          isHighContrast: isHighContrast,
+                          isDarkMode: isDarkMode,
+                          primaryColor: primaryColor,
+                        ),
+                        const SizedBox(height: 10),
+                        _buildFloatingActionButton(
+                          icon: CupertinoIcons.location_fill,
+                          tooltip: 'Pusatkan Posisi Saya',
+                          onPressed: _recenterMap,
+                          isHighContrast: isHighContrast,
+                          isDarkMode: isDarkMode,
+                          primaryColor: primaryColor,
+                        ),
+                        const SizedBox(height: 10),
+                        _buildFloatingActionButton(
+                          icon: CupertinoIcons.arrow_clockwise,
+                          tooltip: 'Perbarui Radar',
+                          onPressed: () {
+                            _fetchActiveSos();
+                            AccessibilityService.instance.speak(
+                              'Memperbarui radar kasus...',
+                            );
+                          },
+                          isHighContrast: isHighContrast,
+                          isDarkMode: isDarkMode,
+                          primaryColor: primaryColor,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Informasi Lokasi & Status Siaga Bawah
+                  Positioned(
+                    bottom: MediaQuery.paddingOf(context).bottom + 85,
+                    left: 16,
+                    right: 76,
+                    child: _buildSolidCard(
+                      context,
+                      isHighContrast: isHighContrast,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              color: primaryColor.withValues(alpha: 0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              CupertinoIcons.compass,
+                              color: primaryColor,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Siaga Lapangan (GPS Aktif)',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)} (±${position.accuracy.toStringAsFixed(0)}m)',
+                                  style: TextStyle(
+                                    color: textSecondary,
+                                    fontSize: 11,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTopStatusPanel(
+    BuildContext context, {
+    required bool isHighContrast,
+    required Color primaryColor,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
+    if (_acceptedSos != null) {
+      return _buildSolidCard(
+        context,
+        isHighContrast: isHighContrast,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        border: Border.all(
+          color: isHighContrast ? const Color(0xFFEF4444) : sosRed,
+          width: isHighContrast ? 1.5 : 1.2,
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isHighContrast
+                    ? const Color(0xFF450A0A)
+                    : sosRed.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                CupertinoIcons.location_north_fill,
+                size: 18,
+                color: sosRed,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Menuju Lokasi Darurat',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: isHighContrast
+                          ? const Color(0xFFFCA5A5)
+                          : sosRed,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _acceptedSos?['pengguna']?['name'] ?? 'Kasus Ditangani',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => VolunteerActiveTaskPage(
+                      initialTask: _acceptedSos!,
+                    ),
+                  ),
+                );
+                if (mounted) {
+                  setState(() {
+                    _acceptedSos = null;
+                    _routePoints.clear();
+                  });
+                  await _fetchActiveSos();
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isHighContrast
+                    ? const Color(0xFF00897B)
+                    : primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                minimumSize: const Size(48, 36),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                'Detail',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
-    final pengguna = sos['pengguna'] as Map<String, dynamic>? ?? {};
-    final nama = pengguna['name'] ?? sos['user']?['nama'] ?? 'User';
-    final noTelp =
-        pengguna['phone'] ??
-        pengguna['no_telp'] ??
-        sos['user']?['no_telp'] ??
-        '-';
-
-    final status = sos['status_sos'] ?? 'aktif';
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom:
-              MediaQuery.viewInsetsOf(ctx).bottom +
-              MediaQuery.paddingOf(ctx).bottom,
-        ),
-        child: Container(
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: isHighContrast
-                ? const Color(0xFF121212)
-                : (isDarkMode ? const Color(0xFF1E1E1E) : Colors.white),
-            borderRadius: BorderRadius.circular(24),
-            border: isHighContrast
-                ? Border.all(color: const Color(0xFF4B5563), width: 1.5)
-                : null,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(
-                  alpha: isHighContrast ? 0.35 : 0.1,
-                ),
-                blurRadius: 20,
-                offset: const Offset(0, 5),
+    return _buildSolidCard(
+      context,
+      isHighContrast: isHighContrast,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        children: [
+          AnimatedBuilder(
+            animation: _pulseAnimation,
+            builder: (context, _) => Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: primaryColor,
+                boxShadow: isHighContrast
+                    ? null
+                    : [
+                        BoxShadow(
+                          color: primaryColor.withValues(
+                            alpha: 0.45 * _pulseAnimation.value,
+                          ),
+                          blurRadius: 8 * _pulseAnimation.value,
+                          spreadRadius: 2 * _pulseAnimation.value,
+                        ),
+                      ],
               ),
-            ],
+            ),
           ),
-          child: Column(
-              mainAxisSize: MainAxisSize.min,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Handle bar
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: isHighContrast
-                          ? const Color(0xFF4B5563)
-                          : (isDarkMode
-                              ? Colors.white24
-                              : Colors.grey.withValues(alpha: 0.4)),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                Text(
+                  'Radar Relawan Siaga',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: textPrimary,
                   ),
                 ),
-
-                // Header: Name + Status
-                Row(
+                Text(
+                  'Jangkauan ${(_radarRadiusMeters / 1000).toStringAsFixed(1)} Km  ·  ${_activeSosList.length} Panggilan Aktif',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Semantics(
+            button: true,
+            label: 'Ubah radius radar',
+            child: InkWell(
+              onTap: _toggleRadarRadius,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: primaryColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: primaryColor.withValues(alpha: 0.35),
+                    width: 1.0,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: isHighContrast
-                            ? const Color(0xFF450A0A)
-                            : sosRed.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                        border: isHighContrast
-                            ? Border.all(color: const Color(0xFFEF4444))
-                            : null,
-                      ),
-                      child: Icon(
-                        CupertinoIcons.exclamationmark_triangle_fill,
-                        color: isHighContrast
-                            ? const Color(0xFFFCA5A5)
-                            : sosRed,
-                        size: 24,
-                      ),
+                    Icon(
+                      CupertinoIcons.radiowaves_right,
+                      size: 14,
+                      color: primaryColor,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        nama,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                          color: isHighContrast
-                              ? Colors.white
-                              : (isDarkMode ? Colors.white : Colors.black87),
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isHighContrast
-                            ? const Color(0xFF450A0A)
-                            : sosRed.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                        border: isHighContrast
-                            ? Border.all(color: const Color(0xFFEF4444))
-                            : null,
-                      ),
-                      child: Text(
-                        status.toString().toUpperCase(),
-                        style: TextStyle(
-                          color: isHighContrast
-                              ? const Color(0xFFFCA5A5)
-                              : sosRed,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
-                        ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${(_radarRadiusMeters / 1000).toStringAsFixed(0)} Km',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: primaryColor,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                // Details
-                _buildDetailRow(
-                  context,
-                  CupertinoIcons.phone_fill,
-                  'Telepon',
-                  noTelp,
-                  isHighContrast: isHighContrast,
-                ),
-                const SizedBox(height: 10),
-                FutureBuilder<String>(
-                  future: _resolveAddress(sos, sosLat, sosLng),
-                  builder: (context, snapshot) {
-                    final loc = snapshot.data ?? 'Memuat...';
-                    return _buildDetailRow(
-                      context,
-                      CupertinoIcons.location_solid,
-                      'Lokasi',
-                      loc,
-                      isHighContrast: isHighContrast,
-                    );
-                  },
-                ),
-                if (distanceKm != null) ...[
-                  const SizedBox(height: 10),
-                  _buildDetailRow(
-                    context,
-                    CupertinoIcons.arrow_right_arrow_left,
-                    'Jarak',
-                    '${distanceKm.toStringAsFixed(1)} km dari Anda',
-                    isHighContrast: isHighContrast,
+  Widget _buildFilterRow({
+    required bool isHighContrast,
+    required bool isDarkMode,
+    required Color primaryColor,
+  }) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _buildFilterChip(
+            label: 'Semua (${_activeSosList.length})',
+            isSelected: _selectedFilter == RadarFilter.all,
+            onTap: () => setState(() => _selectedFilter = RadarFilter.all),
+            isHighContrast: isHighContrast,
+            isDarkMode: isDarkMode,
+            primaryColor: primaryColor,
+          ),
+          const SizedBox(width: 8),
+          _buildFilterChip(
+            label: 'Radius ${(_radarRadiusMeters / 1000).toStringAsFixed(0)} Km ($_inRadiusCount)',
+            isSelected: _selectedFilter == RadarFilter.inRadius,
+            onTap: () => setState(() => _selectedFilter = RadarFilter.inRadius),
+            isHighContrast: isHighContrast,
+            isDarkMode: isDarkMode,
+            primaryColor: primaryColor,
+          ),
+          if (_assignedCount > 0) ...[
+            const SizedBox(width: 8),
+            _buildFilterChip(
+              label: 'Ditugaskan ($_assignedCount)',
+              isSelected: _selectedFilter == RadarFilter.assigned,
+              onTap: () =>
+                  setState(() => _selectedFilter = RadarFilter.assigned),
+              isHighContrast: isHighContrast,
+              isDarkMode: isDarkMode,
+              primaryColor: primaryColor,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required bool isHighContrast,
+    required bool isDarkMode,
+    required Color primaryColor,
+  }) {
+    final bgColor = isSelected
+        ? (isHighContrast ? const Color(0xFF00897B) : primaryColor)
+        : (isHighContrast
+            ? const Color(0xFF1E2430)
+            : (isDarkMode ? const Color(0xFF1E1E1E) : Colors.white));
+    final fgColor = isSelected
+        ? Colors.white
+        : (isHighContrast ? Colors.white : Colors.black87);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? (isHighContrast ? const Color(0xFF80CBC4) : primaryColor)
+                : (isHighContrast
+                    ? const Color(0xFF4B5563)
+                    : (isDarkMode
+                        ? const Color(0xFF374151)
+                        : const Color(0xFFE5E7EB))),
+            width: isHighContrast ? 1.5 : 1.0,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: fgColor,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFloatingActionButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+    required bool isHighContrast,
+    required bool isDarkMode,
+    required Color primaryColor,
+  }) {
+    return Semantics(
+      button: true,
+      label: tooltip,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: isHighContrast
+              ? const Color(0xFF121212)
+              : (isDarkMode ? const Color(0xFF1E1E1E) : Colors.white),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isHighContrast
+                ? const Color(0xFF4B5563)
+                : (isDarkMode
+                    ? const Color(0xFF374151)
+                    : const Color(0xFFE5E7EB)),
+            width: isHighContrast ? 1.5 : 1.0,
+          ),
+          boxShadow: isHighContrast
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(
+                      alpha: isDarkMode ? 0.25 : 0.08,
+                    ),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
-                const SizedBox(height: 20),
-
-                // Actions
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: Icon(
-                      (sos['is_assigned'] == true)
-                          ? CupertinoIcons.arrow_right_circle_fill
-                          : CupertinoIcons.checkmark_circle,
-                      size: 20,
-                    ),
-                    label: Text(
-                      (sos['is_assigned'] == true)
-                          ? 'Lihat Detail Tugas'
-                          : 'Terima Tugas',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isHighContrast
-                          ? const Color(0xFF00897B)
-                          : primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        side: isHighContrast
-                            ? const BorderSide(
-                                color: Color(0xFF80CBC4),
-                                width: 1.5,
-                              )
-                            : BorderSide.none,
-                      ),
-                    ),
-                    onPressed: _isFetchingRoute
-                        ? null
-                        : () async {
-                            Navigator.pop(ctx);
-
-                            try {
-                              final dataSource =
-                                  sl<
-                                    import_volunteer.VolunteerRemoteDataSource
-                                  >();
-                              final dynamic rawSosId = sos['id'];
-                              final int sosId = (rawSosId is int)
-                                  ? rawSosId
-                                  : int.tryParse(rawSosId?.toString() ?? '0') ?? 0;
-
-                              if (sos['is_assigned'] == true) {
-                                // Navigasi ke halaman detail tugas
-                                if (mounted) {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          import_active_task
-                                              .VolunteerActiveTaskPage(
-                                        initialTask: sos,
-                                      ),
-                                    ),
-                                  ).then((_) {
-                                    setState(() {
-                                      _acceptedSos = null;
-                                      _routePoints.clear();
-                                    });
-                                    _fetchActiveSos();
-                                  });
-                                }
-                              } else {
-                                // Terima Tugas
-                                await dataSource.updateSosStatus(
-                                  sosId,
-                                  'ditangani',
-                                );
-                                sos['is_assigned'] = true;
-                                sos['status_sos'] = 'ditangani';
-                                setState(() {
-                                  _acceptedSos = sos;
-                                });
-                                if (volunteerPos != null) {
-                                  _fetchRoute(
-                                    LatLng(
-                                      volunteerPos.latitude,
-                                      volunteerPos.longitude,
-                                    ),
-                                    LatLng(sosLat, sosLng),
-                                  );
-                                }
-                                import_event_bus.GlobalEventBus.refreshMap.value =
-                                    !import_event_bus
-                                        .GlobalEventBus
-                                        .refreshMap
-                                        .value;
-
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Tugas diterima! Menuju lokasi tugas...',
-                                      ),
-                                    ),
-                                  );
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          import_active_task
-                                              .VolunteerActiveTaskPage(
-                                        initialTask: sos,
-                                      ),
-                                    ),
-                                  ).then((_) {
-                                    setState(() {
-                                      _acceptedSos = null;
-                                      _routePoints.clear();
-                                    });
-                                    _fetchActiveSos();
-                                  });
-                                }
-                              }
-                            } catch (e) {
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Terjadi kesalahan: $e'),
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onPressed,
+            child: Icon(
+              icon,
+              size: 20,
+              color: primaryColor,
             ),
           ),
         ),
-      );
-    }
-
-  Widget _buildDetailRow(
-    BuildContext context,
-    IconData icon,
-    String label,
-    String value, {
-    Widget? valueWidget,
-    bool isHighContrast = false,
-  }) {
-    final isDarkMode =
-        isHighContrast || Theme.of(context).brightness == Brightness.dark;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(
-          icon,
-          size: 18,
-          color: isHighContrast
-              ? const Color(0xFF80CBC4)
-              : (isDarkMode ? Colors.white54 : Colors.black54),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isHighContrast
-                      ? const Color(0xFFD1D5DB)
-                      : (isDarkMode ? Colors.white54 : Colors.black45),
-                ),
-              ),
-              const SizedBox(height: 2),
-              valueWidget ??
-                  Text(
-                    value,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isHighContrast
-                          ? Colors.white
-                          : (isDarkMode ? Colors.white : Colors.black87),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-            ],
-          ),
-        ),
-      ],
+      ),
     );
+  }
+
+  Widget _buildSolidCard(
+    BuildContext context, {
+    required Widget child,
+    EdgeInsetsGeometry? padding,
+    BorderRadius? borderRadius,
+    Border? border,
+    bool? isHighContrast,
+  }) {
+    final contrast = isHighContrast ??
+        (AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast);
+    final isDarkMode =
+        contrast || Theme.of(context).brightness == Brightness.dark;
+    final radius = borderRadius ?? BorderRadius.circular(16);
+
+    return Container(
+      padding: padding ?? const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: contrast
+            ? const Color(0xFF121212)
+            : (isDarkMode ? const Color(0xFF1E1E1E) : Colors.white),
+        borderRadius: radius,
+        border: border ??
+            Border.all(
+              color: contrast
+                  ? const Color(0xFF4B5563)
+                  : (isDarkMode
+                      ? const Color(0xFF374151)
+                      : const Color(0xFFE5E7EB)),
+              width: contrast ? 1.5 : 1.0,
+            ),
+        boxShadow: contrast
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(
+                    alpha: isDarkMode ? 0.25 : 0.06,
+                  ),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+      ),
+      child: child,
+    );
+  }
+
+  /// Menampilkan bottom sheet detail rincian korban saat pin peta ditekan.
+  void _showSosDetailSheet(Map<String, dynamic> sos) {
+    showVolunteerSosDetailSheet(
+      context: context,
+      sos: sos,
+      volunteerPosition: _locationService.currentPosition.value,
+      resolveAddress: (data, lat, lng) => _resolveAddress(data, lat, lng),
+      isFetchingRoute: _isFetchingRoute,
+      onAcceptOrDetail: () async {
+        Navigator.pop(context);
+        await _handleAcceptOrViewTask(sos);
+      },
+    );
+  }
+
+  /// Alias kompatibilitas untuk _showSosDetailSheet
+  void _showSosDetails(Map<String, dynamic> sos) => _showSosDetailSheet(sos);
+
+  Future<void> _handleAcceptOrViewTask(Map<String, dynamic> sos) async {
+    try {
+      final dataSource = sl<VolunteerRemoteDataSource>();
+      final dynamic rawSosId = sos['id'];
+      final int sosId = (rawSosId is int)
+          ? rawSosId
+          : int.tryParse(rawSosId?.toString() ?? '0') ?? 0;
+
+      final sosLat = double.tryParse(sos['latitude']?.toString() ?? '') ?? 0.0;
+      final sosLng = double.tryParse(sos['longitude']?.toString() ?? '') ?? 0.0;
+      final volunteerPos = _locationService.currentPosition.value;
+
+      if (sos['is_assigned'] == true) {
+        if (mounted) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VolunteerActiveTaskPage(
+                initialTask: sos,
+              ),
+            ),
+          );
+          if (mounted) {
+            setState(() {
+              _acceptedSos = null;
+              _routePoints.clear();
+            });
+            await _fetchActiveSos();
+          }
+        }
+      } else {
+        await dataSource.updateSosStatus(sosId, 'ditangani');
+        sos['is_assigned'] = true;
+        sos['status_sos'] = 'ditangani';
+        setState(() {
+          _acceptedSos = sos;
+        });
+        if (volunteerPos != null && sosLat != 0.0 && sosLng != 0.0) {
+          unawaited(_fetchRoute(
+            LatLng(volunteerPos.latitude, volunteerPos.longitude),
+            LatLng(sosLat, sosLng),
+          ));
+        }
+        event_bus.GlobalEventBus.refreshMap.value =
+            !event_bus.GlobalEventBus.refreshMap.value;
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Tugas diterima! Menuju lokasi korban...'),
+            ),
+          );
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VolunteerActiveTaskPage(
+                initialTask: sos,
+              ),
+            ),
+          );
+          if (mounted) {
+            setState(() {
+              _acceptedSos = null;
+              _routePoints.clear();
+            });
+            await _fetchActiveSos();
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Terjadi kesalahan: $e'),
+          ),
+        );
+      }
+    }
   }
 }

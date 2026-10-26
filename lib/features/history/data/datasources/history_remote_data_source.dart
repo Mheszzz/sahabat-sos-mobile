@@ -145,11 +145,17 @@ class HistoryRemoteDataSourceImpl implements HistoryRemoteDataSource {
 
       final payload = isSos ? {'status_sos': status} : {'status': status};
 
-      final response = await dio.put(
-        url,
-        data: payload,
-        options: Options(headers: _buildHeaders()),
-      );
+      final response = isSos
+          ? await dio.patch(
+              url,
+              data: payload,
+              options: Options(headers: _buildHeaders()),
+            )
+          : await dio.put(
+              url,
+              data: payload,
+              options: Options(headers: _buildHeaders()),
+            );
 
       if (response.statusCode != 200) {
         throw Exception(
