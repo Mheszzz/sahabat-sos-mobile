@@ -44,7 +44,6 @@ class _QuickReportScreenState extends State<QuickReportScreen>
 
   int _selectedCategory = 0;
   int? _selectedQuickMessage;
-  double _selectedRadius = 5.0;
   final TextEditingController _notesController = TextEditingController();
   bool _isLoading = false;
   File? _selectedImage;
@@ -772,7 +771,6 @@ class _QuickReportScreenState extends State<QuickReportScreen>
         longitude: position.longitude,
         quickMessage: selectedQuickMessage,
         additionalNotes: notes.isNotEmpty ? notes : null,
-        radius: _selectedRadius,
         photoFile: _selectedImage,
         audioFile: _selectedAudio,
       );
@@ -1078,14 +1076,6 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                             _buildNotesField(isHighContrast),
                             const SizedBox(height: 20),
                             _buildSectionHeader(
-                              'Radius Jangkauan Relawan',
-                              isHighContrast,
-                              trailing: '${_selectedRadius.toStringAsFixed(1)} KM',
-                            ),
-                            const SizedBox(height: 10),
-                            _buildRadiusSelector(isHighContrast),
-                            const SizedBox(height: 20),
-                            _buildSectionHeader(
                               'Lampiran & Koordinat Otomatis',
                               isHighContrast,
                             ),
@@ -1191,12 +1181,12 @@ class _QuickReportScreenState extends State<QuickReportScreen>
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
             onTap: () {
-              AccessibilityService.instance.hapticSelection();
-              unawaited(
-                AccessibilityService.instance
-                    .speak("Kategori ${category.title} dipilih"),
+              AccessibilityService.instance.handleTalkbackTap(
+                id: 'report_category_${category.id}',
+                speakText: "Kategori ${category.title}. ${category.subtitle}",
+                hintText: "Tekan sekali lagi untuk memilih kategori ini.",
+                onAction: () => setState(() => _selectedCategory = index),
               );
-              setState(() => _selectedCategory = index);
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
@@ -1289,22 +1279,27 @@ class _QuickReportScreenState extends State<QuickReportScreen>
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
               onTap: () {
-                AccessibilityService.instance.hapticSelection();
-                setState(() {
-                  if (_selectedQuickMessage == index) {
-                    _selectedQuickMessage = null;
-                    unawaited(
-                      AccessibilityService.instance
-                          .speak("Pesan cepat dibatalkan"),
-                    );
-                  } else {
-                    _selectedQuickMessage = index;
-                    unawaited(
-                      AccessibilityService.instance
-                          .speak("Pesan ${item['text']} dipilih"),
-                    );
-                  }
-                });
+                final isCancelling = _selectedQuickMessage == index;
+                final speakText = isCancelling
+                    ? "Pesan cepat dibatalkan"
+                    : "Pesan cepat: ${item['text']}";
+                final hintText = isCancelling
+                    ? "Tekan sekali lagi untuk membatalkan pilihan pesan."
+                    : "Tekan sekali lagi untuk memilih pesan ini.";
+                AccessibilityService.instance.handleTalkbackTap(
+                  id: 'quick_msg_$index',
+                  speakText: speakText,
+                  hintText: hintText,
+                  onAction: () {
+                    setState(() {
+                      if (_selectedQuickMessage == index) {
+                        _selectedQuickMessage = null;
+                      } else {
+                        _selectedQuickMessage = index;
+                      }
+                    });
+                  },
+                );
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
@@ -1403,136 +1398,6 @@ class _QuickReportScreenState extends State<QuickReportScreen>
             fontSize: 13,
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildRadiusSelector(bool isHighContrast) {
-    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
-    final defaultBg = AccessibleColors.cardBackground(isHighContrast);
-    final selectedBg =
-        isHighContrast ? const Color(0xFF1E3A34) : primaryLightTeal;
-
-    const presetRadii = [1.0, 3.0, 5.0, 10.0, 25.0, 50.0];
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: defaultBg,
-        borderRadius: BorderRadius.circular(16),
-        border: AccessibleColors.cardBorder(isHighContrast),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(
-              alpha: isHighContrast ? 0.25 : 0.04,
-            ),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                CupertinoIcons.location_circle_fill,
-                color: tealColor,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Radius Notifikasi Relawan: ${_selectedRadius.toStringAsFixed(1)} KM',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AccessibleColors.textPrimary(isHighContrast),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          SliderTheme(
-            data: SliderThemeData(
-              activeTrackColor: tealColor,
-              inactiveTrackColor: isHighContrast
-                  ? const Color(0xFF374151)
-                  : const Color(0xFFE5E7EB),
-              thumbColor: tealColor,
-              overlayColor: tealColor.withValues(alpha: 0.2),
-              trackHeight: 4,
-            ),
-            child: Slider(
-              value: _selectedRadius,
-              min: 0.5,
-              max: 50.0,
-              divisions: 99,
-              label: '${_selectedRadius.toStringAsFixed(1)} KM',
-              onChanged: (val) {
-                setState(() {
-                  _selectedRadius = double.parse(val.toStringAsFixed(1));
-                });
-              },
-            ),
-          ),
-          const SizedBox(height: 6),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: presetRadii.map((r) {
-                final isSelected = (_selectedRadius - r).abs() < 0.1;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: () {
-                      AccessibilityService.instance.hapticSelection();
-                      unawaited(
-                        AccessibilityService.instance
-                            .speak("Radius ${r.toInt()} kilometer dipilih"),
-                      );
-                      setState(() {
-                        _selectedRadius = r;
-                      });
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected ? selectedBg : Colors.transparent,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isSelected
-                              ? tealColor
-                              : (isHighContrast
-                                  ? const Color(0xFF4B5563)
-                                  : const Color(0xFFD1D5DB)),
-                          width: isSelected || isHighContrast ? 1.5 : 1.0,
-                        ),
-                      ),
-                      child: Text(
-                        '${r.toInt()} KM',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight:
-                              isSelected ? FontWeight.bold : FontWeight.w500,
-                          color: isSelected
-                              ? tealColor
-                              : AccessibleColors.textSecondary(isHighContrast),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1987,7 +1852,16 @@ class _QuickReportScreenState extends State<QuickReportScreen>
     return SizedBox(
       height: 50,
       child: ElevatedButton.icon(
-        onPressed: _isLoading ? null : _submitReport,
+        onPressed: _isLoading
+            ? null
+            : () {
+                AccessibilityService.instance.handleTalkbackTap(
+                  id: 'quick_report_submit_btn',
+                  speakText: "Kirim Laporan Bantuan",
+                  hintText: "Tekan sekali lagi untuk mengirim laporan bantuan ke posko.",
+                  onAction: _submitReport,
+                );
+              },
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryTeal,
           foregroundColor: Colors.white,

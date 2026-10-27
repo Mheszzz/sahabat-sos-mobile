@@ -1143,6 +1143,10 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
           await prefs.setString('verification_status', verificationStatus);
         } else {
           await AccessibilityService.instance.applyCategoryDefaults(kategori, syncBackend: false);
+          await AccessibilityService.instance.setTalkback(_talkbackEnabled, syncBackend: false);
+          await AccessibilityService.instance.setVoiceGuide(_voiceGuidanceEnabled, syncBackend: false);
+          await AccessibilityService.instance.setHaptic(_hapticVibrationEnabled, syncBackend: false);
+          await AccessibilityService.instance.setLargeText(_largeTextEnabled, syncBackend: false);
         }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

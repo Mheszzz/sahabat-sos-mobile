@@ -17,6 +17,7 @@ class AccessibilityService extends ChangeNotifier {
   SharedPreferences? _prefs;
 
   bool _isVoiceGuideEnabled = true;
+  bool _isTalkbackEnabled = false;
   bool _isHapticEnabled = true;
   bool _isHighContrastEnabled = false;
   bool _isLargeTextEnabled = false;
@@ -24,27 +25,38 @@ class AccessibilityService extends ChangeNotifier {
   String _disabilityCategory = 'umum';
   bool _isTtsInitialized = false;
 
+  String? _focusedElementId;
+  DateTime? _lastTapTime;
+  Timer? _focusResetTimer;
+  static const Duration _doubleTapTimeout = Duration(milliseconds: 2500);
+
   bool get isVoiceGuideEnabled => _isVoiceGuideEnabled;
+  bool get isTalkbackEnabled => _isTalkbackEnabled;
   bool get isHapticEnabled => _isHapticEnabled;
   bool get isHighContrastEnabled => _isHighContrastEnabled;
   bool get isLargeTextEnabled => _isLargeTextEnabled;
   bool get isVisualAlertEnabled => _isVisualAlertEnabled;
   String get disabilityCategory => _disabilityCategory;
+  String? get focusedElementId => _focusedElementId;
+  bool isElementFocused(String id) => _isTalkbackEnabled && _focusedElementId == id;
 
   Future<void> init([SharedPreferences? preferences]) async {
     _prefs = preferences ?? (sl.isRegistered<SharedPreferences>() ? sl<SharedPreferences>() : null);
 
     if (_prefs != null) {
+      _disabilityCategory =
+          _prefs!.getString('user_disability_category') ?? 'umum';
       _isVoiceGuideEnabled =
           _prefs!.getBool('accessibility_voice_guide') ?? true;
+      _isTalkbackEnabled =
+          _prefs!.getBool('accessibility_talkback') ??
+              (_disabilityCategory == 'tunanetra');
       _isHapticEnabled =
           _prefs!.getBool('accessibility_haptic') ?? true;
       _isHighContrastEnabled =
           _prefs!.getBool('accessibility_high_contrast') ?? false;
       _isLargeTextEnabled =
           _prefs!.getBool('accessibility_large_text') ?? false;
-      _disabilityCategory =
-          _prefs!.getString('user_disability_category') ?? 'umum';
       _isVisualAlertEnabled =
           _prefs!.getBool('accessibility_visual_alert') ??
               (_disabilityCategory == 'tunarungu');
@@ -68,6 +80,34 @@ class AccessibilityService extends ChangeNotifier {
   }
 
   // Setters with persistent storage and backend sync
+  Future<void> setTalkback(bool value, {bool syncBackend = true}) async {
+    _isTalkbackEnabled = value;
+    await _prefs?.setBool('accessibility_talkback', value);
+    if (value && !_isVoiceGuideEnabled) {
+      _isVoiceGuideEnabled = true;
+      await _prefs?.setBool('accessibility_voice_guide', true);
+    }
+    _focusedElementId = null;
+    _lastTapTime = null;
+    _focusResetTimer?.cancel();
+    notifyListeners();
+
+    if (value) {
+      await speak(
+        "Mode TalkBack aktif. Tekan sekali untuk mengeluarkan suara, tekan sekali lagi untuk melakukan aksi.",
+      );
+    } else {
+      await speak("Mode TalkBack dinonaktifkan.");
+    }
+
+    if (syncBackend) {
+      _syncToBackend({
+        'talkback': value ? 1 : 0,
+        if (value) 'panduan_suara': 1,
+      });
+    }
+  }
+
   Future<void> setVoiceGuide(bool value, {bool syncBackend = true}) async {
     _isVoiceGuideEnabled = value;
     await _prefs?.setBool('accessibility_voice_guide', value);
@@ -137,29 +177,33 @@ class AccessibilityService extends ChangeNotifier {
 
     switch (cleanCategory) {
       case 'tunanetra':
-        // Tunanetra: Panduan Suara, Getaran Taktil, Kontras Tinggi, dan Teks Besar diaktifkan penuh
+        // Tunanetra: Panduan Suara, TalkBack, Getaran Taktil, Kontras Tinggi, dan Teks Besar diaktifkan penuh
         _isVoiceGuideEnabled = true;
+        _isTalkbackEnabled = true;
         _isHapticEnabled = true;
         _isHighContrastEnabled = true;
         _isLargeTextEnabled = true;
         _isVisualAlertEnabled = false;
         await _prefs?.setBool('accessibility_voice_guide', true);
+        await _prefs?.setBool('accessibility_talkback', true);
         await _prefs?.setBool('accessibility_haptic', true);
         await _prefs?.setBool('accessibility_high_contrast', true);
         await _prefs?.setBool('accessibility_large_text', true);
         await _prefs?.setBool('accessibility_visual_alert', false);
         unawaited(speak(
-          'Kategori Tunanetra aktif. Panduan suara, getaran, kontras tinggi, dan teks besar dioptimalkan.',
+          'Kategori Tunanetra aktif. TalkBack, panduan suara, getaran, kontras tinggi, dan teks besar dioptimalkan.',
         ));
         break;
 
       case 'tunarungu':
         // Tunarungu: Suara tidak efektif, maksimalkan getaran taktil, kontras visual pekat, dan lampu visual flash
         _isVoiceGuideEnabled = false;
+        _isTalkbackEnabled = false;
         _isHapticEnabled = true;
         _isHighContrastEnabled = true;
         _isVisualAlertEnabled = true;
         await _prefs?.setBool('accessibility_voice_guide', false);
+        await _prefs?.setBool('accessibility_talkback', false);
         await _prefs?.setBool('accessibility_haptic', true);
         await _prefs?.setBool('accessibility_high_contrast', true);
         await _prefs?.setBool('accessibility_visual_alert', true);
@@ -186,6 +230,7 @@ class AccessibilityService extends ChangeNotifier {
       _syncToBackend({
         'kategori_user': cleanCategory,
         'panduan_suara': _isVoiceGuideEnabled ? 1 : 0,
+        'talkback': _isTalkbackEnabled ? 1 : 0,
         'getaran': _isHapticEnabled ? 1 : 0,
         'kontras_tinggi': _isHighContrastEnabled ? 1 : 0,
         'text_besar': _isLargeTextEnabled ? 1 : 0,
@@ -214,6 +259,17 @@ class AccessibilityService extends ChangeNotifier {
         (data['aksesibilitas'] is Map)
             ? Map<String, dynamic>.from(data['aksesibilitas'] as Map)
             : data;
+
+    if (source.containsKey('talkback')) {
+      final v = source['talkback'] == true ||
+          source['talkback'] == 1 ||
+          source['talkback'] == '1';
+      if (_isTalkbackEnabled != v) {
+        _isTalkbackEnabled = v;
+        _prefs?.setBool('accessibility_talkback', v);
+        changed = true;
+      }
+    }
 
     if (source.containsKey('panduan_suara')) {
       final v = source['panduan_suara'] == true || source['panduan_suara'] == 1;
@@ -296,7 +352,7 @@ class AccessibilityService extends ChangeNotifier {
 
   // Voice & Announcement methods
   Future<void> speak(String text) async {
-    if (!_isVoiceGuideEnabled) return;
+    if (!_isVoiceGuideEnabled && !_isTalkbackEnabled) return;
     try {
       await _initTts();
       await _flutterTts.speak(text);
@@ -313,7 +369,7 @@ class AccessibilityService extends ChangeNotifier {
     } catch (_) {}
 
     // 2. Panduan suara in-app jika diaktifkan pengguna
-    if (_isVoiceGuideEnabled) {
+    if (_isVoiceGuideEnabled || _isTalkbackEnabled) {
       await speak(message);
     }
   }
@@ -322,5 +378,66 @@ class AccessibilityService extends ChangeNotifier {
     try {
       await _flutterTts.stop();
     } catch (_) {}
+  }
+
+  void clearFocus() {
+    _focusedElementId = null;
+    _lastTapTime = null;
+    _focusResetTimer?.cancel();
+    notifyListeners();
+  }
+
+  /// Menangani ketukan tombol/elemen sesuai standar aksesibilitas TalkBack:
+  /// - Jika TalkBack aktif:
+  ///     - Tekan 1x: Membacakan label elemen dengan suara TTS dan memberikan feedback getar fokus.
+  ///     - Tekan lagi (pada elemen yang sama): Mengeksekusi aksi yang sebenarnya.
+  /// - Jika TalkBack tidak aktif:
+  ///     - Langsung menjalankan aksi (dengan suara panduan jika aktif).
+  void handleTalkbackTap({
+    required String id,
+    required String speakText,
+    required VoidCallback onAction,
+    String? hintText,
+  }) {
+    if (!_isTalkbackEnabled) {
+      if (_isVoiceGuideEnabled) {
+        speak(speakText);
+      }
+      hapticSelection();
+      onAction();
+      return;
+    }
+
+    final now = DateTime.now();
+    final bool isSameElement = _focusedElementId == id;
+    final bool isWithinTimeout = _lastTapTime != null &&
+        now.difference(_lastTapTime!) <= _doubleTapTimeout;
+
+    if (isSameElement && isWithinTimeout) {
+      // Tekan lagi (kedua kali): Jalankan aksi!
+      _focusResetTimer?.cancel();
+      _focusedElementId = null;
+      _lastTapTime = null;
+      hapticMedium();
+      notifyListeners();
+      onAction();
+    } else {
+      // Tekan 1 (pertama kali): Keluarkan suara & fokuskan elemen
+      _focusResetTimer?.cancel();
+      _focusedElementId = id;
+      _lastTapTime = now;
+      hapticSelection();
+      notifyListeners();
+
+      _focusResetTimer = Timer(_doubleTapTimeout, () {
+        if (_focusedElementId == id) {
+          _focusedElementId = null;
+          notifyListeners();
+        }
+      });
+
+      final String hint = hintText ?? 'Tekan sekali lagi untuk melakukan aksi.';
+      speak('$speakText. $hint');
+    }
   }
 }

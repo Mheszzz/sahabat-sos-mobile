@@ -200,10 +200,15 @@ class _DashboardPageState extends State<DashboardPage>
           icon: Icon(CupertinoIcons.refresh, color: currentPrimaryTeal),
           tooltip: 'Refresh',
           onPressed: () {
-            AccessibilityService.instance.hapticSelection();
-            AccessibilityService.instance.speak("Memperbarui data beranda");
-            setState(() => _isBerandaLoading = true);
-            _fetchBeranda();
+            AccessibilityService.instance.handleTalkbackTap(
+              id: 'dashboard_refresh_btn',
+              speakText: "Memperbarui data beranda",
+              hintText: "Tekan sekali lagi untuk memperbarui data.",
+              onAction: () {
+                setState(() => _isBerandaLoading = true);
+                _fetchBeranda();
+              },
+            );
           },
         ),
         Padding(
@@ -217,9 +222,12 @@ class _DashboardPageState extends State<DashboardPage>
               borderRadius: BorderRadius.circular(8),
               child: InkWell(
                 onTap: () {
-                  AccessibilityService.instance.hapticSelection();
-                  AccessibilityService.instance.speak("Membuka Peta");
-                  context.push(AppRoutes.map);
+                  AccessibilityService.instance.handleTalkbackTap(
+                    id: 'dashboard_map_btn',
+                    speakText: "Membuka Peta",
+                    hintText: "Tekan sekali lagi untuk membuka peta.",
+                    onAction: () => context.push(AppRoutes.map),
+                  );
                 },
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
@@ -708,57 +716,77 @@ class _DashboardPageState extends State<DashboardPage>
     final cardBg = AccessibleColors.cardBackground(isHighContrast);
     final cardBorder = AccessibleColors.cardBorder(isHighContrast);
     final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final elementId = 'dashboard_menu_${item.label}';
 
-    return Container(
-      height: 72,
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: cardBorder,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isHighContrast ? 0.3 : 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isFocused =
+            AccessibilityService.instance.isElementFocused(elementId);
+        return Container(
+          height: 72,
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: isFocused
+                ? Border.all(
+                    color: isHighContrast
+                        ? const Color(0xFF00FFCC)
+                        : const Color(0xFF00897B),
+                    width: 2.5,
+                  )
+                : cardBorder,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isHighContrast ? 0.3 : 0.04),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            AccessibilityService.instance.hapticSelection();
-            AccessibilityService.instance.speak("Membuka ${item.label}");
-            if (item.onTap != null) {
-              item.onTap!();
-            } else if (item.route != null) {
-              context.push(item.route!);
-            }
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(item.icon, color: tealColor, size: 28),
-                const SizedBox(height: 6),
-                Text(
-                  item.label,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                    color: AccessibleColors.textPrimary(isHighContrast),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () {
+                AccessibilityService.instance.handleTalkbackTap(
+                  id: elementId,
+                  speakText: "Membuka ${item.label}",
+                  hintText: "Tekan sekali lagi untuk membuka.",
+                  onAction: () {
+                    if (item.onTap != null) {
+                      item.onTap!();
+                    } else if (item.route != null) {
+                      context.push(item.route!);
+                    }
+                  },
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(item.icon, color: tealColor, size: 28),
+                    const SizedBox(height: 6),
+                    Text(
+                      item.label,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                        color: AccessibleColors.textPrimary(isHighContrast),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

@@ -8,7 +8,6 @@ import 'package:sahabat_sos_mobile/features/profile/presentation/screens/volunte
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
 import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
-import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
     as event_bus;
@@ -549,23 +548,30 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
                           final item = _navItems[index];
                           final isLocked = (_isVerified == false || !_isActive) && index != 3;
 
+                          final elementId = 'volunteer_nav_tab_${item.label}';
+                          final isFocused = AccessibilityService.instance.isElementFocused(elementId);
                           return GestureDetector(
                             onTap: () {
-                              AccessibilityService.instance.hapticSelection();
-                              if (isLocked) {
-                                if (_verificationStatus == 'ditolak') {
-                                  _showRejectedDialog();
-                                } else if (!_isActive) {
-                                  _showDeactivatedDialog();
-                                } else {
-                                  _showUnverifiedDialog();
-                                }
-                                return;
-                              }
-                              AccessibilityService.instance.speak("Tab ${item.label}");
-                              setState(() {
-                                _selectedIndex = index;
-                              });
+                              AccessibilityService.instance.handleTalkbackTap(
+                                id: elementId,
+                                speakText: "Tab ${item.label}",
+                                hintText: "Tekan sekali lagi untuk berpindah ke tab ${item.label}.",
+                                onAction: () {
+                                  if (isLocked) {
+                                    if (_verificationStatus == 'ditolak') {
+                                      _showRejectedDialog();
+                                    } else if (!_isActive) {
+                                      _showDeactivatedDialog();
+                                    } else {
+                                      _showUnverifiedDialog();
+                                    }
+                                    return;
+                                  }
+                                  setState(() {
+                                    _selectedIndex = index;
+                                  });
+                                },
+                              );
                             },
                             behavior: HitTestBehavior.opaque,
                             child: AnimatedContainer(
@@ -580,6 +586,14 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
                                     ? const Color(0xFF1E2430)
                                     : Colors.transparent,
                                 borderRadius: BorderRadius.circular(20),
+                                border: isFocused
+                                    ? Border.all(
+                                        color: isHighContrast
+                                            ? const Color(0xFF00FFCC)
+                                            : const Color(0xFF00897B),
+                                        width: 2,
+                                      )
+                                    : null,
                               ),
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,

@@ -472,12 +472,15 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
-                      AccessibilityService.instance.hapticHeavy();
-                      unawaited(
-                        AccessibilityService.instance
-                            .speak("Menghubungi $name"),
+                      AccessibilityService.instance.handleTalkbackTap(
+                        id: 'contact_call_$name',
+                        speakText: "Menghubungi $name",
+                        hintText: "Tekan sekali lagi untuk melakukan panggilan.",
+                        onAction: () {
+                          AccessibilityService.instance.hapticHeavy();
+                          onCall();
+                        },
                       );
-                      onCall();
                     },
                     icon: const Icon(
                       CupertinoIcons.phone_fill,
@@ -515,12 +518,12 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
-                      AccessibilityService.instance.hapticSelection();
-                      unawaited(
-                        AccessibilityService.instance
-                            .speak("Mengubah kontak $name"),
+                      AccessibilityService.instance.handleTalkbackTap(
+                        id: 'contact_edit_$name',
+                        speakText: "Mengubah kontak $name",
+                        hintText: "Tekan sekali lagi untuk membuka formulir ubah kontak.",
+                        onAction: onEdit,
                       );
-                      onEdit();
                     },
                     icon: Icon(
                       CupertinoIcons.pencil,
@@ -645,12 +648,12 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
                     // Tombol Tambah Kontak Darurat Prominen
                     ElevatedButton.icon(
                       onPressed: () {
-                        AccessibilityService.instance.hapticSelection();
-                        unawaited(
-                          AccessibilityService.instance
-                              .speak("Membuka form tambah kontak darurat"),
+                        AccessibilityService.instance.handleTalkbackTap(
+                          id: 'add_emergency_contact_btn',
+                          speakText: "Membuka form tambah kontak darurat",
+                          hintText: "Tekan sekali lagi untuk menambah kontak darurat baru.",
+                          onAction: _navigateToAddOrEdit,
                         );
-                        _navigateToAddOrEdit();
                       },
                       icon: const Icon(
                         CupertinoIcons.person_add_solid,

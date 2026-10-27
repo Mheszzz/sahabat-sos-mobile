@@ -200,6 +200,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               : '-',
           'getaran': service.isHapticEnabled ? 1 : 0,
           'panduan_suara': service.isVoiceGuideEnabled ? 1 : 0,
+          'talkback': service.isTalkbackEnabled ? 1 : 0,
           'text_besar': service.isLargeTextEnabled ? 1 : 0,
           'kontras_tinggi': service.isHighContrastEnabled ? 1 : 0,
         };

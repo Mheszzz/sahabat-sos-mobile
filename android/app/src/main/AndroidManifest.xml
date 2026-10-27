@@ -60,10 +60,10 @@
 
         <meta-data
             android:name="THING_SMART_APPKEY"
-            android:value="v7jujdvxvrn55hvvqwyu" />
+            android:value="${THING_SMART_APPKEY}" />
         <meta-data
             android:name="THING_SMART_SECRET"
-            android:value="84keu3y8erwku9rs9adnae595cvtsruv" />
+            android:value="${THING_SMART_SECRET}" />
 
         <service
             android:name="id.flutter.flutter_background_service.BackgroundService"

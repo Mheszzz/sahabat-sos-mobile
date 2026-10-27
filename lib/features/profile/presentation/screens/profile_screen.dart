@@ -595,8 +595,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required bool isHighContrast,
     required VoidCallback onTap,
   }) {
+    final elementId = 'call_tile_$number';
+    final isFocused = AccessibilityService.instance.isElementFocused(elementId);
     return InkWell(
-      onTap: onTap,
+      onTap: () {
+        AccessibilityService.instance.handleTalkbackTap(
+          id: elementId,
+          speakText: "$title, nomor $number. $subtitle",
+          hintText: "Tekan sekali lagi untuk menelepon nomor $number.",
+          onAction: onTap,
+        );
+      },
       borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -604,9 +613,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           color: isHighContrast ? const Color(0xFF262626) : const Color(0xFFF9FAFB),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isHighContrast
-                ? const Color(0xFF404040)
-                : const Color(0xFFE5E7EB),
+            color: isFocused
+                ? (isHighContrast ? const Color(0xFF00FFCC) : const Color(0xFF00897B))
+                : (isHighContrast
+                    ? const Color(0xFF404040)
+                    : const Color(0xFFE5E7EB)),
+            width: isFocused ? 2.5 : 1,
           ),
         ),
         child: Row(
@@ -1234,8 +1246,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           _buildToggleItem(
             icon: CupertinoIcons.speaker_2,
-            title: 'Panduan Suara (TalkBack)',
-            subtitle: 'Narasi suara otomatis saat tindakan darurat.',
+            title: 'TalkBack / Pembaca Layar',
+            subtitle: 'Tekan 1x bersuara, tekan lagi untuk melakukan aksi.',
+            value: service.isTalkbackEnabled,
+            isHighContrast: isHighContrast,
+            onChanged: (v) async {
+              await service.setTalkback(v);
+            },
+          ),
+          Divider(
+            height: 1,
+            indent: 56,
+            color: isHighContrast
+                ? const Color(0xFF374151)
+                : const Color(0xFFE5E7EB),
+          ),
+          _buildToggleItem(
+            icon: CupertinoIcons.volume_up,
+            title: 'Panduan Suara Otomatis (TTS)',
+            subtitle: 'Narasi suara otomatis saat membuka layar dan tindakan.',
             value: service.isVoiceGuideEnabled,
             isHighContrast: isHighContrast,
             onChanged: (v) async {
@@ -1306,67 +1335,90 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required ValueChanged<bool> onChanged,
     bool isHighContrast = false,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: isHighContrast
-                  ? const Color(0xFF374151)
-                  : primaryTeal.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              icon,
-              color: isHighContrast ? const Color(0xFF14B8A6) : primaryTeal,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color:
-                        isHighContrast ? Colors.white : const Color(0xFF111827),
-                  ),
+    final elementId = 'toggle_$title';
+    final isFocused = AccessibilityService.instance.isElementFocused(elementId);
+    return InkWell(
+      onTap: () {
+        AccessibilityService.instance.handleTalkbackTap(
+          id: elementId,
+          speakText: "$title, status: ${value ? 'Aktif' : 'Nonaktif'}",
+          hintText: "Tekan sekali lagi untuk ${value ? 'menonaktifkan' : 'mengaktifkan'}.",
+          onAction: () => onChanged(!value),
+        );
+      },
+      child: Container(
+        decoration: isFocused
+            ? BoxDecoration(
+                border: Border.all(
+                  color: isHighContrast
+                      ? const Color(0xFF00FFCC)
+                      : const Color(0xFF00897B),
+                  width: 2.5,
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isHighContrast
-                        ? Colors.grey.shade400
-                        : const Color(0xFF6B7280),
+                borderRadius: BorderRadius.circular(12),
+              )
+            : null,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isHighContrast
+                    ? const Color(0xFF374151)
+                    : primaryTeal.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                color: isHighContrast ? const Color(0xFF14B8A6) : primaryTeal,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color:
+                          isHighContrast ? Colors.white : const Color(0xFF111827),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isHighContrast
+                          ? Colors.grey.shade400
+                          : const Color(0xFF6B7280),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          Semantics(
-            label: title,
-            value: value ? 'Aktif' : 'Nonaktif',
-            child: Switch(
-              value: value,
-              onChanged: onChanged,
-              activeThumbColor: Colors.white,
-              activeTrackColor: primaryTeal,
-              inactiveThumbColor: Colors.white,
-              inactiveTrackColor: isHighContrast
-                  ? Colors.grey.shade700
-                  : Colors.grey.shade300,
+            Semantics(
+              label: title,
+              value: value ? 'Aktif' : 'Nonaktif',
+              child: Switch(
+                value: value,
+                onChanged: onChanged,
+                activeThumbColor: Colors.white,
+                activeTrackColor: primaryTeal,
+                inactiveThumbColor: Colors.white,
+                inactiveTrackColor: isHighContrast
+                    ? Colors.grey.shade700
+                    : Colors.grey.shade300,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1480,10 +1532,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
     VoidCallback? onTap,
     bool isHighContrast = false,
   }) {
+    final elementId = 'help_tile_$title';
+    final isFocused = AccessibilityService.instance.isElementFocused(elementId);
     return InkWell(
-      onTap: onTap,
+      onTap: onTap != null
+          ? () {
+              AccessibilityService.instance.handleTalkbackTap(
+                id: elementId,
+                speakText: "$title. $subtitle",
+                hintText: "Tekan sekali lagi untuk membuka.",
+                onAction: onTap,
+              );
+            }
+          : null,
       borderRadius: BorderRadius.circular(16),
-      child: Padding(
+      child: Container(
+        decoration: isFocused
+            ? BoxDecoration(
+                border: Border.all(
+                  color: isHighContrast
+                      ? const Color(0xFF00FFCC)
+                      : const Color(0xFF00897B),
+                  width: 2.5,
+                ),
+                borderRadius: BorderRadius.circular(16),
+              )
+            : null,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
@@ -1537,12 +1611,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildLogoutButton(bool isHighContrast) {
+    final isFocused = AccessibilityService.instance.isElementFocused('profile_logout_btn');
     return SizedBox(
       width: double.infinity,
       height: 50,
       child: ElevatedButton.icon(
-        onPressed: () async {
-          final confirm = await showModalBottomSheet<bool>(
+        onPressed: () {
+          AccessibilityService.instance.handleTalkbackTap(
+            id: 'profile_logout_btn',
+            speakText: "Keluar Akun",
+            hintText: "Tekan sekali lagi untuk membuka dialog konfirmasi keluar.",
+            onAction: () async {
+              final confirm = await showModalBottomSheet<bool>(
             context: context,
             backgroundColor: Colors.transparent,
             builder: (ctx) => Container(
@@ -1687,7 +1767,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (!mounted) return;
           context.go(AppRoutes.login);
         },
-        icon: const Icon(CupertinoIcons.arrow_right_square),
+      );
+    },
+    icon: const Icon(CupertinoIcons.arrow_right_square),
         label: const Text(
           'Keluar Akun',
           style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
@@ -1699,9 +1781,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
-            side: isHighContrast
-                ? const BorderSide(color: Color(0xFFEF4444), width: 1.5)
-                : BorderSide.none,
+            side: isFocused
+                ? BorderSide(
+                    color: isHighContrast
+                        ? const Color(0xFF00FFCC)
+                        : const Color(0xFF00897B),
+                    width: 2.5,
+                  )
+                : (isHighContrast
+                    ? const BorderSide(color: Color(0xFFEF4444), width: 1.5)
+                    : BorderSide.none),
           ),
         ),
       ),

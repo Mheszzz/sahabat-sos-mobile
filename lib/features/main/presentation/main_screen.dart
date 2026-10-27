@@ -3,7 +3,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
-import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/dashboard_page.dart';
 import 'package:sahabat_sos_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:sahabat_sos_mobile/features/reports/presentation/quick_report_screen.dart';
@@ -174,13 +173,20 @@ class _MainScreenState extends State<MainScreen> {
                         children: List.generate(_navItems.length, (index) {
                           final isSelected = _selectedIndex == index;
                           final item = _navItems[index];
+                          final elementId = 'nav_tab_${item.label}';
+                          final isFocused = AccessibilityService.instance.isElementFocused(elementId);
                           return GestureDetector(
                             onTap: () {
-                              AccessibilityService.instance.hapticSelection();
-                              AccessibilityService.instance.speak("Tab ${item.label}");
-                              setState(() {
-                                _selectedIndex = index;
-                              });
+                              AccessibilityService.instance.handleTalkbackTap(
+                                id: elementId,
+                                speakText: "Tab ${item.label}",
+                                hintText: "Tekan sekali lagi untuk berpindah ke tab ${item.label}.",
+                                onAction: () {
+                                  setState(() {
+                                    _selectedIndex = index;
+                                  });
+                                },
+                              );
                             },
                             behavior: HitTestBehavior.opaque,
                             child: AnimatedContainer(
@@ -195,6 +201,14 @@ class _MainScreenState extends State<MainScreen> {
                                     ? const Color(0xFF1E2430)
                                     : Colors.transparent,
                                 borderRadius: BorderRadius.circular(20),
+                                border: isFocused
+                                    ? Border.all(
+                                        color: isHighContrast
+                                            ? const Color(0xFF00FFCC)
+                                            : const Color(0xFF00897B),
+                                        width: 2,
+                                      )
+                                    : null,
                               ),
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,

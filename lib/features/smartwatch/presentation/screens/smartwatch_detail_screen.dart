@@ -481,10 +481,10 @@ class SmartwatchDetailScreen extends StatelessWidget {
             _buildGlassContainer(
               color: primaryTeal.withValues(alpha: 0.06),
               padding: const EdgeInsets.all(14),
-              child: Column(
+              child: const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Icon(CupertinoIcons.lightbulb_fill,
@@ -502,12 +502,12 @@ class SmartwatchDetailScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Padding(
-                    padding: const EdgeInsets.only(left: 26),
+                    padding: EdgeInsets.only(left: 26),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         Text(
                           '1. Untuk live BPM via Bluetooth: buka Pengaturan Jam Huawei > Pengaturan Olahraga > aktifkan "Siaran Detak Jantung" (Heart Rate Broadcast).',
                           style: TextStyle(

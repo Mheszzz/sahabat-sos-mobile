@@ -451,12 +451,12 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
               onTap: () {
-                AccessibilityService.instance.hapticSelection();
-                unawaited(
-                  AccessibilityService.instance
-                      .speak("Membuka pairing Wi-Fi"),
+                AccessibilityService.instance.handleTalkbackTap(
+                  id: 'tuya_pairing_wifi_btn',
+                  speakText: "Membuka pairing Wi-Fi",
+                  hintText: "Tekan sekali lagi untuk membuka pairing Wi-Fi.",
+                  onAction: () => context.push('/tuya-devices/scan-wifi'),
                 );
-                context.push('/tuya-devices/scan-wifi');
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 13),
@@ -500,12 +500,12 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
               onTap: () {
-                AccessibilityService.instance.hapticSelection();
-                unawaited(
-                  AccessibilityService.instance
-                      .speak("Membuka scan Bluetooth"),
+                AccessibilityService.instance.handleTalkbackTap(
+                  id: 'tuya_scan_bt_btn',
+                  speakText: "Membuka scan Bluetooth",
+                  hintText: "Tekan sekali lagi untuk membuka scan Bluetooth.",
+                  onAction: () => context.push('/tuya-devices/scan'),
                 );
-                context.push('/tuya-devices/scan');
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 13),
@@ -701,12 +701,12 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
               onTap: () {
-                AccessibilityService.instance.hapticSelection();
-                unawaited(
-                  AccessibilityService.instance
-                      .speak("Membuka detail perangkat ${device.name}"),
+                AccessibilityService.instance.handleTalkbackTap(
+                  id: 'tuya_device_card_${device.deviceId}',
+                  speakText: "Membuka detail perangkat ${device.name}",
+                  hintText: "Tekan sekali lagi untuk membuka detail perangkat.",
+                  onAction: () => context.push('/tuya-devices/${device.deviceId}'),
                 );
-                context.push('/tuya-devices/${device.deviceId}');
               },
               child: Container(
                 width: 34,

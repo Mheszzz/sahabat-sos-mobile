@@ -1163,43 +1163,6 @@ class _SosStatusPageState extends State<SosStatusPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (AccessibilityService.instance.isVisualAlertEnabled &&
-                      !_isSelesai &&
-                      !_isBatal) ...[
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: isHighContrast
-                            ? const Color(0xFF3B1010)
-                            : const Color(0xFFFEF2F2),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: const Color(0xFFEF4444), width: 1.5),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(CupertinoIcons.lightbulb_fill,
-                              color: Color(0xFFDC2626), size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'PERINGATAN VISUAL: Sinyal darurat SOS aktif & sedang disiarkan ke relawan terdekat.',
-                              style: TextStyle(
-                                color: isHighContrast
-                                    ? Colors.white
-                                    : const Color(0xFF991B1B),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                height: 1.35,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 12),
                   Center(
                     child: AnimatedBuilder(

@@ -703,14 +703,16 @@ class _HistoryPageState extends State<HistoryPage> {
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
               onTap: () {
-                AccessibilityService.instance.hapticSelection();
-                unawaited(
-                  AccessibilityService.instance
-                      .speak("Filter ${_typeFilters[index]} dipilih"),
+                AccessibilityService.instance.handleTalkbackTap(
+                  id: 'history_filter_type_$index',
+                  speakText: "Filter ${_typeFilters[index]}",
+                  hintText: "Tekan sekali lagi untuk memilih filter ini.",
+                  onAction: () {
+                    setState(() {
+                      _selectedTypeFilter = index;
+                    });
+                  },
                 );
-                setState(() {
-                  _selectedTypeFilter = index;
-                });
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -808,14 +810,16 @@ class _HistoryPageState extends State<HistoryPage> {
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
               onTap: () {
-                AccessibilityService.instance.hapticSelection();
-                unawaited(
-                  AccessibilityService.instance
-                      .speak("Status ${_statusFilters[index]} dipilih"),
+                AccessibilityService.instance.handleTalkbackTap(
+                  id: 'history_filter_status_$index',
+                  speakText: "Status ${_statusFilters[index]}",
+                  hintText: "Tekan sekali lagi untuk memilih status ini.",
+                  onAction: () {
+                    setState(() {
+                      _selectedStatusFilter = index;
+                    });
+                  },
                 );
-                setState(() {
-                  _selectedStatusFilter = index;
-                });
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(
@@ -866,44 +870,46 @@ class _HistoryPageState extends State<HistoryPage> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
-              onTap: () async {
-                AccessibilityService.instance.hapticSelection();
-                unawaited(
-                  AccessibilityService.instance
-                      .speak("Rentang waktu ${_timeFilters[index]} dipilih"),
-                );
-                if (index == 3) {
-                  final picked = await showDateRangePicker(
-                    context: context,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime.now(),
-                    builder: (context, child) {
-                      return Theme(
-                        data: Theme.of(context).copyWith(
-                          colorScheme: ColorScheme.light(
-                            primary: tealColor,
-                            onPrimary: Colors.white,
-                            onSurface: isHighContrast
-                                ? Colors.white
-                                : const Color(0xFF111827),
-                          ),
-                        ),
-                        child: child!,
+              onTap: () {
+                AccessibilityService.instance.handleTalkbackTap(
+                  id: 'history_filter_time_$index',
+                  speakText: "Rentang waktu ${_timeFilters[index]}",
+                  hintText: "Tekan sekali lagi untuk memilih rentang waktu ini.",
+                  onAction: () async {
+                    if (index == 3) {
+                      final picked = await showDateRangePicker(
+                        context: context,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: ColorScheme.light(
+                                primary: tealColor,
+                                onPrimary: Colors.white,
+                                onSurface: isHighContrast
+                                    ? Colors.white
+                                    : const Color(0xFF111827),
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
                       );
-                    },
-                  );
-                  if (picked != null) {
-                    setState(() {
-                      _customStartDate = picked.start;
-                      _customEndDate = picked.end;
-                      _selectedTimeFilter = index;
-                    });
-                  }
-                } else {
-                  setState(() {
-                    _selectedTimeFilter = index;
-                  });
-                }
+                      if (picked != null) {
+                        setState(() {
+                          _customStartDate = picked.start;
+                          _customEndDate = picked.end;
+                          _selectedTimeFilter = index;
+                        });
+                      }
+                    } else {
+                      setState(() {
+                        _selectedTimeFilter = index;
+                      });
+                    }
+                  },
+                );
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(
@@ -1429,8 +1435,12 @@ class _HistoryPageState extends State<HistoryPage> {
                   height: 40,
                   child: OutlinedButton(
                     onPressed: () {
-                      AccessibilityService.instance.hapticSelection();
-                      _navigateToDetail(item);
+                      AccessibilityService.instance.handleTalkbackTap(
+                        id: 'history_detail_${item.id}_${item.nomorKasus}',
+                        speakText: "Lihat detail ${item.title}",
+                        hintText: "Tekan sekali lagi untuk membuka rincian kasus.",
+                        onAction: () => _navigateToDetail(item),
+                      );
                     },
                     style: OutlinedButton.styleFrom(
                       foregroundColor: tealColor,
