@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/volunteer_dashboard_page.dart';
@@ -8,6 +7,7 @@ import 'package:sahabat_sos_mobile/features/profile/presentation/screens/volunte
 
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
 import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
     as event_bus;
@@ -16,6 +16,7 @@ import 'package:sahabat_sos_mobile/features/volunteer_task/data/datasources/volu
 import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/widgets/new_assignment_dialog.dart';
 import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/volunteer_active_task_page.dart';
 import 'package:sahabat_sos_mobile/core/services/notification_service.dart';
+import 'package:sahabat_sos_mobile/core/services/sos_rejection_storage.dart';
 
 class MainVolunteerScreen extends StatefulWidget {
   final int initialIndex;
@@ -29,6 +30,8 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
   late int _selectedIndex;
   bool? _isVerified;
   bool _isActive = true;
+  String _verificationStatus = 'pending';
+  String? _rejectionReason;
   bool _isSosDialogShowing = false;
   final List<int> _rejectedSosIds = [];
   final LocationService _locationService = sl<LocationService>();
@@ -75,6 +78,7 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
     if (status == true && _isVerified != true) {
       setState(() {
         _isVerified = true;
+        _verificationStatus = 'terverifikasi';
       });
       if (_isActive) {
         _startOperationalServices();
@@ -92,7 +96,9 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
     final targetIndex = event_bus.GlobalEventBus.changeVolunteerTab.value;
     if (targetIndex != null) {
       if ((_isVerified == false || !_isActive) && targetIndex != 3) {
-        if (!_isActive) {
+        if (_verificationStatus == 'ditolak') {
+          _showRejectedDialog();
+        } else if (!_isActive) {
           _showDeactivatedDialog();
         } else {
           _showUnverifiedDialog();
@@ -106,46 +112,100 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
     }
   }
 
-  void _showDeactivatedDialog() {
+  void _showRejectedDialog() {
+    final isHighContrast =
+        AccessibilityService.instance.isHighContrastEnabled ||
+        Theme.of(context).brightness == Brightness.dark ||
+        MediaQuery.of(context).highContrast;
     showCupertinoDialog(
       context: context,
-      builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('Akun Dinonaktifkan'),
-        content: const Padding(
-          padding: EdgeInsets.only(top: 8),
-          child: Text(
-            'Akun relawan Anda saat ini telah dinonaktifkan oleh administrator.\n\nFitur Beranda, Tugas, dan Peta tidak dapat diakses selama status akun nonaktif.\n\nSilakan cek status akun Anda di halaman Profil atau hubungi admin.',
-          ),
+      builder: (ctx) => CupertinoTheme(
+        data: CupertinoThemeData(
+          brightness: isHighContrast ? Brightness.dark : Brightness.light,
+          primaryColor: isHighContrast ? const Color(0xFF80CBC4) : primaryTeal,
         ),
-        actions: [
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Mengerti'),
+        child: CupertinoAlertDialog(
+          title: const Text('Pengajuan Relawan Ditolak'),
+          content: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              _rejectionReason != null && _rejectionReason!.isNotEmpty
+                  ? 'Pengajuan verifikasi relawan Anda ditolak oleh admin dengan catatan:\n\n"$_rejectionReason"\n\nSilakan periksa halaman Profil untuk informasi lebih lanjut atau hubungi admin posko.'
+                  : 'Pengajuan relawan Anda belum memenuhi kualifikasi verifikasi administrator.\n\nSilakan cek status di tab Profil atau hubungi admin posko koordinasi.',
+            ),
           ),
-        ],
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Mengerti'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDeactivatedDialog() {
+    final isHighContrast =
+        AccessibilityService.instance.isHighContrastEnabled ||
+        Theme.of(context).brightness == Brightness.dark ||
+        MediaQuery.of(context).highContrast;
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoTheme(
+        data: CupertinoThemeData(
+          brightness: isHighContrast ? Brightness.dark : Brightness.light,
+          primaryColor: isHighContrast ? const Color(0xFF80CBC4) : primaryTeal,
+        ),
+        child: CupertinoAlertDialog(
+          title: const Text('Akun Dinonaktifkan'),
+          content: const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text(
+              'Akun relawan Anda saat ini telah dinonaktifkan oleh administrator.\n\nFitur Beranda, Tugas, dan Peta tidak dapat diakses selama status akun nonaktif.\n\nSilakan cek status akun Anda di halaman Profil atau hubungi admin.',
+            ),
+          ),
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Mengerti'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   void _showUnverifiedDialog() {
+    final isHighContrast =
+        AccessibilityService.instance.isHighContrastEnabled ||
+        Theme.of(context).brightness == Brightness.dark ||
+        MediaQuery.of(context).highContrast;
     showCupertinoDialog(
       context: context,
-      builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('Akun Dalam Tahap Verifikasi'),
-        content: const Padding(
-          padding: EdgeInsets.only(top: 8),
-          child: Text(
-            'Akun relawan Anda sedang dalam peninjauan oleh admin Sahabat SOS.\n\nFitur Beranda, Tugas, dan Peta akan dapat diakses setelah akun Anda diverifikasi oleh admin.\n\nSilakan cek status verifikasi Anda di halaman Profil.',
-          ),
+      builder: (ctx) => CupertinoTheme(
+        data: CupertinoThemeData(
+          brightness: isHighContrast ? Brightness.dark : Brightness.light,
+          primaryColor: isHighContrast ? const Color(0xFF80CBC4) : primaryTeal,
         ),
-        actions: [
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Mengerti'),
+        child: CupertinoAlertDialog(
+          title: const Text('Akun Dalam Tahap Verifikasi'),
+          content: const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text(
+              'Akun relawan Anda sedang dalam peninjauan oleh admin Sahabat SOS.\n\nFitur Beranda, Tugas, dan Peta akan dapat diakses setelah akun Anda diverifikasi oleh admin.\n\nSilakan cek status verifikasi Anda di halaman Profil.',
+            ),
           ),
-        ],
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Mengerti'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -181,7 +241,8 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
     final dynamic rawId = sosData['id'];
     final int sosId =
         (rawId is int) ? rawId : int.tryParse(rawId?.toString() ?? '0') ?? 0;
-    if (_rejectedSosIds.contains(sosId)) {
+    if (_rejectedSosIds.contains(sosId) ||
+        (sosId > 0 && SosRejectionStorage.isRejected(sosId))) {
       debugPrint("ℹ️ SOS #$sosId sudah pernah ditolak.");
       event_bus.GlobalEventBus.showSosAssignmentPopup.value = null;
       return;
@@ -227,22 +288,32 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
             );
           }
         },
-        onReject: () async {
+        onReject: (String? reason) async {
           _isSosDialogShowing = false;
           _rejectedSosIds.add(sosId);
-          Navigator.pop(ctx);
+          if (sosId > 0) {
+            final prefs = sl<SharedPreferences>();
+            await SosRejectionStorage.addRejectedId(sosId, prefs);
+          }
+          if (ctx.mounted) {
+            Navigator.pop(ctx);
+          }
 
           try {
             final volunteerDataSource = sl<VolunteerRemoteDataSource>();
-            await volunteerDataSource.rejectSos(sosId);
+            await volunteerDataSource.rejectSos(sosId, alasan: reason);
 
             event_bus.GlobalEventBus.refreshMap.value =
                 !event_bus.GlobalEventBus.refreshMap.value;
 
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Tugas dialihkan ke relawan lain.'),
+              SnackBar(
+                content: Text(
+                  reason != null && reason.isNotEmpty
+                      ? 'Tugas dialihkan ($reason).'
+                      : 'Tugas dialihkan ke relawan lain.',
+                ),
               ),
             );
           } catch (e) {
@@ -301,10 +372,13 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
       final prefs = sl<SharedPreferences>();
       final cachedStatus = prefs.getString('verification_status');
       final cachedActive = prefs.getBool('user_is_active') ?? true;
+      final cachedReason = prefs.getString('rejection_reason');
       if (mounted) {
         setState(() {
           _isActive = cachedActive;
+          _rejectionReason = cachedReason;
           if (cachedStatus != null) {
+            _verificationStatus = cachedStatus;
             _isVerified = cachedStatus == 'terverifikasi';
           }
           if ((_isVerified == false || !_isActive) && _selectedIndex != 3) {
@@ -322,14 +396,28 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
       if (userData != null) {
         final status = (userData['status_verifikasi'] ?? 'pending').toString().toLowerCase();
         final active = (userData['is_active'] == true || userData['is_active'] == 1);
+        final reason = userData['alasan_penolakan']?.toString();
+        final volunteerId = (userData['id'] is int)
+            ? userData['id'] as int
+            : int.tryParse(userData['id']?.toString() ?? '');
         final prefs = sl<SharedPreferences>();
+        if (volunteerId != null && volunteerId > 0) {
+          await prefs.setInt('volunteer_id', volunteerId);
+        }
         await prefs.setString('verification_status', status);
         await prefs.setBool('user_is_active', active);
+        if (reason != null && reason.isNotEmpty) {
+          await prefs.setString('rejection_reason', reason);
+        } else {
+          await prefs.remove('rejection_reason');
+        }
 
         if (mounted) {
           setState(() {
+            _verificationStatus = status;
             _isVerified = status == 'terverifikasi';
             _isActive = active;
+            _rejectionReason = reason;
             if ((_isVerified == false || !_isActive) && _selectedIndex != 3) {
               _selectedIndex = 3; // Force to Profile tab
             }
@@ -400,138 +488,180 @@ class _MainVolunteerScreenState extends State<MainVolunteerScreen> {
       const VolunteerProfileScreen(),
     ];
 
-    return Scaffold(
-      extendBody: true,
-      body: Stack(
-        children: [
-          IndexedStack(index: _selectedIndex, children: pages),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Container(
-              margin: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                bottom: MediaQuery.of(context).padding.bottom + 16,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.5),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(30),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: List.generate(_navItems.length, (index) {
-                        final isSelected = _selectedIndex == index;
-                        final item = _navItems[index];
-                        final isLocked = (_isVerified == false || !_isActive) && index != 3;
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final selectedColor =
+            isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+        final unselectedColor =
+            isHighContrast ? const Color(0xFFD1D5DB) : _unselectedColor;
 
-                        return GestureDetector(
-                          onTap: () {
-                            if (isLocked) {
-                              if (!_isActive) {
-                                _showDeactivatedDialog();
-                              } else {
-                                _showUnverifiedDialog();
-                              }
-                              return;
-                            }
-                            setState(() {
-                              _selectedIndex = index;
-                            });
-                          },
-                          behavior: HitTestBehavior.opaque,
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeInOut,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.transparent,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    Icon(
-                                      isSelected ? item.selectedIcon : item.icon,
-                                      color: isLocked
-                                          ? Colors.grey.withValues(alpha: 0.35)
-                                          : isSelected
-                                              ? primaryTeal
-                                              : _unselectedColor,
-                                      size: 24,
-                                    ),
-                                    if (isLocked)
-                                      Positioned(
-                                        top: -3,
-                                        right: -7,
-                                        child: Container(
-                                          padding: const EdgeInsets.all(2.5),
-                                          decoration: BoxDecoration(
-                                            color: !_isActive ? Colors.red.shade700 : Colors.amber.shade800,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Icon(
-                                            CupertinoIcons.lock_fill,
-                                            color: Colors.white,
-                                            size: 8,
+        return Scaffold(
+          extendBody: true,
+          body: Stack(
+            children: [
+              IndexedStack(index: _selectedIndex, children: pages),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  margin: EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    bottom: MediaQuery.of(context).padding.bottom + 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isHighContrast
+                        ? const Color(0xFF121212)
+                        : Colors.white.withValues(alpha: 0.95),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color: isHighContrast
+                          ? const Color(0xFF4B5563)
+                          : const Color(0xFFE5E7EB),
+                      width: isHighContrast ? 1.5 : 1.0,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(
+                          alpha: isHighContrast ? 0.35 : 0.08,
+                        ),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(30),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: List.generate(_navItems.length, (index) {
+                          final isSelected = _selectedIndex == index;
+                          final item = _navItems[index];
+                          final isLocked = (_isVerified == false || !_isActive) && index != 3;
+
+                          final elementId = 'volunteer_nav_tab_${item.label}';
+                          final isFocused = AccessibilityService.instance.isElementFocused(elementId);
+                          return GestureDetector(
+                            onTap: () {
+                              AccessibilityService.instance.handleTalkbackTap(
+                                id: elementId,
+                                speakText: "Tab ${item.label}",
+                                hintText: "Tekan sekali lagi untuk berpindah ke tab ${item.label}.",
+                                onAction: () {
+                                  if (isLocked) {
+                                    if (_verificationStatus == 'ditolak') {
+                                      _showRejectedDialog();
+                                    } else if (!_isActive) {
+                                      _showDeactivatedDialog();
+                                    } else {
+                                      _showUnverifiedDialog();
+                                    }
+                                    return;
+                                  }
+                                  setState(() {
+                                    _selectedIndex = index;
+                                  });
+                                },
+                              );
+                            },
+                            behavior: HitTestBehavior.opaque,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeInOut,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected && isHighContrast
+                                    ? const Color(0xFF1E2430)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(20),
+                                border: isFocused
+                                    ? Border.all(
+                                        color: isHighContrast
+                                            ? const Color(0xFF00FFCC)
+                                            : const Color(0xFF00897B),
+                                        width: 2,
+                                      )
+                                    : null,
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      Icon(
+                                        isSelected ? item.selectedIcon : item.icon,
+                                        color: isLocked
+                                            ? (isHighContrast
+                                                ? const Color(0xFF6B7280)
+                                                : Colors.grey.withValues(alpha: 0.35))
+                                            : isSelected
+                                                ? selectedColor
+                                                : unselectedColor,
+                                        size: 24,
+                                      ),
+                                      if (isLocked)
+                                        Positioned(
+                                          top: -3,
+                                          right: -7,
+                                          child: Container(
+                                            padding: const EdgeInsets.all(2.5),
+                                            decoration: BoxDecoration(
+                                              color: !_isActive ? Colors.red.shade700 : Colors.amber.shade800,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(
+                                              CupertinoIcons.lock_fill,
+                                              color: Colors.white,
+                                              size: 8,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  item.label,
-                                  style: TextStyle(
-                                    color: isLocked
-                                        ? Colors.grey.withValues(alpha: 0.35)
-                                        : isSelected
-                                            ? primaryTeal
-                                            : _unselectedColor,
-                                    fontSize: 11,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w600
-                                        : FontWeight.w500,
+                                    ],
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    item.label,
+                                    style: TextStyle(
+                                      color: isLocked
+                                          ? (isHighContrast
+                                              ? const Color(0xFF6B7280)
+                                              : Colors.grey.withValues(alpha: 0.35))
+                                          : isSelected
+                                              ? selectedColor
+                                              : unselectedColor,
+                                      fontSize: 11,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        );
-                      }),
+                          );
+                        }),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

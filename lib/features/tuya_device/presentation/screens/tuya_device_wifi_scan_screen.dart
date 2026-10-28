@@ -1,11 +1,12 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:get_it/get_it.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'package:sahabat_sos_mobile/core/di/injection.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
+import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
 import '../../data/services/tuya_channel_service.dart';
 import '../../data/models/tuya_dp_event_model.dart';
 
@@ -18,7 +19,10 @@ class TuyaDeviceWifiScanScreen extends StatefulWidget {
 }
 
 class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
-  final _tuyaService = GetIt.instance<TuyaChannelService>();
+  static const Color primaryTeal = Color(0xFF00695C);
+  static const Color primaryLightTeal = Color(0xFFE0F2F1);
+
+  final _tuyaService = sl<TuyaChannelService>();
   final _ssidController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -34,6 +38,9 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
   void initState() {
     super.initState();
     _checkLocationPermission();
+    unawaited(
+      AccessibilityService.instance.speak('Halaman pairing Wi-Fi perangkat SOS'),
+    );
   }
 
   @override
@@ -65,9 +72,16 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
       return;
     }
 
+    AccessibilityService.instance.hapticSelection();
+    unawaited(
+      AccessibilityService.instance.speak(
+        'Memulai proses pairing Wi-Fi mode ${_selectedMode == 'ap' ? 'AP' : 'EZ'}',
+      ),
+    );
+
     setState(() {
       _isPairing = true;
-      _pairingStatus = 'Mengambil token dari Tuya Cloud...';
+      _pairingStatus = 'Mengambil token pairing dari Tuya Cloud...';
     });
 
     try {
@@ -83,17 +97,17 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
           _waitingForSmartLife = true;
           _pairingStatus =
               'Token berhasil didapat! ✅\n\n'
-              'Sekarang:\n'
-              '1. Buka Pengaturan Wi-Fi HP\n'
-              '2. Sambung ke jaringan "SmartLife-XXXX"\n'
-              '3. Kembali ke sini\n'
+              'Langkah berikutnya:\n'
+              '1. Buka Pengaturan Wi-Fi HP Anda\n'
+              '2. Sambungkan ke jaringan Wi-Fi "SmartLife-XXXX"\n'
+              '3. Kembali ke aplikasi Sahabat SOS ini\n'
               '4. Tekan tombol "Lanjutkan Pairing" di bawah';
         });
       } else {
         await _tuyaService.startWifiPairing(ssid, password);
         setState(() {
           _pairingStatus =
-              'Mengirimkan sandi ke alat SOS...\nPastikan alat berkedip cepat!';
+              'Mengirimkan informasi Wi-Fi ke alat SOS...\nPastikan lampu indikator berkedip cepat!';
         });
       }
     } catch (e) {
@@ -104,7 +118,10 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
         );
       }
     }
@@ -114,10 +131,16 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
     final ssid = _ssidController.text.trim();
     final password = _passwordController.text.trim();
 
+    AccessibilityService.instance.hapticSelection();
+    unawaited(
+      AccessibilityService.instance
+          .speak('Melanjutkan konfigurasi Wi-Fi ke perangkat SOS'),
+    );
+
     setState(() {
       _waitingForSmartLife = false;
       _pairingStatus =
-          'Mengirimkan info Wi-Fi ke alat SOS...\nTunggu 1-2 menit...';
+          'Mengonfigurasi Wi-Fi ke tombol SOS...\nProses ini membutuhkan waktu 1-2 menit...';
     });
 
     try {
@@ -129,17 +152,22 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
         );
       }
     }
   }
 
   void _stopPairing() async {
+    AccessibilityService.instance.hapticSelection();
+    unawaited(AccessibilityService.instance.speak('Pairing dibatalkan'));
     try {
       await _tuyaService.stopWifiPairing();
     } catch (_) {}
-    _eventSubscription?.cancel();
+    await _eventSubscription?.cancel();
     if (mounted) {
       setState(() {
         _isPairing = false;
@@ -159,7 +187,7 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
         _onPairingSuccess();
       } else if (event.eventType == TuyaEventType.wifiPairingError) {
         final code = event.dps['error_code']?.toString() ?? 'N/A';
-        final msg = event.dps['error_msg']?.toString() ?? 'Unknown error';
+        final msg = event.dps['error_msg']?.toString() ?? 'Terjadi kesalahan';
         _onPairingError('$msg (code: $code)');
       }
     }, onError: (_) {});
@@ -174,62 +202,100 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
 
     _eventSubscription?.cancel();
 
+    AccessibilityService.instance.hapticSelection();
+    unawaited(
+      AccessibilityService.instance
+          .speak('Pairing Wi-Fi berhasil. Perangkat SOS siap digunakan.'),
+    );
+
+    final isHighContrast =
+        AccessibilityService.instance.isHighContrastEnabled ||
+        Theme.of(context).brightness == Brightness.dark ||
+        MediaQuery.of(context).highContrast;
+    final dialogBg = AccessibleColors.cardBackground(isHighContrast);
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
+      builder: (context) => AlertDialog(
+        backgroundColor: dialogBg,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: isHighContrast
+              ? const BorderSide(color: Color(0xFF4B5563), width: 1.5)
+              : const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        contentPadding: const EdgeInsets.all(24),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: isHighContrast
+                    ? const Color(0xFF1E3A34)
+                    : primaryLightTeal,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
                 CupertinoIcons.checkmark_circle_fill,
-                color: CupertinoColors.activeGreen,
-                size: 72,
+                color: tealColor,
+                size: 38,
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Sukses!',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Pairing Berhasil!',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Perangkat SOS berhasil terhubung ke jaringan Wi-Fi dan terdaftar di akun Anda.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13.5,
+                color: textSecondary,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isHighContrast
+                      ? const Color(0xFF00897B)
+                      : primaryTeal,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Alat SOS berhasil terhubung ke Wi-Fi dan terdaftar ke akun Anda.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Colors.black87,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: double.infinity,
-                child: CupertinoButton(
-                  color: const Color(0xFF007AFF),
-                  borderRadius: BorderRadius.circular(14),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text(
-                    'Tutup',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pop();
+                },
+                child: const Text(
+                  'Selesai',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -245,227 +311,291 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
     });
 
     _eventSubscription?.cancel();
+    AccessibilityService.instance.hapticMedium();
+    unawaited(
+      AccessibilityService.instance.speak('Pairing Wi-Fi gagal. $errorMsg'),
+    );
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Gagal: $errorMsg'),
-        backgroundColor: Colors.red,
+        backgroundColor: const Color(0xFFDC2626),
         duration: const Duration(seconds: 8),
       ),
     );
   }
 
-  Widget _buildGlassContainer({
+  Widget _buildCard({
     required Widget child,
     EdgeInsetsGeometry? padding,
+    bool isHighContrast = false,
   }) {
     return Container(
+      padding: padding ?? const EdgeInsets.all(16),
       decoration: BoxDecoration(
+        color: AccessibleColors.cardBackground(isHighContrast),
         borderRadius: BorderRadius.circular(16),
+        border: AccessibleColors.cardBorder(isHighContrast),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(
+              alpha: isHighContrast ? 0.3 : 0.04,
+            ),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: padding ?? const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.6),
-                width: 1.5,
-              ),
-            ),
-            child: child,
-          ),
-        ),
-      ),
+      child: child,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: const Color(0xFFF5F6F8),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFF5F6F8),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(CupertinoIcons.back, color: Color(0xFF00695C)),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            Image.asset('assets/images/logo.png', width: 24, height: 24),
-            const SizedBox(width: 8),
-            const Text(
-              'Sahabat SOS',
-              style: TextStyle(
-                color: Color(0xFF00695C),
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-              ),
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final currentBg =
+            isHighContrast ? Colors.black : const Color(0xFFF8FAFC);
+        final tealColor =
+            isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+        final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+        final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+
+        return Scaffold(
+          backgroundColor: currentBg,
+          appBar: AppBar(
+            backgroundColor: currentBg,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            iconTheme: IconThemeData(color: tealColor),
+            leading: IconButton(
+              icon: Icon(CupertinoIcons.back, color: tealColor),
+              onPressed: () => Navigator.of(context).pop(),
             ),
-          ],
-        ),
-      ),
-      body: Container(
-        color: const Color(0xFFF5F6F8),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            centerTitle: false,
+            titleSpacing: 0,
+            title: Row(
               children: [
-                const Text(
-                  'Pairing Wi-Fi',
+                Image.asset('assets/images/logo.png', width: 24, height: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'Sahabat SOS',
                   style: TextStyle(
-                    fontSize: 24,
+                    color: tealColor,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                    letterSpacing: -0.5,
+                    fontSize: 18,
                   ),
                 ),
-                const SizedBox(height: 20),
-                _buildInstructionCard(),
-                const SizedBox(height: 16),
-                _buildModeSelector(),
-                const SizedBox(height: 16),
-                _buildWifiForm(),
               ],
             ),
           ),
-        ),
-      ),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Pairing Wi-Fi',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: textPrimary,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Sambungkan perangkat SOS ke koneksi Wi-Fi rumah 2.4GHz.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  _buildInstructionCard(isHighContrast),
+                  const SizedBox(height: 14),
+                  _buildModeSelector(isHighContrast),
+                  const SizedBox(height: 14),
+                  _buildWifiForm(isHighContrast),
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildModeSelector() {
-    return _buildGlassContainer(
+  Widget _buildModeSelector(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+
+    return _buildCard(
+      isHighContrast: isHighContrast,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Pilih Mode Pairing',
+          Text(
+            'Pilih Metode Pairing',
             style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 16,
-              color: Colors.black87,
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              color: textPrimary,
             ),
           ),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
-                child: GestureDetector(
-                  onTap: _isPairing
-                      ? null
-                      : () => setState(() => _selectedMode = 'ap'),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: _selectedMode == 'ap'
-                          ? const Color(0xFF007AFF).withValues(alpha: 0.1)
-                          : const Color(0xFFF2F2F7),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: _isPairing
+                        ? null
+                        : () {
+                            AccessibilityService.instance.hapticSelection();
+                            unawaited(
+                              AccessibilityService.instance
+                                  .speak('Mode AP dipilih (Disarankan)'),
+                            );
+                            setState(() => _selectedMode = 'ap');
+                          },
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
                         color: _selectedMode == 'ap'
-                            ? const Color(0xFF007AFF)
-                            : Colors.transparent,
-                        width: 1,
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(
-                          CupertinoIcons.wifi,
+                            ? (isHighContrast
+                                ? const Color(0xFF1E3A34)
+                                : primaryLightTeal)
+                            : (isHighContrast
+                                ? const Color(0xFF1E2430)
+                                : const Color(0xFFF9FAFB)),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
                           color: _selectedMode == 'ap'
-                              ? const Color(0xFF007AFF)
-                              : Colors.black54,
+                              ? tealColor
+                              : (isHighContrast
+                                  ? const Color(0xFF4B5563)
+                                  : const Color(0xFFE5E7EB)),
+                          width: _selectedMode == 'ap' || isHighContrast
+                              ? 1.5
+                              : 1.0,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'AP Mode',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(
+                            CupertinoIcons.wifi,
                             color: _selectedMode == 'ap'
-                                ? const Color(0xFF007AFF)
-                                : Colors.black54,
+                                ? tealColor
+                                : textSecondary,
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '(Disarankan)',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: _selectedMode == 'ap'
-                                ? const Color(0xFF34C759)
-                                : Colors.black54,
-                            fontWeight: FontWeight.w500,
+                          const SizedBox(height: 4),
+                          Text(
+                            'AP Mode',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13.5,
+                              color: _selectedMode == 'ap'
+                                  ? tealColor
+                                  : textPrimary,
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 2),
+                          Text(
+                            '(Disarankan)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: _selectedMode == 'ap'
+                                  ? tealColor
+                                  : textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: GestureDetector(
-                  onTap: _isPairing
-                      ? null
-                      : () => setState(() => _selectedMode = 'ez'),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: _selectedMode == 'ez'
-                          ? const Color(0xFF007AFF).withValues(alpha: 0.1)
-                          : const Color(0xFFF2F2F7),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: _isPairing
+                        ? null
+                        : () {
+                            AccessibilityService.instance.hapticSelection();
+                            unawaited(
+                              AccessibilityService.instance
+                                  .speak('Mode EZ dipilih (SmartConfig)'),
+                            );
+                            setState(() => _selectedMode = 'ez');
+                          },
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
                         color: _selectedMode == 'ez'
-                            ? const Color(0xFF007AFF)
-                            : Colors.transparent,
-                        width: 1,
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(
-                          CupertinoIcons.wifi,
+                            ? (isHighContrast
+                                ? const Color(0xFF1E3A34)
+                                : primaryLightTeal)
+                            : (isHighContrast
+                                ? const Color(0xFF1E2430)
+                                : const Color(0xFFF9FAFB)),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
                           color: _selectedMode == 'ez'
-                              ? const Color(0xFF007AFF)
-                              : Colors.black54,
+                              ? tealColor
+                              : (isHighContrast
+                                  ? const Color(0xFF4B5563)
+                                  : const Color(0xFFE5E7EB)),
+                          width: _selectedMode == 'ez' || isHighContrast
+                              ? 1.5
+                              : 1.0,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'EZ Mode',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(
+                            CupertinoIcons.wifi,
                             color: _selectedMode == 'ez'
-                                ? const Color(0xFF007AFF)
-                                : Colors.black54,
+                                ? tealColor
+                                : textSecondary,
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          '(SmartConfig)',
-                          style: TextStyle(fontSize: 11, color: Colors.black54),
-                        ),
-                      ],
+                          const SizedBox(height: 4),
+                          Text(
+                            'EZ Mode',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13.5,
+                              color: _selectedMode == 'ez'
+                                  ? tealColor
+                                  : textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '(SmartConfig)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: textSecondary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -477,67 +607,99 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
     );
   }
 
-  Widget _buildWifiForm() {
-    return _buildGlassContainer(
+  Widget _buildWifiForm(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+    final fieldFill = AccessibleColors.fieldBackground(isHighContrast);
+    final fieldBorder = isHighContrast
+        ? const Color(0xFF4B5563)
+        : const Color(0xFFE5E7EB);
+
+    return _buildCard(
+      isHighContrast: isHighContrast,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
+          Text(
             'Informasi Wi-Fi Rumah',
             style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 16,
-              color: Colors.black87,
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              color: textPrimary,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           TextField(
             controller: _ssidController,
             enabled: !_isPairing,
-            style: const TextStyle(color: Colors.black87),
+            style: TextStyle(color: textPrimary, fontSize: 14),
             decoration: InputDecoration(
               labelText: 'Nama Wi-Fi (SSID)',
-              labelStyle: const TextStyle(color: Colors.black54),
-              hintText: 'Contoh: Indihome_Rumah',
-              hintStyle: const TextStyle(color: Colors.black38),
-              prefixIcon: const Icon(
+              labelStyle: TextStyle(color: textSecondary),
+              hintText: 'Contoh: Wi-Fi_Rumah_2.4G',
+              hintStyle: TextStyle(
+                color: textSecondary.withValues(alpha: 0.7),
+                fontSize: 13,
+              ),
+              prefixIcon: Icon(
                 CupertinoIcons.wifi,
-                color: Colors.black54,
+                color: tealColor,
+                size: 20,
               ),
               filled: true,
-              fillColor: const Color(0xFFF2F2F7),
+              fillColor: fieldFill,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide.none,
+                borderSide: BorderSide(
+                  color: fieldBorder,
+                  width: isHighContrast ? 1.5 : 1.0,
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: fieldBorder,
+                  width: isHighContrast ? 1.5 : 1.0,
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFF007AFF)),
+                borderSide: BorderSide(
+                  color: tealColor,
+                  width: 1.5,
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           TextField(
             controller: _passwordController,
             enabled: !_isPairing,
             obscureText: _obscurePassword,
-            style: const TextStyle(color: Colors.black87),
+            style: TextStyle(color: textPrimary, fontSize: 14),
             decoration: InputDecoration(
-              labelText: 'Password Wi-Fi',
-              labelStyle: const TextStyle(color: Colors.black54),
-              prefixIcon: const Icon(
+              labelText: 'Kata Sandi Wi-Fi',
+              labelStyle: TextStyle(color: textSecondary),
+              prefixIcon: Icon(
                 CupertinoIcons.lock_fill,
-                color: Colors.black54,
+                color: tealColor,
+                size: 20,
               ),
               filled: true,
-              fillColor: const Color(0xFFF2F2F7),
+              fillColor: fieldFill,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscurePassword
                       ? CupertinoIcons.eye_slash
                       : CupertinoIcons.eye,
-                  color: Colors.black54,
+                  color: textSecondary,
+                  size: 20,
                 ),
                 onPressed: () {
                   setState(() {
@@ -547,104 +709,143 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide.none,
+                borderSide: BorderSide(
+                  color: fieldBorder,
+                  width: isHighContrast ? 1.5 : 1.0,
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: fieldBorder,
+                  width: isHighContrast ? 1.5 : 1.0,
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFF007AFF)),
+                borderSide: BorderSide(
+                  color: tealColor,
+                  width: 1.5,
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           if (_isPairing)
             Column(
               children: [
                 if (!_waitingForSmartLife) ...[
-                  const CupertinoActivityIndicator(radius: 16),
-                  const SizedBox(height: 16),
+                  CupertinoActivityIndicator(radius: 16, color: tealColor),
+                  const SizedBox(height: 14),
                 ],
                 Text(
                   _pairingStatus,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w500,
+                  style: TextStyle(
+                    color: textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13.5,
+                    height: 1.4,
                   ),
                 ),
                 if (!_waitingForSmartLife) ...[
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Proses ini memakan waktu 1-2 menit...',
-                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Mohon tunggu sebentar...',
+                    style: TextStyle(fontSize: 12, color: textSecondary),
                   ),
                 ],
                 if (_waitingForSmartLife) ...[
-                  const SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    onPressed: _startApStep2,
-                    icon: const Icon(
-                      CupertinoIcons.play_arrow_solid,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                    label: const Text(
-                      'Lanjutkan Pairing',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: _startApStep2,
+                      icon: const Icon(
+                        CupertinoIcons.play_arrow_solid,
                         color: Colors.white,
+                        size: 18,
+                      ),
+                      label: const Text(
+                        'Lanjutkan Pairing',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isHighContrast
+                            ? const Color(0xFF00897B)
+                            : primaryTeal,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: isHighContrast
+                              ? const BorderSide(
+                                  color: Color(0xFF80CBC4), width: 1.5)
+                              : BorderSide.none,
+                        ),
+                        elevation: 0,
                       ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF007AFF),
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 14,
-                        horizontal: 24,
+                  ),
+                ],
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: OutlinedButton(
+                    onPressed: _stopPairing,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: isHighContrast
+                          ? const Color(0xFFFCA5A5)
+                          : const Color(0xFFDC2626),
+                      side: BorderSide(
+                        color: isHighContrast
+                            ? const Color(0xFFEF4444)
+                            : const Color(0xFFDC2626),
+                        width: isHighContrast ? 1.5 : 1.0,
                       ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      elevation: 0,
                     ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                OutlinedButton(
-                  onPressed: _stopPairing,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFFF3B30),
-                    side: const BorderSide(color: Color(0xFFFF3B30)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                    child: const Text(
+                      'Batalkan',
+                      style: TextStyle(fontWeight: FontWeight.w700),
                     ),
-                  ),
-                  child: const Text(
-                    'Batalkan',
-                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
             )
           else
-            ElevatedButton(
-              onPressed: _startWifiPairing,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF007AFF),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+            SizedBox(
+              height: 48,
+              child: ElevatedButton(
+                onPressed: _startWifiPairing,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isHighContrast
+                      ? const Color(0xFF00897B)
+                      : primaryTeal,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: isHighContrast
+                        ? const BorderSide(
+                            color: Color(0xFF80CBC4), width: 1.5)
+                        : BorderSide.none,
+                  ),
+                  elevation: 0,
                 ),
-                elevation: 0,
-              ),
-              child: Text(
-                _selectedMode == 'ap'
-                    ? 'Mulai Pairing (AP Mode)'
-                    : 'Mulai Pairing (EZ Mode)',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                child: Text(
+                  _selectedMode == 'ap'
+                      ? 'Mulai Pairing (AP Mode)'
+                      : 'Mulai Pairing (EZ Mode)',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -653,9 +854,14 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
     );
   }
 
-  Widget _buildInstructionCard() {
+  Widget _buildInstructionCard(bool isHighContrast) {
     final isAP = _selectedMode == 'ap';
-    return _buildGlassContainer(
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+
+    return _buildCard(
+      isHighContrast: isHighContrast,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -664,28 +870,24 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: isAP
-                      ? const Color(0xFF007AFF).withValues(alpha: 0.1)
-                      : const Color(0xFFFF9500).withValues(alpha: 0.1),
+                  color: isHighContrast
+                      ? const Color(0xFF1E3A34)
+                      : primaryLightTeal,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
-                  isAP
-                      ? CupertinoIcons.info_circle_fill
-                      : CupertinoIcons.exclamationmark_triangle_fill,
-                  color: isAP
-                      ? const Color(0xFF007AFF)
-                      : const Color(0xFFFF9500),
+                  CupertinoIcons.info_circle_fill,
+                  color: tealColor,
                   size: 18,
                 ),
               ),
               const SizedBox(width: 12),
               Text(
-                isAP ? 'Langkah AP Mode' : 'Langkah EZ Mode',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                  color: Colors.black87,
+                isAP ? 'Petunjuk Pairing AP Mode' : 'Petunjuk Pairing EZ Mode',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: textPrimary,
                 ),
               ),
             ],
@@ -693,18 +895,18 @@ class _TuyaDeviceWifiScanScreenState extends State<TuyaDeviceWifiScanScreen> {
           const SizedBox(height: 12),
           Text(
             isAP
-                ? '1. Tekan & tahan tombol alat SOS sampai lampunya berkedip LAMBAT (mode AP).\n'
-                      '2. Masukkan nama Wi-Fi rumah dan password di bawah.\n'
-                      '3. Tekan "Mulai Pairing".\n'
-                      '4. Buka pengaturan Wi-Fi HP → Sambung ke jaringan "SmartLife-XXXX".\n'
-                      '5. Kembali ke aplikasi ini dan tunggu hingga selesai.'
-                : '1. Hubungkan HP Anda ke Wi-Fi 2.4GHz.\n'
-                      '2. Tekan & tahan tombol alat SOS sampai lampunya berkedip SANGAT CEPAT (mode EZ).\n'
-                      '3. Jika berkedip lambat, tekan & tahan lagi sampai berkedip cepat.\n'
-                      '4. Masukkan nama Wi-Fi dan password dengan teliti (huruf besar/kecil berpengaruh).',
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.black87,
+                ? '1. Tekan & tahan tombol alat SOS hingga lampu berkedip LAMBAT (mode AP).\n'
+                  '2. Masukkan nama Wi-Fi rumah (2.4GHz) dan kata sandinya di bawah.\n'
+                  '3. Tekan "Mulai Pairing".\n'
+                  '4. Buka pengaturan Wi-Fi HP → sambungkan ke Wi-Fi "SmartLife-XXXX".\n'
+                  '5. Kembali ke aplikasi ini dan tekan "Lanjutkan Pairing".'
+                : '1. Pastikan HP terhubung ke Wi-Fi 2.4GHz.\n'
+                  '2. Tekan & tahan tombol alat SOS hingga lampu berkedip CEPAT (mode EZ).\n'
+                  '3. Masukkan nama Wi-Fi dan kata sandi dengan benar.\n'
+                  '4. Tekan "Mulai Pairing" dan tunggu hingga selesai.',
+            style: TextStyle(
+              fontSize: 13,
+              color: textSecondary,
               height: 1.5,
             ),
           ),

@@ -1,8 +1,12 @@
-import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:sahabat_sos_mobile/core/di/injection.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
+import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
+import 'package:sahabat_sos_mobile/routing/routes.dart';
 import '../data/datasources/emergency_contact_remote_data_source.dart';
 
 class EmergencyContactsPage extends StatefulWidget {
@@ -13,11 +17,11 @@ class EmergencyContactsPage extends StatefulWidget {
 }
 
 class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
-  static const Color bgColor = Color(0xFFF5F6F8);
-  static const Color primaryTeal = Color(0xFF006D77);
-  static const Color sosRed = Color(0xFFC62828);
+  static const Color primaryTeal = Color(0xFF00695C);
+  static const Color primaryLightTeal = Color(0xFFE0F2F1);
+  static const Color alertRed = Color(0xFFDC2626);
 
-  final _dataSource = GetIt.instance<EmergencyContactRemoteDataSource>();
+  final _dataSource = sl<EmergencyContactRemoteDataSource>();
   List<dynamic> _contacts = [];
   bool _isLoading = true;
 
@@ -31,47 +35,104 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
     setState(() => _isLoading = true);
     try {
       final data = await _dataSource.getContacts();
-      setState(() {
-        _contacts = data;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        setState(() {
+          _contacts = data;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: alertRed,
+          ),
+        );
       }
     }
   }
 
-  Future<void> _deleteContact(int id) async {
+  Future<void> _navigateToAddOrEdit({Map<String, dynamic>? contact}) async {
+    final result = await context.push<bool>(
+      AppRoutes.addEmergencyContact,
+      extra: contact,
+    );
+
+    if (result == true) {
+      await _fetchContacts();
+    }
+  }
+
+  Future<void> _deleteContact(int id, String name) async {
+    final isHighContrast =
+        AccessibilityService.instance.isHighContrastEnabled ||
+        Theme.of(context).brightness == Brightness.dark ||
+        MediaQuery.of(context).highContrast;
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Hapus Kontak',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        backgroundColor:
+            isHighContrast ? const Color(0xFF121212) : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: isHighContrast
+              ? const BorderSide(color: Color(0xFF4B5563), width: 1.5)
+              : BorderSide.none,
         ),
-        content: const Text(
-          'Apakah Anda yakin ingin menghapus kontak darurat ini dari daftar?',
+        title: Row(
+          children: [
+            const Icon(CupertinoIcons.trash, color: alertRed, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Hapus Kontak',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 17,
+                color: isHighContrast ? Colors.white : const Color(0xFF111827),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus "$name" dari daftar kontak darurat?',
+          style: TextStyle(
+            color: isHighContrast
+                ? const Color(0xFFD1D5DB)
+                : const Color(0xFF4B5563),
+            fontSize: 13.5,
+            height: 1.4,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+            child: Text(
+              'Batal',
+              style: TextStyle(
+                color: isHighContrast
+                    ? const Color(0xFFD1D5DB)
+                    : const Color(0xFF6B7280),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: sosRed,
+              backgroundColor: alertRed,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
               ),
               elevation: 0,
             ),
-            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Hapus',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
@@ -81,12 +142,23 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
 
     try {
       await _dataSource.deleteContact(id);
-      _fetchContacts();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kontak darurat berhasil dihapus'),
+            backgroundColor: primaryTeal,
+          ),
+        );
+        await _fetchContacts();
+      }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: alertRed,
+          ),
+        );
       }
     }
   }
@@ -101,11 +173,14 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
       });
       await _dataSource.toggleNotif(id, terimaNotif);
     } catch (e) {
-      _fetchContacts();
+      await _fetchContacts();
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal mengubah notifikasi: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memperbarui pengaturan notifikasi: $e'),
+            backgroundColor: alertRed,
+          ),
+        );
       }
     }
   }
@@ -118,473 +193,38 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Tidak dapat memanggil nomor $phone')),
+        SnackBar(
+          content: Text('Tidak dapat memanggil nomor $phone'),
+          backgroundColor: alertRed,
+        ),
       );
     }
   }
 
-  Future<void> _showContactForm({Map<String, dynamic>? contact}) async {
-    final isEdit = contact != null;
-    final nameController = TextEditingController(text: contact?['nama']);
-    final phoneController = TextEditingController(text: contact?['no_telp']);
-    String tipe = contact?['tipe'] ?? 'sekunder';
-    bool terimaNotif = true;
-    if (isEdit && contact['terima_notif'] != null) {
-      terimaNotif =
-          contact['terima_notif'] == 1 || contact['terima_notif'] == true;
-    }
-
-    final formKey = GlobalKey<FormState>();
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      builder: (ctx) {
-        return BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(
-                top: Radius.circular(24),
-              ),
+  Widget _buildCard({
+    required Widget child,
+    EdgeInsetsGeometry? padding,
+    Color? color,
+    Border? border,
+    bool isHighContrast = false,
+  }) {
+    return Container(
+      padding: padding ?? const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color ?? AccessibleColors.cardBackground(isHighContrast),
+        borderRadius: BorderRadius.circular(16),
+        border: border ?? AccessibleColors.cardBorder(isHighContrast),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: isHighContrast ? 0.3 : 0.04,
             ),
-            child: StatefulBuilder(
-              builder: (ctx, setModalState) {
-                return Padding(
-                  padding: EdgeInsets.only(
-                    bottom:
-                        MediaQuery.of(ctx).viewInsets.bottom +
-                        MediaQuery.of(ctx).padding.bottom +
-                        24,
-                    left: 20,
-                    right: 20,
-                    top: 24,
-                  ),
-                  child: Form(
-                    key: formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 4,
-                          margin: const EdgeInsets.only(bottom: 20),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.withValues(alpha: 0.4),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        Text(
-                          isEdit
-                              ? 'Edit Kontak Darurat'
-                              : 'Tambah Kontak Darurat',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: primaryTeal,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        TextFormField(
-                          controller: nameController,
-                          decoration: InputDecoration(
-                            labelText: 'Nama Kontak',
-                            hintText: 'Contoh: Ibu, Ayah, Pasangan',
-                            prefixIcon: const Icon(
-                              CupertinoIcons.person,
-                              color: primaryTeal,
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF5F6F8),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                          validator: (v) =>
-                              v == null || v.trim().isEmpty ? 'Nama tidak boleh kosong' : null,
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: phoneController,
-                          decoration: InputDecoration(
-                            labelText: 'Nomor Telepon / WhatsApp',
-                            hintText: 'Contoh: 081234567890',
-                            prefixIcon: const Icon(
-                              CupertinoIcons.phone,
-                              color: primaryTeal,
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF5F6F8),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                          keyboardType: TextInputType.phone,
-                          validator: (v) => v == null || v.trim().isEmpty
-                              ? 'Nomor telepon tidak boleh kosong'
-                              : null,
-                        ),
-                        const SizedBox(height: 16),
-                        DropdownButtonFormField<String>(
-                          initialValue: tipe,
-                          decoration: InputDecoration(
-                            labelText: 'Prioritas Kontak',
-                            prefixIcon: const Icon(
-                              CupertinoIcons.tag,
-                              color: primaryTeal,
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF5F6F8),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'utama',
-                              child: Text('Kontak Utama (Prioritas Tinggi)'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'sekunder',
-                              child: Text('Kontak Sekunder (Cadangan)'),
-                            ),
-                          ],
-                          onChanged: (v) => setModalState(() => tipe = v!),
-                        ),
-                        const SizedBox(height: 16),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF5F6F8),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: SwitchListTile(
-                            title: const Text(
-                              'Terima Notifikasi SOS',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                              ),
-                            ),
-                            subtitle: const Text(
-                              'Kirim pesan darurat saat sinyal SOS aktif',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                            secondary: const Icon(
-                              CupertinoIcons.bell,
-                              color: primaryTeal,
-                            ),
-                            value: terimaNotif,
-                            activeThumbColor: Colors.white,
-                            activeTrackColor: primaryTeal,
-                            onChanged: (v) =>
-                                setModalState(() => terimaNotif = v),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 4,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryTeal,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              elevation: 0,
-                            ),
-                            onPressed: () async {
-                              if (!formKey.currentState!.validate()) return;
-                              Navigator.pop(ctx);
-                              setState(() => _isLoading = true);
-                              try {
-                                final data = {
-                                  'nama': nameController.text.trim(),
-                                  'no_telp': phoneController.text.trim(),
-                                  'tipe': tipe,
-                                  'terima_notif': terimaNotif,
-                                };
-                                if (isEdit) {
-                                  await _dataSource.updateContact(
-                                    contact['id'],
-                                    data,
-                                  );
-                                } else {
-                                  await _dataSource.addContact(data);
-                                }
-                                _fetchContacts();
-                              } catch (e) {
-                                setState(() => _isLoading = false);
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Error: $e')),
-                                  );
-                                }
-                              }
-                            },
-                            child: Text(
-                              isEdit ? 'Simpan Perubahan' : 'Tambahkan Kontak',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: bgColor,
-      appBar: AppBar(
-        backgroundColor: bgColor,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            CupertinoIcons.chevron_back,
-            color: primaryTeal,
-          ),
-          tooltip: 'Kembali',
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        centerTitle: false,
-        title: const Text(
-          'Kontak Darurat',
-          style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
+        ],
       ),
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _fetchContacts,
-          color: primaryTeal,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Deskripsi singkat
-                Text(
-                  'Orang terdekat yang otomatis dihubungi saat situasi darurat.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Tombol Tambah Kontak Darurat
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _showContactForm(),
-                    icon: const Icon(
-                      CupertinoIcons.person_add,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                    label: const Text(
-                      'Tambah Kontak Darurat',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryTeal,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Daftar Kontak Terdaftar
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Daftar Kontak Terdaftar',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: primaryTeal.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${_contacts.length} kontak',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: primaryTeal,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                if (_isLoading)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 40.0),
-                      child: CupertinoActivityIndicator(radius: 16),
-                    ),
-                  )
-                else if (_contacts.isEmpty)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 36.0),
-                      child: Column(
-                        children: [
-                          Icon(
-                            CupertinoIcons.person_2,
-                            size: 40,
-                            color: Colors.grey.shade400,
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            'Belum ada kontak darurat terdaftar',
-                            style: TextStyle(
-                              color: Colors.grey.shade700,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Tekan "Tambah Kontak Darurat" di atas untuk menambahkan',
-                            style: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontSize: 12,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                else
-                  ..._contacts.map((contact) {
-                    final isPrimary = contact['tipe'] == 'utama';
-                    final bool terimaNotif =
-                        contact['terima_notif'] == 1 ||
-                        contact['terima_notif'] == true;
-
-                    return _buildContactCard(
-                      id: contact['id'],
-                      name: contact['nama'] ?? '-',
-                      phone: contact['no_telp'] ?? '-',
-                      isPrimary: isPrimary,
-                      terimaNotif: terimaNotif,
-                      onEdit: () async {
-                        setState(() => _isLoading = true);
-                        try {
-                          final latest = await _dataSource
-                              .getContactById(contact['id']);
-                          setState(() => _isLoading = false);
-                          _showContactForm(contact: latest);
-                        } catch (_) {
-                          setState(() => _isLoading = false);
-                          _showContactForm(contact: contact);
-                        }
-                      },
-                      onDelete: () => _deleteContact(contact['id']),
-                      onCall: () => _callNumber(contact['no_telp'] ?? ''),
-                      onToggleNotif: (val) =>
-                          _toggleNotif(contact['id'], val),
-                    );
-                  }),
-
-                const SizedBox(height: 12),
-
-                // Footer Info Keamanan
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE0F2F1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          CupertinoIcons.lock,
-                          color: primaryTeal,
-                          size: 18,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Data kontak darurat disimpan secara terenkripsi dan hanya diakses saat sinyal SOS dipicu.',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 40),
-              ],
-            ),
-          ),
-        ),
-      ),
+      child: child,
     );
   }
 
@@ -592,257 +232,670 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
     required int id,
     required String name,
     required String phone,
+    required String? notes,
     required bool isPrimary,
     required bool terimaNotif,
     required VoidCallback onEdit,
     required VoidCallback onDelete,
     required VoidCallback onCall,
     required ValueChanged<bool> onToggleNotif,
+    required bool isHighContrast,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Row: Avatar, Name, Badges
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: isPrimary
-                    ? Colors.orange.shade50
-                    : primaryTeal.withValues(alpha: 0.1),
-                child: Icon(
-                  isPrimary
-                      ? CupertinoIcons.person_crop_circle_badge_checkmark
-                      : CupertinoIcons.person,
-                  color: isPrimary ? const Color(0xFFEF6C00) : primaryTeal,
-                  size: 20,
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _buildCard(
+        isHighContrast: isHighContrast,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Bar: Avatar, Info, Priority Badge
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: isPrimary
+                      ? (isHighContrast
+                          ? const Color(0xFF451A03)
+                          : const Color(0xFFFEF3C7))
+                      : (isHighContrast
+                          ? const Color(0xFF1E3A34)
+                          : primaryLightTeal),
+                  child: Icon(
+                    isPrimary
+                        ? CupertinoIcons.star_fill
+                        : CupertinoIcons.person_fill,
+                    color: isPrimary
+                        ? (isHighContrast
+                            ? const Color(0xFFFDE68A)
+                            : const Color(0xFFD97706))
+                        : tealColor,
+                    size: 20,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        const Icon(
-                          CupertinoIcons.phone,
-                          size: 13,
-                          color: Colors.black54,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15.5,
+                          color: AccessibleColors.textPrimary(isHighContrast),
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          phone,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade700,
-                            fontWeight: FontWeight.w500,
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Icon(
+                            CupertinoIcons.phone,
+                            size: 13,
+                            color: AccessibleColors.textSecondary(isHighContrast),
                           ),
+                          const SizedBox(width: 4),
+                          Text(
+                            phone,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color:
+                                  AccessibleColors.textSecondary(isHighContrast),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (notes != null && notes.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          notes,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color:
+                                AccessibleColors.textSecondary(isHighContrast),
+                            fontStyle: FontStyle.italic,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
-                    ),
-                  ],
-                ),
-              ),
-              // Badge Utama / Sekunder (Mirip badge status volunteer)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: isPrimary
-                      ? const Color(0xFFFFF3E0)
-                      : const Color(0xFFE8F5E9),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isPrimary
-                        ? const Color(0xFFFFCC80)
-                        : const Color(0xFFA5D6A7),
+                    ],
                   ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isPrimary
-                          ? CupertinoIcons.checkmark_seal
-                          : CupertinoIcons.checkmark_alt_circle,
-                      size: 11,
+                // Priority Badge
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isPrimary
+                        ? (isHighContrast
+                            ? const Color(0xFF451A03)
+                            : const Color(0xFFFEF3C7))
+                        : (isHighContrast
+                            ? const Color(0xFF1E293B)
+                            : const Color(0xFFF3F4F6)),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
                       color: isPrimary
-                          ? const Color(0xFFEF6C00)
-                          : const Color(0xFF2E7D32),
+                          ? (isHighContrast
+                              ? const Color(0xFF78350F)
+                              : const Color(0xFFFDE68A))
+                          : (isHighContrast
+                              ? const Color(0xFF475569)
+                              : const Color(0xFFE5E7EB)),
+                      width: isHighContrast ? 1.5 : 1.0,
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      isPrimary ? 'Utama' : 'Sekunder',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isPrimary
+                            ? CupertinoIcons.star_fill
+                            : CupertinoIcons.person_2_fill,
+                        size: 11,
                         color: isPrimary
-                            ? const Color(0xFFEF6C00)
-                            : const Color(0xFF2E7D32),
+                            ? (isHighContrast
+                                ? const Color(0xFFFDE68A)
+                                : const Color(0xFFB45309))
+                            : (isHighContrast
+                                ? const Color(0xFFD1D5DB)
+                                : const Color(0xFF4B5563)),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        isPrimary ? 'Utama' : 'Sekunder',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: isPrimary
+                              ? (isHighContrast
+                                  ? const Color(0xFFFDE68A)
+                                  : const Color(0xFFB45309))
+                              : (isHighContrast
+                                  ? const Color(0xFFD1D5DB)
+                                  : const Color(0xFF4B5563)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Divider(
+                height: 1,
+                color: isHighContrast
+                    ? const Color(0xFF374151)
+                    : const Color(0xFFF3F4F6),
+              ),
+            ),
+
+            // Notification Status & Toggle Row
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: terimaNotif
+                    ? (isHighContrast
+                        ? const Color(0xFF143026)
+                        : const Color(0xFFF0FDF4))
+                    : (isHighContrast
+                        ? const Color(0xFF1E2430)
+                        : const Color(0xFFF9FAFB)),
+                border: Border.all(
+                  color: terimaNotif
+                      ? (isHighContrast
+                          ? const Color(0xFF166534)
+                          : const Color(0xFFBBF7D0))
+                      : AccessibleColors.cardBorderColor(isHighContrast),
+                  width: isHighContrast ? 1.5 : 1.0,
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    terimaNotif
+                        ? CupertinoIcons.bell_fill
+                        : CupertinoIcons.bell_slash,
+                    size: 15,
+                    color: terimaNotif
+                        ? (isHighContrast
+                            ? const Color(0xFF86EFAC)
+                            : const Color(0xFF16A34A))
+                        : (isHighContrast
+                            ? const Color(0xFF9CA3AF)
+                            : const Color(0xFF9CA3AF)),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      terimaNotif
+                          ? 'Notifikasi SOS Aktif'
+                          : 'Notifikasi SOS Nonaktif',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: terimaNotif
+                            ? (isHighContrast
+                                ? const Color(0xFF86EFAC)
+                                : const Color(0xFF15803D))
+                            : AccessibleColors.textSecondary(isHighContrast),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  Transform.scale(
+                    scale: 0.75,
+                    child: CupertinoSwitch(
+                      value: terimaNotif,
+                      activeTrackColor: tealColor,
+                      inactiveTrackColor: isHighContrast
+                          ? const Color(0xFF374151)
+                          : null,
+                      onChanged: onToggleNotif,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // Notifikasi Status Chip & Quick Toggle
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: terimaNotif
-                  ? const Color(0xFFF0FDF4)
-                  : Colors.grey.shade100,
-              border: Border.all(
-                color: terimaNotif
-                    ? const Color(0xFFBBF7D0)
-                    : Colors.grey.shade300,
-              ),
-              borderRadius: BorderRadius.circular(10),
             ),
-            child: Row(
+
+            const SizedBox(height: 12),
+
+            // Action Buttons: Panggil, Edit, Hapus
+            Row(
               children: [
-                Icon(
-                  terimaNotif
-                      ? CupertinoIcons.bell
-                      : CupertinoIcons.bell_slash,
-                  size: 14,
-                  color: terimaNotif
-                      ? const Color(0xFF16A34A)
-                      : Colors.grey.shade600,
-                ),
-                const SizedBox(width: 6),
                 Expanded(
-                  child: Text(
-                    terimaNotif
-                        ? 'Notifikasi SOS Aktif'
-                        : 'Notifikasi SOS Nonaktif',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: terimaNotif
-                          ? const Color(0xFF15803D)
-                          : Colors.grey.shade600,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      AccessibilityService.instance.handleTalkbackTap(
+                        id: 'contact_call_$name',
+                        speakText: "Menghubungi $name",
+                        hintText: "Tekan sekali lagi untuk melakukan panggilan.",
+                        onAction: () {
+                          AccessibilityService.instance.hapticHeavy();
+                          onCall();
+                        },
+                      );
+                    },
+                    icon: const Icon(
+                      CupertinoIcons.phone_fill,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                    label: const Text(
+                      'Panggil',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isHighContrast
+                          ? const Color(0xFF00897B)
+                          : primaryTeal,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: isHighContrast
+                            ? const BorderSide(
+                                color: Color(0xFF80CBC4),
+                                width: 1.5,
+                              )
+                            : BorderSide.none,
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
                   ),
                 ),
-                Transform.scale(
-                  scale: 0.7,
-                  child: CupertinoSwitch(
-                    value: terimaNotif,
-                    activeTrackColor: primaryTeal,
-                    onChanged: onToggleNotif,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      AccessibilityService.instance.handleTalkbackTap(
+                        id: 'contact_edit_$name',
+                        speakText: "Mengubah kontak $name",
+                        hintText: "Tekan sekali lagi untuk membuka formulir ubah kontak.",
+                        onAction: onEdit,
+                      );
+                    },
+                    icon: Icon(
+                      CupertinoIcons.pencil,
+                      size: 14,
+                      color: tealColor,
+                    ),
+                    label: Text(
+                      'Edit',
+                      style: TextStyle(
+                        color: tealColor,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isHighContrast
+                          ? const Color(0xFF1E3A34)
+                          : primaryLightTeal,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: isHighContrast
+                            ? const BorderSide(
+                                color: Color(0xFF80CBC4),
+                                width: 1.5,
+                              )
+                            : BorderSide.none,
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () {
+                    AccessibilityService.instance.hapticSelection();
+                    onDelete();
+                  },
+                  child: Container(
+                    constraints: const BoxConstraints(
+                      minWidth: 48,
+                      minHeight: 48,
+                    ),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: isHighContrast
+                          ? const Color(0xFF3B1515)
+                          : const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isHighContrast
+                            ? const Color(0xFFEF4444)
+                            : const Color(0xFFFCA5A5),
+                        width: isHighContrast ? 1.5 : 1.0,
+                      ),
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.trash,
+                      color: alertRed,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final currentBg =
+            isHighContrast ? Colors.black : const Color(0xFFF8FAFC);
+        final tealColor =
+            isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
+        return Scaffold(
+          backgroundColor: currentBg,
+          appBar: AppBar(
+            backgroundColor: currentBg,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            centerTitle: false,
+            titleSpacing: 0,
+            iconTheme: IconThemeData(color: tealColor),
+            leading: IconButton(
+              icon: Icon(CupertinoIcons.back, color: tealColor),
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
+            title: Row(
+              children: [
+                Image.asset('assets/images/logo.png', width: 24, height: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'Kontak Darurat',
+                  style: TextStyle(
+                    color: tealColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
                   ),
                 ),
               ],
             ),
           ),
+          body: SafeArea(
+            child: RefreshIndicator(
+              onRefresh: _fetchContacts,
+              color: tealColor,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Tombol Tambah Kontak Darurat Prominen
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        AccessibilityService.instance.handleTalkbackTap(
+                          id: 'add_emergency_contact_btn',
+                          speakText: "Membuka form tambah kontak darurat",
+                          hintText: "Tekan sekali lagi untuk menambah kontak darurat baru.",
+                          onAction: _navigateToAddOrEdit,
+                        );
+                      },
+                      icon: const Icon(
+                        CupertinoIcons.person_add_solid,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      label: const Text(
+                        'Tambah Kontak Darurat',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isHighContrast
+                            ? const Color(0xFF00897B)
+                            : primaryTeal,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: isHighContrast
+                              ? const BorderSide(
+                                  color: Color(0xFF80CBC4),
+                                  width: 1.5,
+                                )
+                              : BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
 
-          const SizedBox(height: 12),
+                    // Header List & Counter
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Daftar Kontak Terdaftar',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AccessibleColors.textPrimary(isHighContrast),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isHighContrast
+                                ? const Color(0xFF1E3A34)
+                                : primaryLightTeal,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isHighContrast
+                                  ? const Color(0xFF80CBC4)
+                                  : const Color(0xFFB2DFDB),
+                            ),
+                          ),
+                          child: Text(
+                            '${_contacts.length} kontak',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: tealColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
 
-          // Action Buttons: Panggil, Edit, Hapus
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: onCall,
-                  icon: const Icon(
-                    CupertinoIcons.phone,
-                    size: 14,
-                    color: Colors.white,
-                  ),
-                  label: const Text(
-                    'Panggil',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                    // Content Area
+                    if (_isLoading)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 48.0),
+                          child: CupertinoActivityIndicator(
+                            radius: 16,
+                            color: tealColor,
+                          ),
+                        ),
+                      )
+                    else if (_contacts.isEmpty)
+                      _buildCard(
+                        isHighContrast: isHighContrast,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 36,
+                          horizontal: 20,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: isHighContrast
+                                    ? const Color(0xFF1E293B)
+                                    : const Color(0xFFF1F5F9),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                CupertinoIcons.person_2_alt,
+                                size: 44,
+                                color: isHighContrast
+                                    ? const Color(0xFF94A3B8)
+                                    : const Color(0xFF94A3B8),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              'Belum Ada Kontak Darurat',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color:
+                                    AccessibleColors.textPrimary(isHighContrast),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Tambahkan keluarga atau orang terdekat agar sistem otomatis menghubungi mereka saat situasi darurat.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: AccessibleColors.textSecondary(
+                                    isHighContrast),
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                AccessibilityService.instance.hapticSelection();
+                                unawaited(
+                                  AccessibilityService.instance.speak(
+                                      "Membuka form tambah kontak darurat"),
+                                );
+                                _navigateToAddOrEdit();
+                              },
+                              icon: Icon(
+                                CupertinoIcons.add,
+                                size: 16,
+                                color: tealColor,
+                              ),
+                              label: Text(
+                                'Tambah Sekarang',
+                                style: TextStyle(
+                                  color: tealColor,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(
+                                  color: tealColor,
+                                  width: isHighContrast ? 1.5 : 1.0,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 10,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      ..._contacts.map((contact) {
+                        final isPrimary = contact['tipe'] == 'utama';
+                        final bool terimaNotif =
+                            contact['terima_notif'] == 1 ||
+                            contact['terima_notif'] == true;
+
+                        return _buildContactCard(
+                          id: contact['id'],
+                          name: contact['nama'] ?? '-',
+                          phone: contact['no_telp'] ?? '-',
+                          notes: contact['pesan']?.toString(),
+                          isPrimary: isPrimary,
+                          terimaNotif: terimaNotif,
+                          onEdit: () =>
+                              _navigateToAddOrEdit(contact: contact),
+                          onDelete: () => _deleteContact(
+                            contact['id'],
+                            contact['nama'] ?? 'Kontak',
+                          ),
+                          onCall: () =>
+                              _callNumber(contact['no_telp'] ?? ''),
+                          onToggleNotif: (val) =>
+                              _toggleNotif(contact['id'], val),
+                          isHighContrast: isHighContrast,
+                        );
+                      }),
+
+                    const SizedBox(height: 8),
+
+                    // Footer Keamanan & Enkripsi
+                    _buildCard(
+                      isHighContrast: isHighContrast,
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        children: [
+                          Icon(
+                            CupertinoIcons.lock_shield_fill,
+                            color: tealColor,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Data kontak darurat disimpan secara terenkripsi dan hanya dihubungi ketika pemicu SOS diaktifkan.',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: AccessibleColors.textSecondary(
+                                    isHighContrast),
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryTeal,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
+                    const SizedBox(height: 32),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: onEdit,
-                  icon: const Icon(
-                    CupertinoIcons.pencil,
-                    size: 14,
-                    color: primaryTeal,
-                  ),
-                  label: const Text(
-                    'Edit',
-                    style: TextStyle(
-                      color: primaryTeal,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE0F2F1),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: IconButton(
-                  icon: const Icon(
-                    CupertinoIcons.delete,
-                    color: sosRed,
-                    size: 16,
-                  ),
-                  tooltip: 'Hapus Kontak',
-                  onPressed: onDelete,
-                ),
-              ),
-            ],
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

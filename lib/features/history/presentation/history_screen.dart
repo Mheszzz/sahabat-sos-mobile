@@ -1,13 +1,14 @@
-import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:get_it/get_it.dart';
-import 'dart:async';
-import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
-import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'package:geocoding/geocoding.dart';
+
+import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
+import 'package:sahabat_sos_mobile/core/di/injection.dart';
+import 'package:sahabat_sos_mobile/core/services/websocket_service.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
+import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
+import '../data/datasources/history_remote_data_source.dart';
 import 'report_detail_screen.dart';
 
 enum HistoryStatus { selesai, ditangani, aktif, dibatalkan }
@@ -16,6 +17,7 @@ enum HistoryType { sos, laporan }
 
 class HistoryItem {
   final int id;
+  final String? nomorKasus;
   final HistoryType type;
   final HistoryStatus status;
   final String title;
@@ -33,6 +35,7 @@ class HistoryItem {
 
   HistoryItem({
     required this.id,
+    this.nomorKasus,
     required this.type,
     required this.status,
     required this.title,
@@ -60,6 +63,9 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   static const Color primaryTeal = Color(0xFF00695C);
+  static const Color primaryLightTeal = Color(0xFFE0F2F1);
+
+  final _historyDataSource = sl<HistoryRemoteDataSource>();
 
   late int _selectedTypeFilter;
   final List<String> _typeFilters = ['Semua', 'SOS', 'Laporan'];
@@ -83,7 +89,6 @@ class _HistoryPageState extends State<HistoryPage> {
     if (_addressCache.containsKey(item.id)) {
       return _addressCache[item.id]!;
     }
-    // Jika lokasi sudah berupa teks alamat yang jelas, gunakan langsung tanpa geocoding
     if (item.location.isNotEmpty &&
         item.location != 'Lokasi tidak diketahui' &&
         !item.location.startsWith('Koordinat GPS') &&
@@ -95,7 +100,10 @@ class _HistoryPageState extends State<HistoryPage> {
 
     if (item.latitude != null && item.longitude != null) {
       try {
-        final placemarks = await Geocoding().placemarkFromCoordinates(item.latitude!, item.longitude!);
+        final placemarks = await Geocoding().placemarkFromCoordinates(
+          item.latitude!,
+          item.longitude!,
+        );
         if (placemarks.isNotEmpty) {
           final place = placemarks.first;
           final addressList = [
@@ -110,9 +118,7 @@ class _HistoryPageState extends State<HistoryPage> {
             return address;
           }
         }
-      } catch (e) {
-        // Fallback to item.location if geocoding fails
-      }
+      } catch (_) {}
     }
     _addressCache[item.id] = item.location;
     return item.location;
@@ -141,8 +147,8 @@ class _HistoryPageState extends State<HistoryPage> {
     super.initState();
     _selectedTypeFilter = widget.initialTypeFilter;
     _fetchHistory(page: 1);
-    
-    // Fallback polling untuk Laporan
+
+    // Periodic silent refresh for live status updates
     _refreshTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
       if (mounted && !_isLoading) {
         _fetchHistorySilently();
@@ -166,69 +172,56 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Future<void> _fetchHistorySilently() async {
     try {
-      final prefs = GetIt.instance<SharedPreferences>();
-      final token = prefs.getString('auth_token');
-      final role = prefs.getString('user_role');
-      final dio = GetIt.instance<Dio>();
-
-      final headers = {if (token != null) 'Authorization': 'Bearer $token'};
-      String endpoint = role == 'relawan' ? ApiConstants.riwayatRelawan : ApiConstants.riwayatPengguna;
-
-      final response = await dio.get(
-        '$endpoint?page=$_currentPage&per_page=$_itemsPerPage',
-        options: Options(headers: headers),
+      final resData = await _historyDataSource.getHistory(
+        page: _currentPage,
+        perPage: _itemsPerPage,
       );
 
-      if (response.statusCode == 200 && mounted) {
-        final resData = response.data;
-        List<dynamic> allData = [];
-        int lastPage = _totalPages;
-        int total = _totalItems;
+      if (!mounted) return;
 
-        if (resData is Map) {
-          lastPage = resData['last_page'] ?? _totalPages;
-          total = resData['total'] ?? _totalItems;
-          final d = resData['data'];
-          if (d is List) {
-            allData.addAll(d);
-          } else if (d is Map && d['data'] is List) {
-            allData.addAll(d['data']);
-            lastPage = d['last_page'] ?? lastPage;
-            total = d['total'] ?? total;
-          }
-        }
-        
-        final items = allData.map((item) => _mapToHistoryItem(item)).toList();
-        items.sort((a, b) {
-          if (a.rawDateTime != null && b.rawDateTime != null) {
-            return b.rawDateTime!.compareTo(a.rawDateTime!);
-          }
-          return b.dateTime.compareTo(a.dateTime);
-        });
-
-        setState(() {
-          _allItems = items;
-          _totalPages = lastPage > 0 ? lastPage : 1;
-          _totalItems = total > 0 ? total : items.length;
-        });
-        _updateWebsocketSubscriptions();
+      final List<dynamic> allData = [];
+      int lastPage = resData['last_page'] ?? _totalPages;
+      int total = resData['total'] ?? _totalItems;
+      final d = resData['data'];
+      if (d is List) {
+        allData.addAll(d);
+      } else if (d is Map && d['data'] is List) {
+        allData.addAll(d['data']);
+        lastPage = d['last_page'] ?? lastPage;
+        total = d['total'] ?? total;
       }
-    } catch (e) {
-      // Abaikan error saat silent refresh
-    }
+
+      final items = allData.map((item) => _mapToHistoryItem(item)).toList();
+      items.sort((a, b) {
+        if (a.rawDateTime != null && b.rawDateTime != null) {
+          return b.rawDateTime!.compareTo(a.rawDateTime!);
+        }
+        return b.dateTime.compareTo(a.dateTime);
+      });
+
+      setState(() {
+        _allItems = items;
+        _totalPages = lastPage > 0 ? lastPage : 1;
+        _totalItems = total > 0 ? total : items.length;
+      });
+      _updateWebsocketSubscriptions();
+    } catch (_) {}
   }
 
   void _updateWebsocketSubscriptions() {
     if (WebsocketService.echo == null) return;
-    
+
     for (var item in _allItems) {
       if (item.type == HistoryType.sos && item.status != HistoryStatus.selesai) {
         final channelName = 'sos.${item.id}';
         if (!_subscribedChannels.contains(channelName)) {
           _subscribedChannels.add(channelName);
-          WebsocketService.echo?.private(channelName).listen('.SOSUpdateStatus', (e) {
-             if (mounted) _fetchHistorySilently();
-          });
+          WebsocketService.echo?.private(channelName).listen(
+            '.SOSUpdateStatus',
+            (e) {
+              if (mounted) _fetchHistorySilently();
+            },
+          );
         }
       }
     }
@@ -241,52 +234,32 @@ class _HistoryPageState extends State<HistoryPage> {
     });
 
     try {
-      final prefs = GetIt.instance<SharedPreferences>();
-      final token = prefs.getString('auth_token');
-      final role = prefs.getString('user_role');
-      final dio = GetIt.instance<Dio>();
-
-      final headers = {if (token != null) 'Authorization': 'Bearer $token'};
-
-      String endpoint = ApiConstants.riwayatPengguna;
-      if (role == 'relawan') {
-        endpoint = ApiConstants.riwayatRelawan;
-      }
-
-      final response = await dio.get(
-        '$endpoint?page=$page&per_page=$_itemsPerPage',
-        options: Options(headers: headers),
+      final resData = await _historyDataSource.getHistory(
+        page: page,
+        perPage: _itemsPerPage,
       );
 
-      List<dynamic> allData = [];
-      int lastPage = 1;
-      int total = 0;
-
-      if (response.statusCode == 200) {
-        final resData = response.data;
-        if (resData is Map) {
-          lastPage = resData['last_page'] ?? 1;
-          total = resData['total'] ?? 0;
-          final d = resData['data'];
-          if (d is List) {
-            allData.addAll(d);
-          } else if (d is Map && d['data'] is List) {
-            allData.addAll(d['data']);
-            lastPage = d['last_page'] ?? lastPage;
-            total = d['total'] ?? total;
-          }
-        }
+      final List<dynamic> allData = [];
+      int lastPage = resData['last_page'] ?? 1;
+      int total = resData['total'] ?? 0;
+      final d = resData['data'];
+      if (d is List) {
+        allData.addAll(d);
+      } else if (d is Map && d['data'] is List) {
+        allData.addAll(d['data']);
+        lastPage = d['last_page'] ?? lastPage;
+        total = d['total'] ?? total;
       }
 
       final items = allData.map((item) => _mapToHistoryItem(item)).toList();
-
-      // Sort items by date descending (menggunakan DateTime)
       items.sort((a, b) {
         if (a.rawDateTime != null && b.rawDateTime != null) {
           return b.rawDateTime!.compareTo(a.rawDateTime!);
         }
         return b.dateTime.compareTo(a.dateTime);
       });
+
+      if (!mounted) return;
 
       setState(() {
         _allItems = items;
@@ -295,18 +268,12 @@ class _HistoryPageState extends State<HistoryPage> {
         _totalItems = total > 0 ? total : items.length;
         _isLoading = false;
       });
-      
+
       _updateWebsocketSubscriptions();
-    } on DioException catch (e) {
-      setState(() {
-        _errorMessage = e.response != null
-            ? 'Error dari server: ${e.response?.statusCode}'
-            : 'Gagal terhubung ke server. Pastikan IP backend benar.';
-        _isLoading = false;
-      });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _errorMessage = 'Terjadi kesalahan sistem: $e';
+        _errorMessage = e.toString().replaceFirst('Exception: ', '');
         _isLoading = false;
       });
     }
@@ -316,13 +283,20 @@ class _HistoryPageState extends State<HistoryPage> {
     String extractString(dynamic value, [String defaultVal = 'Lainnya']) {
       if (value == null) return defaultVal;
       if (value is Map) {
-        return (value['nama_kategori'] ?? value['nama'] ?? value['name'] ?? defaultVal).toString();
+        return (value['nama_kategori'] ??
+                value['nama'] ??
+                value['name'] ??
+                defaultVal)
+            .toString();
       }
       return value.toString();
     }
-    
-    String rawKategori = extractString(data['kategori'] ?? data['kategori_laporan'], 'Lainnya');
-    String kategori = rawKategori
+
+    final String rawKategori = extractString(
+      data['kategori'] ?? data['kategori_laporan'],
+      'Lainnya',
+    );
+    final String kategori = rawKategori
         .replaceAll('_', ' ')
         .split(' ')
         .map((word) {
@@ -330,7 +304,9 @@ class _HistoryPageState extends State<HistoryPage> {
           return word[0].toUpperCase() + word.substring(1).toLowerCase();
         })
         .join(' ');
-    String statusStr = (data['status'] ?? data['status_sos'] ?? 'aktif').toString().toLowerCase();
+    final String statusStr = (data['status'] ?? data['status_sos'] ?? 'aktif')
+        .toString()
+        .toLowerCase();
 
     HistoryType type = HistoryType.laporan;
     if (data['tipe']?.toString().toLowerCase() == 'sos' ||
@@ -352,11 +328,15 @@ class _HistoryPageState extends State<HistoryPage> {
       status = HistoryStatus.dibatalkan;
     }
 
-    String? relawanName = data['relawan']?['name'];
-    String? officerInfo = relawanName != null ? 'Relawan $relawanName' : null;
+    final String? relawanName = data['relawan']?['name'];
+    final String? officerInfo = relawanName != null ? 'Relawan $relawanName' : null;
 
-    String rawDate =
-        (data['waktu'] ?? data['waktu_laporan'] ?? data['waktu_sos'] ?? data['created_at'] ?? '').toString();
+    final String rawDate = (data['waktu'] ??
+            data['waktu_laporan'] ??
+            data['waktu_sos'] ??
+            data['created_at'] ??
+            '')
+        .toString();
     String displayDate = rawDate;
     DateTime? rawParsedDate;
     try {
@@ -369,41 +349,40 @@ class _HistoryPageState extends State<HistoryPage> {
           parseableDate += 'Z';
         }
         rawParsedDate = DateTime.parse(parseableDate).toLocal();
-        String year = rawParsedDate.year.toString().padLeft(4, '0');
-        String month = rawParsedDate.month.toString().padLeft(2, '0');
-        String day = rawParsedDate.day.toString().padLeft(2, '0');
-        String hour = rawParsedDate.hour.toString().padLeft(2, '0');
-        String minute = rawParsedDate.minute.toString().padLeft(2, '0');
+        final String year = rawParsedDate.year.toString().padLeft(4, '0');
+        final String month = rawParsedDate.month.toString().padLeft(2, '0');
+        final String day = rawParsedDate.day.toString().padLeft(2, '0');
+        final String hour = rawParsedDate.hour.toString().padLeft(2, '0');
+        final String minute = rawParsedDate.minute.toString().padLeft(2, '0');
         displayDate = '$year-$month-$day $hour:$minute';
       }
-    } catch (e) {
+    } catch (_) {
       if (rawDate.length >= 16) {
         displayDate = rawDate.replaceAll('T', ' ').substring(0, 16);
       }
     }
 
-    // Resolusi media foto & audio
-    String? foto = data['foto_laporan_url']?.toString() ??
+    final String? foto = data['foto_laporan_url']?.toString() ??
         (data['foto_laporan'] ?? data['foto'] ?? data['foto_url'])?.toString();
-    String? audio = data['rekam_suara_url']?.toString() ??
+    final String? audio = data['rekam_suara_url']?.toString() ??
         (data['audio_laporan'] ??
-            data['rekam_suara'] ??
-            data['rekaman_suara'] ??
-            data['audio'])?.toString();
+                data['rekam_suara'] ??
+                data['rekaman_suara'] ??
+                data['audio'])
+            ?.toString();
 
-    String? resolvedImageUrl = foto != null
+    final String? resolvedImageUrl = foto != null
         ? (foto.startsWith('http')
             ? foto
             : '${ApiConstants.storageUrl}/${foto.replaceFirst('public/', '')}')
         : null;
 
-    String? resolvedAudioUrl = audio != null
+    final String? resolvedAudioUrl = audio != null
         ? (audio.startsWith('http')
             ? audio
             : '${ApiConstants.storageUrl}/${audio.replaceFirst('public/', '')}')
         : null;
 
-    // Parsing lokasi bersih (dukung Map atau String tanpa regex potong koma)
     String locationStr = 'Lokasi tidak diketahui';
     double? lat;
     double? lng;
@@ -420,28 +399,46 @@ class _HistoryPageState extends State<HistoryPage> {
             ? (data['lokasi']['longitude'] as num).toDouble()
             : double.tryParse(data['lokasi']['longitude'].toString());
       }
-    } else if (data['lokasi'] != null || data['lokasi_laporan'] != null || data['lokasi_user'] != null) {
-      locationStr = (data['lokasi_laporan'] ?? data['lokasi'] ?? data['lokasi_user']).toString();
+    } else if (data['lokasi'] != null ||
+        data['lokasi_laporan'] != null ||
+        data['lokasi_user'] != null) {
+      locationStr = (data['lokasi_laporan'] ??
+              data['lokasi'] ??
+              data['lokasi_user'])
+          .toString();
     }
 
     if (lat == null && data['latitude'] != null) {
-      lat = (data['latitude'] is num) ? (data['latitude'] as num).toDouble() : double.tryParse(data['latitude'].toString());
+      lat = (data['latitude'] is num)
+          ? (data['latitude'] as num).toDouble()
+          : double.tryParse(data['latitude'].toString());
     }
     if (lng == null && data['longitude'] != null) {
-      lng = (data['longitude'] is num) ? (data['longitude'] as num).toDouble() : double.tryParse(data['longitude'].toString());
+      lng = (data['longitude'] is num)
+          ? (data['longitude'] as num).toDouble()
+          : double.tryParse(data['longitude'].toString());
     }
 
-    // Judul kasus asli
     String title;
     if (type == HistoryType.sos) {
-      String customTitle = (data['judul_sos'] ?? data['sub_judul'] ?? data['jenis_laporan'] ?? '').toString();
-      if (customTitle.isNotEmpty && customTitle != 'Darurat' && customTitle != 'SOS') {
+      final String customTitle = (data['judul_sos'] ??
+              data['sub_judul'] ??
+              data['jenis_laporan'] ??
+              '')
+          .toString();
+      if (customTitle.isNotEmpty &&
+          customTitle != 'Darurat' &&
+          customTitle != 'SOS') {
         title = customTitle;
       } else {
         title = 'SOS Darurat: $kategori';
       }
     } else {
-      String customTitle = (data['sub_judul'] ?? data['jenis_laporan'] ?? data['judul'] ?? '').toString();
+      final String customTitle = (data['sub_judul'] ??
+              data['jenis_laporan'] ??
+              data['judul'] ??
+              '')
+          .toString();
       if (customTitle.isNotEmpty) {
         title = customTitle;
       } else {
@@ -449,21 +446,32 @@ class _HistoryPageState extends State<HistoryPage> {
       }
     }
 
+    int itemId = 0;
+    if (data['id'] is int) {
+      itemId = data['id'];
+    } else if (data['id'] != null) {
+      itemId = int.tryParse(data['id'].toString()) ?? 0;
+    }
+
+    final nomorKasus = data['nomor_kasus']?.toString() ??
+        (type == HistoryType.sos ? 'SOS-$itemId' : 'LP-$itemId');
+
     return HistoryItem(
-      id: data['id'] is int ? data['id'] : int.tryParse(data['id'].toString()) ?? 0,
+      id: itemId,
+      nomorKasus: nomorKasus,
       type: type,
       status: status,
       title: title,
       dateTime: displayDate,
       rawDateTime: rawParsedDate,
       location: locationStr,
-      description: data['deskripsi']?.toString(),
       officerInfo: officerInfo,
-      detailButtonLabel: type == HistoryType.sos
-          ? 'Lihat Detail SOS'
-          : 'Lihat Detail Laporan',
+      description: data['deskripsi']?.toString() ??
+          data['deskripsi_sos']?.toString() ??
+          data['catatan']?.toString(),
+      detailButtonLabel: 'Lihat Detail',
       imagePlaceholderIcon: type == HistoryType.sos
-          ? CupertinoIcons.map
+          ? CupertinoIcons.exclamationmark_triangle_fill
           : CupertinoIcons.doc_text,
       imageUrl: resolvedImageUrl,
       audioUrl: resolvedAudioUrl,
@@ -497,16 +505,14 @@ class _HistoryPageState extends State<HistoryPage> {
     if (_selectedTimeFilter != 0) {
       final now = DateTime.now();
       items = items.where((item) {
-        final itemDate = item.rawDateTime ?? DateTime.tryParse(item.dateTime.replaceAll(' ', 'T'));
+        final itemDate = item.rawDateTime ??
+            DateTime.tryParse(item.dateTime.replaceAll(' ', 'T'));
         if (itemDate == null) return true;
         if (_selectedTimeFilter == 1) {
-          // 1 Minggu
           return now.difference(itemDate).inDays <= 7;
         } else if (_selectedTimeFilter == 2) {
-          // 1 Bulan
           return now.difference(itemDate).inDays <= 30;
         } else if (_selectedTimeFilter == 3) {
-          // Kustom
           if (_customStartDate != null && _customEndDate != null) {
             return itemDate.isAfter(
                   _customStartDate!.subtract(const Duration(days: 1)),
@@ -523,92 +529,141 @@ class _HistoryPageState extends State<HistoryPage> {
     return items;
   }
 
-  List<HistoryItem> get _paginatedItems => _filteredItems;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
-      appBar: _buildAppBar(),
-      body: Container(
-        height: double.infinity,
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-        ),
-        child: SafeArea(
-          child: RefreshIndicator(
-            onRefresh: () => _fetchHistory(page: _currentPage),
-            color: primaryTeal,
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              children: [
-                const Text(
-                  'Riwayat Kasus & Laporan',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '${_totalItems > 0 ? _totalItems : _allItems.length} catatan riwayat',
-                  style: const TextStyle(fontSize: 13, color: Colors.black54),
-                ),
-                const SizedBox(height: 16),
-                _buildTypeFilterTabs(),
-                const SizedBox(height: 12),
-                _buildStatusFilterChips(),
-                const SizedBox(height: 12),
-                _buildTimeFilterChips(),
-                const SizedBox(height: 16),
-                if (_isLoading)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(40.0),
-                      child: CupertinoActivityIndicator(radius: 16),
-                    ),
-                  )
-                else if (_errorMessage != null)
-                  _buildErrorState()
-                else if (_filteredItems.isEmpty)
-                  _buildEmptyState()
-                else
-                  ..._filteredItems.map((item) => _buildHistoryCard(item)),
-                if (!_isLoading &&
-                    _errorMessage == null &&
-                    _filteredItems.isNotEmpty &&
-                    _totalPages > 1)
-                  _buildPagination(),
-                const SizedBox(height: 8),
-                _buildEncryptedFooter(),
-                const SizedBox(height: 80), // Make space for the bottom nav bar
-              ],
+  Widget _buildCard({
+    required Widget child,
+    EdgeInsetsGeometry? padding,
+    Color? color,
+    Border? border,
+    bool isHighContrast = false,
+  }) {
+    return Container(
+      padding: padding ?? const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color ?? AccessibleColors.cardBackground(isHighContrast),
+        borderRadius: BorderRadius.circular(16),
+        border: border ?? AccessibleColors.cardBorder(isHighContrast),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: isHighContrast ? 0.3 : 0.04,
             ),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
-        ),
+        ],
       ),
+      child: child,
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final currentBg =
+            isHighContrast ? Colors.black : const Color(0xFFF8FAFC);
+        final tealColor =
+            isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
+        return Scaffold(
+          backgroundColor: currentBg,
+          appBar: _buildAppBar(isHighContrast),
+          body: SafeArea(
+            child: RefreshIndicator(
+              onRefresh: () => _fetchHistory(page: _currentPage),
+              color: tealColor,
+              child: ListView(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                children: [
+                  Text(
+                    'Riwayat Kasus & Laporan',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: isHighContrast
+                          ? Colors.white
+                          : const Color(0xFF111827),
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${_totalItems > 0 ? _totalItems : _allItems.length} catatan riwayat bantuan',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isHighContrast
+                          ? const Color(0xFFD1D5DB)
+                          : const Color(0xFF4B5563),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildTypeFilterTabs(isHighContrast),
+                  const SizedBox(height: 12),
+                  _buildStatusFilterChips(isHighContrast),
+                  const SizedBox(height: 12),
+                  _buildTimeFilterChips(isHighContrast),
+                  const SizedBox(height: 18),
+                  if (_isLoading)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(40.0),
+                        child: CupertinoActivityIndicator(
+                          radius: 16,
+                          color: tealColor,
+                        ),
+                      ),
+                    )
+                  else if (_errorMessage != null)
+                    _buildErrorState(isHighContrast)
+                  else if (_filteredItems.isEmpty)
+                    _buildEmptyState(isHighContrast)
+                  else
+                    ..._filteredItems
+                        .map((item) => _buildHistoryCard(item, isHighContrast)),
+                  if (!_isLoading &&
+                      _errorMessage == null &&
+                      _filteredItems.isNotEmpty &&
+                      _totalPages > 1)
+                    _buildPagination(isHighContrast),
+                  const SizedBox(height: 12),
+                  _buildEncryptedFooter(isHighContrast),
+                  SizedBox(
+                    height: MediaQuery.of(context).padding.bottom + 100,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
     return AppBar(
-      backgroundColor: Colors.transparent,
+      backgroundColor: isHighContrast ? Colors.black : const Color(0xFFF8FAFC),
       elevation: 0,
+      scrolledUnderElevation: 0,
+      iconTheme: IconThemeData(color: tealColor),
       centerTitle: false,
       titleSpacing: 16,
       title: Row(
         children: [
           Image.asset('assets/images/logo.png', width: 24, height: 24),
           const SizedBox(width: 8),
-          const Text(
+          Text(
             'Sahabat SOS',
             style: TextStyle(
-              color: primaryTeal,
+              color: tealColor,
               fontWeight: FontWeight.bold,
-              fontSize: 20,
+              fontSize: 18,
             ),
           ),
         ],
@@ -616,11 +671,15 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _buildTypeFilterTabs() {
+  Widget _buildTypeFilterTabs(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final selectedBg = isHighContrast ? const Color(0xFF1E3A34) : primaryTeal;
+    final unselectedBg = AccessibleColors.cardBackground(isHighContrast);
+
     final icons = [
       CupertinoIcons.tray_fill,
       CupertinoIcons.exclamationmark_triangle_fill,
-      CupertinoIcons.doc_text,
+      CupertinoIcons.doc_text_fill,
     ];
 
     int getCount(int index) {
@@ -643,76 +702,98 @@ class _HistoryPageState extends State<HistoryPage> {
           final count = getCount(index);
 
           return Padding(
-            padding: const EdgeInsets.only(right: 10),
+            padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
-              onTap: () => setState(() {
-                _selectedTypeFilter = index;
-              }),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF00695C) : Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: isSelected
-                        ? Colors.transparent
-                        : Colors.grey.shade300,
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: primaryTeal.withValues(alpha: 0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ]
-                      : [],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      icons[index],
-                      size: 18,
-                      color: isSelected ? Colors.white : primaryTeal,
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                AccessibilityService.instance.handleTalkbackTap(
+                  id: 'history_filter_type_$index',
+                  speakText: "Filter ${_typeFilters[index]}",
+                  hintText: "Tekan sekali lagi untuk memilih filter ini.",
+                  onAction: () {
+                    setState(() {
+                      _selectedTypeFilter = index;
+                    });
+                  },
+                );
+              },
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Center(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 9,
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _typeFilters[index],
-                      style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.black87,
-                        fontWeight: isSelected
-                            ? FontWeight.bold
-                            : FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
+                    decoration: BoxDecoration(
+                      color: isSelected ? selectedBg : unselectedBg,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
                         color: isSelected
-                            ? Colors.white24
-                            : Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(10),
+                            ? tealColor
+                            : AccessibleColors.cardBorderColor(isHighContrast),
+                        width: isSelected || isHighContrast ? 1.5 : 1.0,
                       ),
-                      child: Text(
-                        '$count',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: isSelected ? Colors.white : Colors.black87,
-                        ),
-                      ),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: tealColor.withValues(alpha: 0.22),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : const [],
                     ),
-                  ],
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          icons[index],
+                          size: 16,
+                          color: isSelected ? Colors.white : tealColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _typeFilters[index],
+                          style: TextStyle(
+                            color: isSelected
+                                ? Colors.white
+                                : AccessibleColors.textPrimary(isHighContrast),
+                            fontWeight:
+                                isSelected ? FontWeight.w700 : FontWeight.w600,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Colors.white.withValues(alpha: 0.22)
+                                : (isHighContrast
+                                    ? const Color(0xFF263238)
+                                    : const Color(0xFFF3F4F6)),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '$count',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: isSelected
+                                  ? Colors.white
+                                  : AccessibleColors.textSecondary(
+                                      isHighContrast),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -722,7 +803,12 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _buildStatusFilterChips() {
+  Widget _buildStatusFilterChips(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final selectedBg =
+        isHighContrast ? const Color(0xFF1E3A34) : primaryLightTeal;
+    final unselectedBg = AccessibleColors.cardBackground(isHighContrast);
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
@@ -733,27 +819,48 @@ class _HistoryPageState extends State<HistoryPage> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
-              onTap: () => setState(() {
-                _selectedStatusFilter = index;
-              }),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected ? primaryTeal.withValues(alpha: 0.12) : Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: isSelected ? primaryTeal : Colors.grey.shade300,
-                  ),
-                ),
-                child: Text(
-                  _statusFilters[index],
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? primaryTeal : Colors.grey.shade700,
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                AccessibilityService.instance.handleTalkbackTap(
+                  id: 'history_filter_status_$index',
+                  speakText: "Status ${_statusFilters[index]}",
+                  hintText: "Tekan sekali lagi untuk memilih status ini.",
+                  onAction: () {
+                    setState(() {
+                      _selectedStatusFilter = index;
+                    });
+                  },
+                );
+              },
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected ? selectedBg : unselectedBg,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: isSelected
+                            ? tealColor
+                            : AccessibleColors.cardBorderColor(isHighContrast),
+                        width: isSelected || isHighContrast ? 1.5 : 1.0,
+                      ),
+                    ),
+                    child: Text(
+                      _statusFilters[index],
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isSelected
+                            ? tealColor
+                            : AccessibleColors.textSecondary(isHighContrast),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -764,7 +871,12 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _buildTimeFilterChips() {
+  Widget _buildTimeFilterChips(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final selectedBg =
+        isHighContrast ? const Color(0xFF1E3A34) : primaryLightTeal;
+    final unselectedBg = AccessibleColors.cardBackground(isHighContrast);
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
@@ -775,106 +887,95 @@ class _HistoryPageState extends State<HistoryPage> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
-              onTap: () async {
-                if (index == 3) {
-                  // Kustom
-                  final picked = await showDateRangePicker(
-                    context: context,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime.now(),
-                    builder: (context, child) {
-                      return Theme(
-                        data: Theme.of(context).copyWith(
-                          scaffoldBackgroundColor: Colors.transparent,
-                          appBarTheme: const AppBarTheme(
-                            backgroundColor: Colors.transparent,
-                            elevation: 0,
-                            iconTheme: IconThemeData(color: Colors.black87),
-                            actionsIconTheme: IconThemeData(color: primaryTeal),
-                          ),
-                          colorScheme: const ColorScheme.light(
-                            primary: primaryTeal,
-                            onPrimary: Colors.white,
-                            onSurface: Colors.black87,
-                            surface: Colors.transparent,
-                            onSurfaceVariant: Colors.black54,
-                          ),
-                          datePickerTheme: const DatePickerThemeData(
-                            backgroundColor: Colors.transparent,
-                            surfaceTintColor: Colors.transparent,
-                            headerBackgroundColor: Colors.transparent,
-                          ),
-                          dialogTheme: const DialogThemeData(
-                            backgroundColor: Colors.transparent,
-                          ),
-                        ),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                AccessibilityService.instance.handleTalkbackTap(
+                  id: 'history_filter_time_$index',
+                  speakText: "Rentang waktu ${_timeFilters[index]}",
+                  hintText: "Tekan sekali lagi untuk memilih rentang waktu ini.",
+                  onAction: () async {
+                    if (index == 3) {
+                      final picked = await showDateRangePicker(
+                        context: context,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: ColorScheme.light(
+                                primary: tealColor,
+                                onPrimary: Colors.white,
+                                onSurface: isHighContrast
+                                    ? Colors.white
+                                    : const Color(0xFF111827),
+                              ),
                             ),
                             child: child!,
-                          ),
-                        ),
+                          );
+                        },
                       );
-                    },
-                  );
-                  if (picked != null) {
-                    setState(() {
-                      _customStartDate = picked.start;
-                      _customEndDate = picked.end;
-                      _selectedTimeFilter = index;
-                    });
-                  }
-                } else {
-                  setState(() {
-                    _selectedTimeFilter = index;
-                  });
-                }
+                      if (picked != null) {
+                        setState(() {
+                          _customStartDate = picked.start;
+                          _customEndDate = picked.end;
+                          _selectedTimeFilter = index;
+                        });
+                      }
+                    } else {
+                      setState(() {
+                        _selectedTimeFilter = index;
+                      });
+                    }
+                  },
+                );
               },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? primaryTeal.withValues(alpha: 0.1)
-                      : Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isSelected ? primaryTeal : Colors.grey.shade300,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    if (index == 3 && isSelected && _customStartDate != null)
-                      const Icon(
-                        CupertinoIcons.calendar,
-                        size: 14,
-                        color: primaryTeal,
-                      )
-                    else
-                      Icon(
-                        CupertinoIcons.time,
-                        size: 14,
-                        color: isSelected ? primaryTeal : Colors.grey.shade500,
-                      ),
-                    const SizedBox(width: 6),
-                    Text(
-                      index == 3 && isSelected && _customStartDate != null
-                          ? '${_customStartDate!.day}/${_customStartDate!.month} - ${_customEndDate!.day}/${_customEndDate!.month}'
-                          : _timeFilters[index],
-                      style: TextStyle(
-                        color: isSelected ? primaryTeal : Colors.grey.shade600,
-                        fontWeight: isSelected
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        fontSize: 13,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected ? selectedBg : unselectedBg,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: isSelected
+                            ? tealColor
+                            : AccessibleColors.cardBorderColor(isHighContrast),
+                        width: isSelected || isHighContrast ? 1.5 : 1.0,
                       ),
                     ),
-                  ],
+                    child: Row(
+                      children: [
+                        Icon(
+                          index == 3 && isSelected && _customStartDate != null
+                              ? CupertinoIcons.calendar
+                              : CupertinoIcons.time,
+                          size: 14,
+                          color: isSelected
+                              ? tealColor
+                              : AccessibleColors.textSecondary(isHighContrast),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          index == 3 && isSelected && _customStartDate != null
+                              ? '${_customStartDate!.day}/${_customStartDate!.month} - ${_customEndDate!.day}/${_customEndDate!.month}'
+                              : _timeFilters[index],
+                          style: TextStyle(
+                            color: isSelected
+                                ? tealColor
+                                : AccessibleColors.textSecondary(
+                                    isHighContrast),
+                            fontWeight:
+                                isSelected ? FontWeight.w700 : FontWeight.w500,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -884,18 +985,26 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _buildPagination() {
+  Widget _buildPagination(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final defaultBg = AccessibleColors.cardBackground(isHighContrast);
+
     return Container(
       margin: const EdgeInsets.only(top: 16, bottom: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           IconButton(
-            icon: const Icon(CupertinoIcons.chevron_left),
+            icon: const Icon(CupertinoIcons.chevron_left, size: 18),
             onPressed: _currentPage > 1
-                ? () => _fetchHistory(page: _currentPage - 1)
+                ? () {
+                    AccessibilityService.instance.hapticSelection();
+                    _fetchHistory(page: _currentPage - 1);
+                  }
                 : null,
-            color: _currentPage > 1 ? primaryTeal : Colors.grey,
+            color: _currentPage > 1
+                ? tealColor
+                : const Color(0xFF9CA3AF),
           ),
           ...List.generate(_totalPages, (index) {
             final page = index + 1;
@@ -904,9 +1013,14 @@ class _HistoryPageState extends State<HistoryPage> {
                   page != _totalPages &&
                   (page < _currentPage - 1 || page > _currentPage + 1)) {
                 if (page == 2 || page == _totalPages - 1) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 4),
-                    child: Text('...', style: TextStyle(color: Colors.grey)),
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      '...',
+                      style: TextStyle(
+                        color: AccessibleColors.textSecondary(isHighContrast),
+                      ),
+                    ),
                   );
                 }
                 return const SizedBox.shrink();
@@ -915,127 +1029,144 @@ class _HistoryPageState extends State<HistoryPage> {
 
             final isSelected = _currentPage == page;
             return GestureDetector(
-              onTap: () => _fetchHistory(page: page),
+              onTap: () {
+                AccessibilityService.instance.hapticSelection();
+                _fetchHistory(page: page);
+              },
               child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 8,
+                  vertical: 7,
                 ),
                 decoration: BoxDecoration(
-                  color: isSelected ? primaryTeal : Colors.white,
+                  color: isSelected ? tealColor : defaultBg,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: isSelected ? primaryTeal : Colors.grey.shade300,
+                    color: isSelected
+                        ? tealColor
+                        : AccessibleColors.cardBorderColor(isHighContrast),
+                    width: isSelected || isHighContrast ? 1.5 : 1.0,
                   ),
                 ),
                 child: Text(
                   '$page',
                   style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.black87,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
+                    color: isSelected
+                        ? Colors.white
+                        : AccessibleColors.textPrimary(isHighContrast),
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    fontSize: 13,
                   ),
                 ),
               ),
             );
           }),
           IconButton(
-            icon: const Icon(CupertinoIcons.chevron_right),
+            icon: const Icon(CupertinoIcons.chevron_right, size: 18),
             onPressed: _currentPage < _totalPages
-                ? () => _fetchHistory(page: _currentPage + 1)
+                ? () {
+                    AccessibilityService.instance.hapticSelection();
+                    _fetchHistory(page: _currentPage + 1);
+                  }
                 : null,
-            color: _currentPage < _totalPages ? primaryTeal : Colors.grey,
+            color: _currentPage < _totalPages
+                ? tealColor
+                : const Color(0xFF9CA3AF),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildErrorState() {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 20),
+  Widget _buildErrorState(bool isHighContrast) {
+    return _buildCard(
+      isHighContrast: isHighContrast,
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.red.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.red.shade100),
+      color: isHighContrast ? const Color(0xFF3B1515) : const Color(0xFFFEF2F2),
+      border: Border.all(
+        color: isHighContrast ? const Color(0xFFEF4444) : const Color(0xFFFCA5A5),
+        width: isHighContrast ? 1.5 : 1.0,
       ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            CupertinoIcons.exclamationmark_triangle_fill,
+            color: Color(0xFFDC2626),
+            size: 44,
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Gagal Memuat Riwayat',
+            style: TextStyle(
+              color: isHighContrast ? Colors.white : const Color(0xFF991B1B),
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _errorMessage ?? '',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isHighContrast
+                  ? const Color(0xFFFCA5A5)
+                  : const Color(0xFFB91C1C),
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 18),
+          ElevatedButton.icon(
+            onPressed: () => _fetchHistory(page: _currentPage),
+            icon: const Icon(CupertinoIcons.refresh, size: 16),
+            label: const Text('Coba Lagi'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              elevation: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(bool isHighContrast) {
+    return _buildCard(
+      isHighContrast: isHighContrast,
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 20),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            CupertinoIcons.exclamationmark_circle,
-            color: Colors.red.shade400,
-            size: 48,
+            CupertinoIcons.tray,
+            size: 54,
+            color: isHighContrast
+                ? const Color(0xFF6B7280)
+                : const Color(0xFF9CA3AF),
           ),
           const SizedBox(height: 16),
           Text(
-            'Oops! Terjadi Kesalahan',
+            'Belum Ada Riwayat',
             style: TextStyle(
-              color: Colors.red.shade800,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AccessibleColors.textPrimary(isHighContrast),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            _errorMessage ?? '',
+            'Laporan darurat atau panggilan SOS Anda akan tercatat rapi di sini.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.red.shade700, fontSize: 14),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: _fetchHistory,
-            icon: const Icon(CupertinoIcons.refresh, size: 18),
-            label: const Text('Coba Lagi'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade600,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade200,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              CupertinoIcons.folder,
-              size: 64,
-              color: Colors.grey.shade400,
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Belum ada riwayat',
             style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              fontSize: 13,
+              color: AccessibleColors.textSecondary(isHighContrast),
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Laporan yang Anda kirim akan muncul di sini',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: Colors.black54),
           ),
         ],
       ),
@@ -1050,227 +1181,314 @@ class _HistoryPageState extends State<HistoryPage> {
     if (lowerTitle.contains('pendamping')) {
       return (
         icon: CupertinoIcons.person_2_fill,
-        color: const Color(0xFF1565C0),
+        color: const Color(0xFF1D4ED8),
       );
     } else if (lowerTitle.contains('medis') ||
         lowerTitle.contains('obat') ||
         lowerTitle.contains('ambulans')) {
       return (
-        icon: CupertinoIcons.add_circled,
-        color: const Color(0xFFD32F2F),
+        icon: CupertinoIcons.bandage_fill,
+        color: const Color(0xFFDC2626),
       );
     } else if (lowerTitle.contains('ancaman') ||
         lowerTitle.contains('bahaya')) {
       return (
         icon: CupertinoIcons.exclamationmark_triangle_fill,
-        color: const Color(0xFFE65100),
+        color: const Color(0xFFEA580C),
       );
     } else if (lowerTitle.contains('tersesat')) {
       return (
         icon: CupertinoIcons.compass_fill,
-        color: const Color(0xFF00838F),
+        color: const Color(0xFF0F766E),
       );
     } else if (lowerTitle.contains('aksesibilitas')) {
-      return (icon: CupertinoIcons.person_crop_circle, color: const Color(0xFF6A1B9A));
+      return (
+        icon: CupertinoIcons.person_crop_circle_fill,
+        color: const Color(0xFF7E22CE),
+      );
     } else if (lowerTitle.contains('lainnya')) {
       return (
         icon: CupertinoIcons.ellipsis_circle_fill,
-        color: const Color(0xFF546E7A),
+        color: const Color(0xFF475569),
       );
     }
 
-    // Default fallback
     return isSos
         ? (
             icon: CupertinoIcons.exclamationmark_triangle_fill,
-            color: Colors.red.shade600,
+            color: const Color(0xFFDC2626),
           )
-        : (icon: CupertinoIcons.doc_text, color: primaryTeal);
+        : (icon: CupertinoIcons.doc_text_fill, color: primaryTeal);
   }
 
-  Widget _buildHistoryCard(HistoryItem item) {
+  Widget _buildHistoryCard(HistoryItem item, bool isHighContrast) {
     final isSos = item.type == HistoryType.sos;
     final isSelesai = item.status == HistoryStatus.selesai;
     final isAktif = item.status == HistoryStatus.aktif;
     final isDibatalkan = item.status == HistoryStatus.dibatalkan;
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
 
     String statusLabel = 'Sedang Ditangani';
-    Color statusColor = Colors.orange;
+    Color statusBg =
+        isHighContrast ? const Color(0xFF451A03) : const Color(0xFFFEF3C7);
+    Color statusText =
+        isHighContrast ? const Color(0xFFFDE68A) : const Color(0xFFB45309);
 
     if (isAktif) {
       statusLabel = 'Menunggu Relawan';
-      statusColor = Colors.red.shade600;
+      statusBg =
+          isHighContrast ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2);
+      statusText =
+          isHighContrast ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626);
     } else if (isSelesai) {
       statusLabel = 'Selesai';
-      statusColor = Colors.green.shade600;
+      statusBg = isHighContrast ? const Color(0xFF1E3A34) : primaryLightTeal;
+      statusText = tealColor;
     } else if (isDibatalkan) {
       statusLabel = 'Dibatalkan';
-      statusColor = Colors.grey.shade600;
+      statusBg =
+          isHighContrast ? const Color(0xFF1F2937) : const Color(0xFFF3F4F6);
+      statusText =
+          isHighContrast ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280);
     }
 
     final categoryMeta = _getCategoryIconAndColor(item.title, isSos);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
+        color: AccessibleColors.cardBackground(isHighContrast),
         borderRadius: BorderRadius.circular(16),
+        border: AccessibleColors.cardBorder(isHighContrast),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(
+              alpha: isHighContrast ? 0.3 : 0.04,
+            ),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Material(
-            color: Colors.white.withValues(alpha: 0.4),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(
-                color: Colors.white.withValues(alpha: 0.6),
-                width: 1.5,
-              ),
-            ),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () => _navigateToDetail(item),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            AccessibilityService.instance.hapticSelection();
+            _navigateToDetail(item);
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: categoryMeta.color.withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: categoryMeta.color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        categoryMeta.icon,
+                        color: categoryMeta.color,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.title,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                              color: AccessibleColors.textPrimary(isHighContrast),
+                            ),
                           ),
-                          child: Icon(
-                            categoryMeta.icon,
-                            color: categoryMeta.color,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          const SizedBox(height: 4),
+                          Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 6,
+                            runSpacing: 4,
                             children: [
-                              Text(
-                                item.title,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Text(
-                                    item.dateTime,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.black54,
+                              if (item.nomorKasus != null)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isHighContrast
+                                        ? const Color(0xFF1E293B)
+                                        : const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: isHighContrast
+                                          ? const Color(0xFF475569)
+                                          : const Color(0xFFE2E8F0),
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
-                                  _buildStatusBadge(statusLabel, statusColor),
-                                ],
+                                  child: Text(
+                                    item.nomorKasus!,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: isHighContrast
+                                          ? const Color(0xFF93C5FD)
+                                          : const Color(0xFF475569),
+                                    ),
+                                  ),
+                                ),
+                              Text(
+                                item.dateTime,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AccessibleColors.textSecondary(
+                                      isHighContrast),
+                                ),
+                              ),
+                              _buildStatusBadge(
+                                statusLabel,
+                                statusBg,
+                                statusText,
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Divider(height: 1),
-                    ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(
-                          CupertinoIcons.location,
-                          size: 16,
-                          color: Colors.black54,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: FutureBuilder<String>(
-                            future: _getAddress(item),
-                            builder: (context, snapshot) {
-                              return Text(
-                                snapshot.data ?? item.location,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.black87,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (item.description != null &&
-                        item.description!.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(
-                            CupertinoIcons.doc_text,
-                            size: 16,
-                            color: Colors.black54,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              item.description!,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.black54,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
                         ],
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () => _navigateToDetail(item),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: categoryMeta.color,
-                          side: BorderSide(
-                            color: categoryMeta.color.withValues(alpha: 0.5),
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: const Text(
-                          'Lihat Detail',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Divider(
+                    height: 1,
+                    color: isHighContrast
+                        ? const Color(0xFF374151)
+                        : const Color(0xFFF3F4F6),
+                  ),
+                ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      CupertinoIcons.location_solid,
+                      size: 15,
+                      color: AccessibleColors.textSecondary(isHighContrast),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: FutureBuilder<String>(
+                        future: _getAddress(item),
+                        builder: (context, snapshot) {
+                          final addressText = snapshot.data ?? item.location;
+                          return Text(
+                            addressText.isNotEmpty
+                                ? addressText
+                                : 'Lokasi GPS Tercatat',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: AccessibleColors.textSecondary(
+                                  isHighContrast),
+                              height: 1.3,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                if (item.officerInfo != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        CupertinoIcons.person_solid,
+                        size: 15,
+                        color: tealColor,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        item.officerInfo!,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: tealColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (item.description != null &&
+                    item.description!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        CupertinoIcons.text_quote,
+                        size: 15,
+                        color: AccessibleColors.textSecondary(isHighContrast),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          item.description!,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color:
+                                AccessibleColors.textSecondary(isHighContrast),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      AccessibilityService.instance.handleTalkbackTap(
+                        id: 'history_detail_${item.id}_${item.nomorKasus}',
+                        speakText: "Lihat detail ${item.title}",
+                        hintText: "Tekan sekali lagi untuk membuka rincian kasus.",
+                        onAction: () => _navigateToDetail(item),
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: tealColor,
+                      side: BorderSide(
+                        color: isHighContrast
+                            ? const Color(0xFF4B5563)
+                            : const Color(0xFFE5E7EB),
+                        width: isHighContrast ? 1.5 : 1.0,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Lihat Detail Kasus',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1285,106 +1503,71 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _buildStatusBadge(String label, Color color) {
+  Widget _buildStatusBadge(String label, Color bg, Color textColor) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: textColor,
+        ),
       ),
     );
   }
 
-  Widget _buildEncryptedFooter() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.all(20),
+  Widget _buildEncryptedFooter(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    return _buildCard(
+      isHighContrast: isHighContrast,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.6),
-                width: 1.5,
-              ),
+              color: isHighContrast
+                  ? const Color(0xFF1E3A34)
+                  : primaryLightTeal,
+              borderRadius: const BorderRadius.all(Radius.circular(12)),
             ),
-            child: Row(
+            child: Icon(
+              CupertinoIcons.shield_fill,
+              color: tealColor,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: primaryTeal.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    CupertinoIcons.shield,
-                    color: primaryTeal,
-                    size: 24,
+                Text(
+                  'Riwayat Terenkripsi & Aman',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: AccessibleColors.textPrimary(isHighContrast),
                   ),
                 ),
-                const SizedBox(width: 16),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Riwayat Terenkripsi & Aman',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Data panggilan dan lokasi hanya dapat diakses oleh Anda dan otoritas resmi yang berwenang saat darurat.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
+                const SizedBox(height: 3),
+                Text(
+                  'Seluruh rekaman darurat, lampiran foto, koordinat GPS, dan data penanganan terlindungi sesuai standar privasi darurat.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AccessibleColors.textSecondary(isHighContrast),
+                    height: 1.4,
                   ),
                 ),
               ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }

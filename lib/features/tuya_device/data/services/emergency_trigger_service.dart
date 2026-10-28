@@ -35,7 +35,7 @@ class EmergencyTriggerService {
   Future<bool> triggerEmergency(TuyaDpEvent event) async {
     final token = _prefs.getString('auth_token');
     if (token == null || token.isEmpty) {
-      throw EmergencyTriggerException('User not authenticated');
+      throw const EmergencyTriggerException('User not authenticated');
     }
 
     // Try to get current location from cached position or Geolocator
@@ -103,11 +103,140 @@ class EmergencyTriggerService {
       'signal_strength': telemetryData['signal_strength'],
       'device_info': {
         'mobile': telemetryData['device_info'],
-        if (tuyaDeviceInfo != null) 'tuya': tuyaDeviceInfo,
+        'tuya': ?tuyaDeviceInfo,
       },
     };
 
-    // Attempt to send with retries
+    return _sendPayloadWithRetry(payload, token);
+  }
+
+  /// Trigger emergency alert from Health Connect Heart Rate telemetry
+  Future<bool> triggerHeartRateEmergency({
+    required int bpm,
+    String? reason,
+  }) async {
+    final token = _prefs.getString('auth_token');
+    if (token == null || token.isEmpty) {
+      throw const EmergencyTriggerException('User not authenticated');
+    }
+
+    double? latitude;
+    double? longitude;
+    try {
+      final cachedPosition = _locationService.currentPosition.value;
+      if (cachedPosition != null) {
+        latitude = cachedPosition.latitude;
+        longitude = cachedPosition.longitude;
+      } else {
+        final position = await Geolocator.getLastKnownPosition();
+        if (position != null) {
+          latitude = position.latitude;
+          longitude = position.longitude;
+        } else {
+          final quickPosition = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.low,
+            ),
+          ).timeout(const Duration(seconds: 1));
+          latitude = quickPosition.latitude;
+          longitude = quickPosition.longitude;
+        }
+      }
+    } catch (_) {}
+
+    final telemetryData = await DeviceInfoHelper.getSosTelemetryData();
+
+    final payload = <String, dynamic>{
+      'device_id': 'smartband_health_connect',
+      'timestamp': DateTime.now().toIso8601String(),
+      'trigger_source': 'smartband_heart_rate',
+      'latitude': latitude ?? 0.0,
+      'longitude': longitude ?? 0.0,
+      'lokasi_user': _locationService.lastGeocodedAddress,
+      'battery_level': telemetryData['battery_level'],
+      'signal_strength': telemetryData['signal_strength'],
+      'device_info': {
+        'mobile': telemetryData['device_info'],
+        'smartband': {
+          'heart_rate_bpm': bpm,
+          'status': bpm < 45 || bpm > 130 ? 'critical' : 'warning',
+          'reason': reason ??
+              (bpm > 130
+                  ? 'Detak jantung terlalu tinggi'
+                  : 'Detak jantung terlalu rendah'),
+          'source': 'Health Connect (Huawei Band / Wearable)',
+          'detected_at': DateTime.now().toIso8601String(),
+        },
+      },
+    };
+
+    return _sendPayloadWithRetry(payload, token);
+  }
+
+  /// Trigger emergency alert from Smartwatch (Button tap or Fall Detection)
+  Future<bool> triggerSmartwatchEmergency(
+    dynamic smartwatchEvent, {
+    dynamic smartwatchDevice,
+  }) async {
+    final token = _prefs.getString('auth_token');
+    if (token == null || token.isEmpty) {
+      throw const EmergencyTriggerException('User not authenticated');
+    }
+
+    double? latitude;
+    double? longitude;
+    try {
+      final cachedPosition = _locationService.currentPosition.value;
+      if (cachedPosition != null) {
+        latitude = cachedPosition.latitude;
+        longitude = cachedPosition.longitude;
+      } else {
+        final position = await Geolocator.getLastKnownPosition();
+        if (position != null) {
+          latitude = position.latitude;
+          longitude = position.longitude;
+        } else {
+          final quickPosition = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.low,
+            ),
+          ).timeout(const Duration(seconds: 1));
+          latitude = quickPosition.latitude;
+          longitude = quickPosition.longitude;
+        }
+      }
+    } catch (_) {}
+
+    final telemetryData = await DeviceInfoHelper.getSosTelemetryData();
+
+    final smartwatchMap = smartwatchEvent.toTelemetryMap(
+      brand: smartwatchDevice?.brand ?? 'generic_ble',
+      deviceModel: smartwatchDevice?.deviceModel ?? 'Smartwatch',
+      deviceName: smartwatchDevice?.name ?? 'Smartwatch',
+    );
+
+    final payload = <String, dynamic>{
+      'device_id': smartwatchEvent.deviceId,
+      'timestamp': smartwatchEvent.timestamp.toIso8601String(),
+      'trigger_source': smartwatchEvent.triggerSourceString,
+      'latitude': latitude ?? 0.0,
+      'longitude': longitude ?? 0.0,
+      'lokasi_user': _locationService.lastGeocodedAddress,
+      'battery_level': telemetryData['battery_level'],
+      'signal_strength': telemetryData['signal_strength'],
+      'device_info': {
+        'mobile': telemetryData['device_info'],
+        'smartwatch': smartwatchMap,
+      },
+    };
+
+    return _sendPayloadWithRetry(payload, token);
+  }
+
+  Future<bool> _sendPayloadWithRetry(
+    Map<String, dynamic> payload,
+    String token,
+  ) async {
     for (int attempt = 1; attempt <= _maxRetries; attempt++) {
       try {
         final response = await _dio.post(
@@ -119,7 +248,6 @@ class EmergencyTriggerService {
               'Authorization': 'Bearer $token',
               'Accept': 'application/json',
             },
-            // Don't throw exception for 422 so we can read the message
             validateStatus: (status) =>
                 status != null &&
                 (status >= 200 && status < 300 || status == 422),
@@ -129,7 +257,6 @@ class EmergencyTriggerService {
         if (response.statusCode == 200 || response.statusCode == 201) {
           return true;
         } else if (response.statusCode == 422) {
-          // Check if this is "Anda masih memiliki sinyal SOS aktif..."
           final message =
               response.data['message'] ?? 'Data tidak lengkap / Error 422';
           throw EmergencyTriggerException(message.toString());
@@ -140,7 +267,6 @@ class EmergencyTriggerService {
             'Gagal mengirim sinyal darurat: ${e.message}',
           );
         }
-        // Wait before retrying
         await Future.delayed(_retryDelay * attempt);
       }
     }

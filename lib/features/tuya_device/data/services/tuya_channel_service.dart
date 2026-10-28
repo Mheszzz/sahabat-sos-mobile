@@ -98,7 +98,7 @@ class TuyaChannelService {
     }
   }
 
-  /// Step 1 AP Mode: Get pairing token (requires internet)
+  /// Mengambil token pairing AP mode (membutuhkan koneksi internet sebelum beralih ke Wi-Fi perangkat).
   Future<Map<String, dynamic>> getWifiToken() async {
     try {
       final result = await _methodChannel.invokeMethod('getWifiToken');
@@ -108,7 +108,7 @@ class TuyaChannelService {
     }
   }
 
-  /// Step 2 AP Mode: Start AP pairing with pre-fetched token (no internet needed)
+  /// Memulai proses pairing AP mode menggunakan token yang telah diambil sebelumnya.
   Future<Map<String, dynamic>> startApPairingWithToken(
     String ssid,
     String password,
@@ -261,7 +261,6 @@ class TuyaChannelService {
     _isListening = false;
   }
 
-  /// Dispose all resources
   void dispose() {
     stopEventListening();
     _dpEventController.close();

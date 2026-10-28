@@ -17,6 +17,11 @@ class NotificationService {
   static const String channelDescription =
       'Notifikasi saat ada panggilan SOS masuk';
 
+  static const String reportChannelId = 'laporan_alert_channel';
+  static const String reportChannelName = 'Laporan Bantuan Komunitas';
+  static const String reportChannelDescription =
+      'Notifikasi saat ada laporan permohonan bantuan cepat dari warga';
+
   Future<void> init() async {
     if (_isInitialized) return;
 
@@ -55,8 +60,19 @@ class NotificationService {
           vibrationPattern:
               Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
           playSound: true,
+          sound: const RawResourceAndroidNotificationSound('siren'),
         );
         await androidPlugin.createNotificationChannel(alertChannel);
+
+        const reportChannel = AndroidNotificationChannel(
+          reportChannelId,
+          reportChannelName,
+          description: reportChannelDescription,
+          importance: Importance.high,
+          enableVibration: true,
+          playSound: true,
+        );
+        await androidPlugin.createNotificationChannel(reportChannel);
       }
 
       _isInitialized = true;
@@ -101,6 +117,7 @@ class NotificationService {
           vibrationPattern:
               Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
           playSound: true,
+          sound: const RawResourceAndroidNotificationSound('siren'),
           category: AndroidNotificationCategory.alarm,
         ),
       );
@@ -116,6 +133,50 @@ class NotificationService {
       debugPrint('📢 Heads-up Notification SOS #$notifId berhasil ditampilkan untuk: $victimName');
     } catch (e) {
       debugPrint('❌ Gagal menampilkan notifikasi darurat: $e');
+    }
+  }
+
+  Future<void> showLaporanNotification(Map<String, dynamic> laporanData) async {
+    await init();
+
+    try {
+      final dynamic rawId = laporanData['id'];
+      final int notifId = (rawId is int)
+          ? rawId
+          : int.tryParse(rawId?.toString() ?? '888') ?? 888;
+
+      final String reporterName = laporanData['pengguna_nama'] ??
+          (laporanData['pengguna'] is Map
+              ? laporanData['pengguna']['name']
+              : null) ??
+          'Warga';
+      final String kategori =
+          laporanData['kategori_laporan'] ?? 'Bantuan Cepat';
+      final String lokasi = laporanData['lokasi_laporan'] ?? '';
+
+      const notificationDetails = NotificationDetails(
+        android: AndroidNotificationDetails(
+          reportChannelId,
+          reportChannelName,
+          channelDescription: reportChannelDescription,
+          importance: Importance.high,
+          priority: Priority.high,
+          enableVibration: true,
+          playSound: true,
+        ),
+      );
+
+      await _localNotif.show(
+        id: notifId,
+        title: '📋 Laporan Bantuan Baru: $kategori',
+        body: '$reporterName membutuhkan pendampingan di $lokasi',
+        notificationDetails: notificationDetails,
+        payload: jsonEncode(laporanData),
+      );
+
+      debugPrint('📢 Notification Laporan #$notifId berhasil ditampilkan');
+    } catch (e) {
+      debugPrint('❌ Gagal menampilkan notifikasi laporan: $e');
     }
   }
 

@@ -1,8 +1,8 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:get_it/get_it.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/dashboard_page.dart';
 import 'package:sahabat_sos_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:sahabat_sos_mobile/features/reports/presentation/quick_report_screen.dart';
@@ -10,6 +10,7 @@ import 'package:sahabat_sos_mobile/features/history/presentation/history_screen.
 import 'package:sahabat_sos_mobile/features/device/presentation/pages/device_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart';
 import '../../../routing/routes.dart';
 
 class MainScreen extends StatefulWidget {
@@ -35,6 +36,25 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
     _initLocationTracking();
+    GlobalEventBus.changeUserTab.addListener(_onChangeUserTab);
+  }
+
+  void _onChangeUserTab() {
+    final targetIndex = GlobalEventBus.changeUserTab.value;
+    if (targetIndex != null && targetIndex >= 0 && targetIndex < _pages.length) {
+      if (mounted) {
+        setState(() {
+          _selectedIndex = targetIndex;
+        });
+      }
+      GlobalEventBus.changeUserTab.value = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    GlobalEventBus.changeUserTab.removeListener(_onChangeUserTab);
+    super.dispose();
   }
 
   Future<void> _initLocationTracking() async {
@@ -63,134 +83,170 @@ class _MainScreenState extends State<MainScreen> {
     const ProfileScreen(),
   ];
 
-  static const Color _unselectedColor = Colors.grey;
+  static const Color _unselectedColor = Color(0xFF6B7280);
 
   final List<_NavItem> _navItems = const [
     _NavItem(
       icon: CupertinoIcons.house,
       selectedIcon: CupertinoIcons.house_fill,
-      label: 'Home',
+      label: 'Beranda',
     ),
     _NavItem(
       icon: CupertinoIcons.exclamationmark_bubble,
       selectedIcon: CupertinoIcons.exclamationmark_bubble_fill,
-      label: 'Report',
+      label: 'Laporan',
     ),
     _NavItem(
       icon: CupertinoIcons.antenna_radiowaves_left_right,
       selectedIcon: CupertinoIcons.antenna_radiowaves_left_right,
-      label: 'Devices',
+      label: 'Perangkat',
     ),
     _NavItem(
       icon: CupertinoIcons.clock,
       selectedIcon: CupertinoIcons.clock_fill,
-      label: 'History',
+      label: 'Riwayat',
     ),
     _NavItem(
       icon: CupertinoIcons.person,
       selectedIcon: CupertinoIcons.person_solid,
-      label: 'Profile',
+      label: 'Profil',
     ),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBody: true,
-      body: Stack(
-        children: [
-          IndexedStack(index: _selectedIndex, children: _pages),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Container(
-              margin: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                bottom: MediaQuery.of(context).padding.bottom + 16,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.5),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final selectedColor =
+            isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+        final unselectedColor =
+            isHighContrast ? const Color(0xFFD1D5DB) : _unselectedColor;
+
+        return Scaffold(
+          extendBody: true,
+          body: Stack(
+            children: [
+              IndexedStack(index: _selectedIndex, children: _pages),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  margin: EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    bottom: MediaQuery.of(context).padding.bottom + 16,
                   ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(30),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
+                  decoration: BoxDecoration(
+                    color: isHighContrast
+                        ? const Color(0xFF121212)
+                        : Colors.white.withValues(alpha: 0.95),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color: isHighContrast
+                          ? const Color(0xFF4B5563)
+                          : const Color(0xFFE5E7EB),
+                      width: isHighContrast ? 1.5 : 1.0,
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: List.generate(_navItems.length, (index) {
-                        final isSelected = _selectedIndex == index;
-                        final item = _navItems[index];
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedIndex = index;
-                            });
-                          },
-                          behavior: HitTestBehavior.opaque,
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeInOut,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.transparent,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  isSelected ? item.selectedIcon : item.icon,
-                                  color: isSelected
-                                      ? primaryTeal
-                                      : _unselectedColor,
-                                  size: 24,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  item.label,
-                                  style: TextStyle(
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(
+                          alpha: isHighContrast ? 0.35 : 0.08,
+                        ),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(30),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: List.generate(_navItems.length, (index) {
+                          final isSelected = _selectedIndex == index;
+                          final item = _navItems[index];
+                          final elementId = 'nav_tab_${item.label}';
+                          final isFocused = AccessibilityService.instance.isElementFocused(elementId);
+                          return GestureDetector(
+                            onTap: () {
+                              AccessibilityService.instance.handleTalkbackTap(
+                                id: elementId,
+                                speakText: "Tab ${item.label}",
+                                hintText: "Tekan sekali lagi untuk berpindah ke tab ${item.label}.",
+                                onAction: () {
+                                  setState(() {
+                                    _selectedIndex = index;
+                                  });
+                                },
+                              );
+                            },
+                            behavior: HitTestBehavior.opaque,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeInOut,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected && isHighContrast
+                                    ? const Color(0xFF1E2430)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(20),
+                                border: isFocused
+                                    ? Border.all(
+                                        color: isHighContrast
+                                            ? const Color(0xFF00FFCC)
+                                            : const Color(0xFF00897B),
+                                        width: 2,
+                                      )
+                                    : null,
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isSelected ? item.selectedIcon : item.icon,
                                     color: isSelected
-                                        ? primaryTeal
-                                        : _unselectedColor,
-                                    fontSize: 11,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w600
-                                        : FontWeight.w500,
+                                        ? selectedColor
+                                        : unselectedColor,
+                                    size: 24,
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    item.label,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? selectedColor
+                                          : unselectedColor,
+                                      fontSize: 11,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        );
-                      }),
+                          );
+                        }),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
