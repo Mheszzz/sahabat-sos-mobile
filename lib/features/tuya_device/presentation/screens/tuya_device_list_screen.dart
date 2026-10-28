@@ -276,7 +276,9 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
                           if (_recentEvents.isNotEmpty)
                             _buildEventLogCard(isHighContrast),
 
-                          const SizedBox(height: 80),
+                          SizedBox(
+                            height: MediaQuery.of(context).padding.bottom + 100,
+                          ),
                         ],
                       ),
                     ),
@@ -393,7 +395,7 @@ class _TuyaDeviceListScreenState extends State<TuyaDeviceListScreen> {
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
-            height: 44,
+            height: 48,
             child: ElevatedButton.icon(
               onPressed: _isSimulating
                   ? null

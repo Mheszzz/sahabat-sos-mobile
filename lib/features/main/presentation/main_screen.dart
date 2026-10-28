@@ -89,27 +89,27 @@ class _MainScreenState extends State<MainScreen> {
     _NavItem(
       icon: CupertinoIcons.house,
       selectedIcon: CupertinoIcons.house_fill,
-      label: 'Home',
+      label: 'Beranda',
     ),
     _NavItem(
       icon: CupertinoIcons.exclamationmark_bubble,
       selectedIcon: CupertinoIcons.exclamationmark_bubble_fill,
-      label: 'Report',
+      label: 'Laporan',
     ),
     _NavItem(
       icon: CupertinoIcons.antenna_radiowaves_left_right,
       selectedIcon: CupertinoIcons.antenna_radiowaves_left_right,
-      label: 'Devices',
+      label: 'Perangkat',
     ),
     _NavItem(
       icon: CupertinoIcons.clock,
       selectedIcon: CupertinoIcons.clock_fill,
-      label: 'History',
+      label: 'Riwayat',
     ),
     _NavItem(
       icon: CupertinoIcons.person,
       selectedIcon: CupertinoIcons.person_solid,
-      label: 'Profile',
+      label: 'Profil',
     ),
   ];
 

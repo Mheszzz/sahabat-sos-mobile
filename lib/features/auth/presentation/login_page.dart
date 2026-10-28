@@ -11,6 +11,7 @@ import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
 import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
 import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
 import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart' as event_bus;
+import 'package:sahabat_sos_mobile/core/widgets/google_logo.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -60,8 +61,7 @@ class _LoginPageState extends State<LoginPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _buildTopBar(
-                                  isHighContrast, textPrimary, tealColor),
+                              _buildTopBar(textPrimary),
                               const SizedBox(height: 24),
                               Center(
                                 child: Image.asset(
@@ -84,16 +84,6 @@ class _LoginPageState extends State<LoginPage> {
                               const Spacer(),
                               const SizedBox(height: 20),
                               _buildFooter(textSecondary, tealColor),
-                              const SizedBox(height: 12),
-                              Center(
-                                child: Text(
-                                  'versi 1.0 Beta',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: textSecondary,
-                                  ),
-                                ),
-                              ),
                             ],
                           ),
                         ),
@@ -109,61 +99,13 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildTopBar(
-      bool isHighContrast, Color textPrimary, Color tealColor) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          'Masuk Akun',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: textPrimary,
-          ),
-        ),
-        Row(
-          children: [
-            _circleIconButton(
-              icon: CupertinoIcons.volume_up,
-              bg: isHighContrast
-                  ? const Color(0xFF1E3A34)
-                  : const Color(0xFF7CF0D6),
-              iconColor: isHighContrast
-                  ? const Color(0xFF80CBC4)
-                  : primaryDark,
-              borderColor: isHighContrast ? const Color(0xFF00897B) : null,
-              onTap: () {
-                AccessibilityService.instance.speak(
-                  'Halaman masuk akun Sahabat SOS. Silakan masuk menggunakan akun Google Anda.',
-                );
-              },
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _circleIconButton({
-    required IconData icon,
-    required Color bg,
-    required Color iconColor,
-    Color? borderColor,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(24),
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: bg,
-          shape: BoxShape.circle,
-          border: borderColor != null ? Border.all(color: borderColor) : null,
-        ),
-        child: Icon(icon, color: iconColor, size: 22),
+  Widget _buildTopBar(Color textPrimary) {
+    return Text(
+      'Masuk Akun',
+      style: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+        color: textPrimary,
       ),
     );
   }
@@ -317,16 +259,7 @@ class _LoginPageState extends State<LoginPage> {
                 : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Image.network(
-                        'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png',
-                        width: 24,
-                        height: 24,
-                        errorBuilder: (_, _, _) => const Icon(
-                          CupertinoIcons.exclamationmark_circle,
-                          size: 24,
-                          color: Colors.red,
-                        ),
-                      ),
+                      const GoogleLogo(size: 24),
                       const SizedBox(width: 12),
                       Text(
                         'Masuk dengan Akun Google',
@@ -346,23 +279,30 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildFooter(Color textSecondary, Color tealColor) {
     return Center(
-      child: GestureDetector(
+      child: InkWell(
         onTap: () {
           context.go(AppRoutes.register);
         },
-        child: RichText(
-          text: TextSpan(
-            style: TextStyle(fontSize: 14, color: textSecondary),
-            children: [
-              const TextSpan(text: 'Belum punya akun Sahabat SOS? '),
-              TextSpan(
-                text: 'Daftar di Sini',
-                style: TextStyle(
-                  color: tealColor,
-                  fontWeight: FontWeight.w800,
-                ),
+        borderRadius: BorderRadius.circular(8),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: RichText(
+              text: TextSpan(
+                style: TextStyle(fontSize: 14, color: textSecondary),
+                children: [
+                  const TextSpan(text: 'Belum punya akun Sahabat SOS? '),
+                  TextSpan(
+                    text: 'Daftar di Sini',
+                    style: TextStyle(
+                      color: tealColor,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

@@ -734,7 +734,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     color: primaryTeal,
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.only(bottom: 120),
+                      padding: EdgeInsets.only(
+                        bottom: MediaQuery.of(context).padding.bottom + 110,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -827,7 +829,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 const SizedBox(height: 16),
                                 Center(
                                   child: Text(
-                                    'versi 1.0 Beta',
+                                    'Sahabat SOS v1.0.0',
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: isHighContrast

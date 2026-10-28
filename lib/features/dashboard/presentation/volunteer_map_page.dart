@@ -877,7 +877,7 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                   // Klaster Tombol Aksi Peta (Sebelah Kanan)
                   Positioned(
                     right: 16,
-                    bottom: MediaQuery.paddingOf(context).bottom + 145,
+                    bottom: MediaQuery.paddingOf(context).bottom + 158,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -918,7 +918,7 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
 
                   // Informasi Lokasi & Status Siaga Bawah
                   Positioned(
-                    bottom: MediaQuery.paddingOf(context).bottom + 85,
+                    bottom: MediaQuery.paddingOf(context).bottom + 98,
                     left: 16,
                     right: 76,
                     child: _buildSolidCard(
@@ -1068,10 +1068,10 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
                     : primaryColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
+                  horizontal: 14,
                   vertical: 8,
                 ),
-                minimumSize: const Size(48, 36),
+                minimumSize: const Size(64, 48),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -1144,34 +1144,38 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
             child: InkWell(
               onTap: _toggleRadarRadius,
               borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                decoration: BoxDecoration(
-                  color: primaryColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: primaryColor.withValues(alpha: 0.35),
-                    width: 1.0,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      CupertinoIcons.radiowaves_right,
-                      size: 14,
-                      color: primaryColor,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
+                child: Container(
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: primaryColor.withValues(alpha: 0.35),
+                      width: 1.0,
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${(_radarRadiusMeters / 1000).toStringAsFixed(0)} Km',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        CupertinoIcons.radiowaves_right,
+                        size: 14,
                         color: primaryColor,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 4),
+                      Text(
+                        '${(_radarRadiusMeters / 1000).toStringAsFixed(0)} Km',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: primaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1244,28 +1248,32 @@ class VolunteerMapPageState extends State<VolunteerMapPage>
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected
-                ? (isHighContrast ? const Color(0xFF80CBC4) : primaryColor)
-                : (isHighContrast
-                    ? const Color(0xFF4B5563)
-                    : (isDarkMode
-                        ? const Color(0xFF374151)
-                        : const Color(0xFFE5E7EB))),
-            width: isHighContrast ? 1.5 : 1.0,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Container(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected
+                  ? (isHighContrast ? const Color(0xFF80CBC4) : primaryColor)
+                  : (isHighContrast
+                      ? const Color(0xFF4B5563)
+                      : (isDarkMode
+                          ? const Color(0xFF374151)
+                          : const Color(0xFFE5E7EB))),
+              width: isHighContrast ? 1.5 : 1.0,
+            ),
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            color: fgColor,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              color: fgColor,
+            ),
           ),
         ),
       ),

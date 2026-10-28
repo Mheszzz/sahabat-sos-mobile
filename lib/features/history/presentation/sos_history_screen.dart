@@ -350,7 +350,7 @@ class _SosHistoryScreenState extends State<SosHistoryScreen> {
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
-                                  'Oops! Terjadi Kesalahan',
+                                  'Gagal Memuat Riwayat Darurat',
                                   style: TextStyle(
                                     color: isHighContrast
                                         ? const Color(0xFFFCA5A5)

@@ -564,7 +564,12 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
                     onDelete();
                   },
                   child: Container(
-                    padding: const EdgeInsets.all(9),
+                    constraints: const BoxConstraints(
+                      minWidth: 48,
+                      minHeight: 48,
+                    ),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: isHighContrast
                           ? const Color(0xFF3B1515)
@@ -580,7 +585,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
                     child: const Icon(
                       CupertinoIcons.trash,
                       color: alertRed,
-                      size: 17,
+                      size: 20,
                     ),
                   ),
                 ),

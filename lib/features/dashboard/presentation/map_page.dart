@@ -486,11 +486,10 @@ class _MapPageState extends State<MapPage> {
 
                   // Kartu Lokasi Bawah (Anti-Slop Solid Card)
                   Positioned(
-                    bottom: 100, // Diperbesar agar tidak tertimpa navbar
+                    bottom: MediaQuery.paddingOf(context).bottom + 20,
                     left: 20,
                     right: 20,
-                    child: SafeArea(
-                      child: _buildSolidCard(
+                    child: _buildSolidCard(
                         context,
                         isHighContrast: isHighContrast,
                         child: Column(
@@ -557,7 +556,6 @@ class _MapPageState extends State<MapPage> {
                         ),
                       ),
                     ),
-                  ),
                 ],
               );
             },

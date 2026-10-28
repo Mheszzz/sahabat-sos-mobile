@@ -110,6 +110,69 @@ class EmergencyTriggerService {
     return _sendPayloadWithRetry(payload, token);
   }
 
+  /// Trigger emergency alert from Health Connect Heart Rate telemetry
+  Future<bool> triggerHeartRateEmergency({
+    required int bpm,
+    String? reason,
+  }) async {
+    final token = _prefs.getString('auth_token');
+    if (token == null || token.isEmpty) {
+      throw const EmergencyTriggerException('User not authenticated');
+    }
+
+    double? latitude;
+    double? longitude;
+    try {
+      final cachedPosition = _locationService.currentPosition.value;
+      if (cachedPosition != null) {
+        latitude = cachedPosition.latitude;
+        longitude = cachedPosition.longitude;
+      } else {
+        final position = await Geolocator.getLastKnownPosition();
+        if (position != null) {
+          latitude = position.latitude;
+          longitude = position.longitude;
+        } else {
+          final quickPosition = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.low,
+            ),
+          ).timeout(const Duration(seconds: 1));
+          latitude = quickPosition.latitude;
+          longitude = quickPosition.longitude;
+        }
+      }
+    } catch (_) {}
+
+    final telemetryData = await DeviceInfoHelper.getSosTelemetryData();
+
+    final payload = <String, dynamic>{
+      'device_id': 'smartband_health_connect',
+      'timestamp': DateTime.now().toIso8601String(),
+      'trigger_source': 'smartband_heart_rate',
+      'latitude': latitude ?? 0.0,
+      'longitude': longitude ?? 0.0,
+      'lokasi_user': _locationService.lastGeocodedAddress,
+      'battery_level': telemetryData['battery_level'],
+      'signal_strength': telemetryData['signal_strength'],
+      'device_info': {
+        'mobile': telemetryData['device_info'],
+        'smartband': {
+          'heart_rate_bpm': bpm,
+          'status': bpm < 45 || bpm > 130 ? 'critical' : 'warning',
+          'reason': reason ??
+              (bpm > 130
+                  ? 'Detak jantung terlalu tinggi'
+                  : 'Detak jantung terlalu rendah'),
+          'source': 'Health Connect (Huawei Band / Wearable)',
+          'detected_at': DateTime.now().toIso8601String(),
+        },
+      },
+    };
+
+    return _sendPayloadWithRetry(payload, token);
+  }
+
   /// Trigger emergency alert from Smartwatch (Button tap or Fall Detection)
   Future<bool> triggerSmartwatchEmergency(
     dynamic smartwatchEvent, {

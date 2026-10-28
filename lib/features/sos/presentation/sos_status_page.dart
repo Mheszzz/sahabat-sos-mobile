@@ -517,15 +517,27 @@ class _SosStatusPageState extends State<SosStatusPage>
   Future<void> _callVolunteer(String? phone) async {
     if (phone == null || phone.trim().isEmpty || phone == '-') {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nomor telepon relawan tidak tersedia.')),
+        SnackBar(
+          content: const Text('Nomor kontak relawan/admin tidak tersedia.'),
+          action: SnackBarAction(
+            label: 'Panggil 112',
+            textColor: Colors.amberAccent,
+            onPressed: () => _callNumber('112'),
+          ),
+        ),
       );
       return;
     }
     final clean = phone.replaceAll(RegExp(r'[^0-9+]'), '');
     if (clean.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Format nomor telepon relawan tidak valid.'),
+        SnackBar(
+          content: const Text('Format nomor telepon relawan tidak valid.'),
+          action: SnackBarAction(
+            label: 'Panggil 112',
+            textColor: Colors.amberAccent,
+            onPressed: () => _callNumber('112'),
+          ),
         ),
       );
       return;
@@ -540,7 +552,14 @@ class _SosStatusPageState extends State<SosStatusPage>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Tidak dapat memanggil nomor $phone')),
+          SnackBar(
+            content: Text('Tidak dapat memanggil nomor $phone'),
+            action: SnackBarAction(
+              label: 'Panggil 112',
+              textColor: Colors.amberAccent,
+              onPressed: () => _callNumber('112'),
+            ),
+          ),
         );
       }
     }
@@ -549,15 +568,27 @@ class _SosStatusPageState extends State<SosStatusPage>
   Future<void> _openWhatsAppVolunteer(String? phone, String? name) async {
     if (phone == null || phone.trim().isEmpty || phone == '-') {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nomor WhatsApp relawan tidak tersedia.')),
+        SnackBar(
+          content: const Text('Nomor WhatsApp relawan/admin tidak tersedia.'),
+          action: SnackBarAction(
+            label: 'Panggil 112',
+            textColor: Colors.amberAccent,
+            onPressed: () => _callNumber('112'),
+          ),
+        ),
       );
       return;
     }
     String clean = phone.replaceAll(RegExp(r'[^0-9+]'), '');
     if (clean.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Format nomor WhatsApp relawan tidak valid.'),
+        SnackBar(
+          content: const Text('Format nomor WhatsApp relawan tidak valid.'),
+          action: SnackBarAction(
+            label: 'Panggil 112',
+            textColor: Colors.amberAccent,
+            onPressed: () => _callNumber('112'),
+          ),
         ),
       );
       return;
@@ -584,7 +615,14 @@ class _SosStatusPageState extends State<SosStatusPage>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gagal membuka aplikasi WhatsApp.')),
+          SnackBar(
+            content: const Text('Gagal membuka aplikasi WhatsApp.'),
+            action: SnackBarAction(
+              label: 'Panggil 112',
+              textColor: Colors.amberAccent,
+              onPressed: () => _callNumber('112'),
+            ),
+          ),
         );
       }
     }
@@ -617,12 +655,13 @@ class _SosStatusPageState extends State<SosStatusPage>
     required String name,
     required String? photoUrl,
     required bool isHighContrast,
+    double size = 40,
   }) {
     final fullUrl = _getRelawanPhotoUrl(photoUrl);
 
     return Container(
-      width: 52,
-      height: 52,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: isHighContrast
             ? const Color(0xFF004D40)
@@ -632,7 +671,7 @@ class _SosStatusPageState extends State<SosStatusPage>
           color: isHighContrast
               ? const Color(0xFF80CBC4)
               : primaryTeal.withValues(alpha: 0.3),
-          width: 2,
+          width: 1.5,
         ),
       ),
       child: ClipOval(
@@ -641,20 +680,20 @@ class _SosStatusPageState extends State<SosStatusPage>
                 fullUrl,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) =>
-                    _buildInitialsFallback(name, isHighContrast),
+                    _buildInitialsFallback(name, isHighContrast, fontSize: size * 0.35),
               )
-            : _buildInitialsFallback(name, isHighContrast),
+            : _buildInitialsFallback(name, isHighContrast, fontSize: size * 0.35),
       ),
     );
   }
 
-  Widget _buildInitialsFallback(String name, bool isHighContrast) {
+  Widget _buildInitialsFallback(String name, bool isHighContrast, {double fontSize = 14}) {
     final initials = _getInitials(name);
     return Center(
       child: Text(
         initials,
         style: TextStyle(
-          fontSize: 18,
+          fontSize: fontSize,
           fontWeight: FontWeight.bold,
           color: isHighContrast ? const Color(0xFF80CBC4) : primaryTeal,
         ),
@@ -683,93 +722,42 @@ class _SosStatusPageState extends State<SosStatusPage>
         : 'Sedang menuju ke lokasi Anda';
 
     final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final hasPhone = phone != null && phone.trim().isNotEmpty && phone != '-';
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AccessibleColors.cardBackground(isHighContrast),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isHighContrast
               ? const Color(0xFF80CBC4)
               : const Color(0xFFB2DFDB),
-          width: 1.5,
+          width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(
-              alpha: isHighContrast ? 0.3 : 0.05,
+              alpha: isHighContrast ? 0.3 : 0.04,
             ),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isHighContrast
-                      ? const Color(0xFF004D40)
-                      : const Color(0xFFE0F2F1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      CupertinoIcons.shield_fill,
-                      size: 13,
-                      color: tealColor,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      'RELAWAN PENANGGUNG JAWAB',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                        color: tealColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Spacer(),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF16A34A),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Dalam Perjalanan',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: isHighContrast
-                      ? const Color(0xFF86EFAC)
-                      : const Color(0xFF16A34A),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
           Row(
             children: [
               _buildRelawanAvatar(
                 name: name,
                 photoUrl: photo?.toString(),
                 isHighContrast: isHighContrast,
+                size: 38,
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -777,28 +765,28 @@ class _SosStatusPageState extends State<SosStatusPage>
                     Text(
                       name,
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: AccessibleColors.textPrimary(isHighContrast),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Row(
                       children: [
                         const Icon(
                           CupertinoIcons.location_solid,
-                          size: 14,
+                          size: 12,
                           color: warningOrange,
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 3),
                         Expanded(
                           child: Text(
                             distanceText,
                             style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
                               color: AccessibleColors.textSecondary(
                                 isHighContrast,
                               ),
@@ -812,22 +800,47 @@ class _SosStatusPageState extends State<SosStatusPage>
                   ],
                 ),
               ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isHighContrast
+                      ? const Color(0xFF004D40)
+                      : const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF16A34A),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Menuju Lokasi',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: isHighContrast
+                            ? const Color(0xFF86EFAC)
+                            : const Color(0xFF16A34A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          Divider(
-            height: 1,
-            thickness: 0.5,
-            color: isHighContrast
-                ? const Color(0xFF4B5563)
-                : const Color(0xFFE5E7EB),
-          ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
                 child: SizedBox(
-                  height: 44,
+                  height: 36,
                   child: OutlinedButton.icon(
                     onPressed: () {
                       AccessibilityService.instance.hapticLight();
@@ -835,34 +848,34 @@ class _SosStatusPageState extends State<SosStatusPage>
                     },
                     icon: Icon(
                       CupertinoIcons.phone_fill,
-                      size: 16,
-                      color: tealColor,
+                      size: 14,
+                      color: hasPhone ? tealColor : Colors.grey,
                     ),
                     label: Text(
                       'Hubungi Relawan',
                       style: TextStyle(
-                        fontSize: 12.5,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.bold,
-                        color: tealColor,
+                        color: hasPhone ? tealColor : Colors.grey,
                       ),
                     ),
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(
-                        color: tealColor,
-                        width: 1.5,
+                        color: hasPhone ? tealColor : Colors.grey.shade400,
+                        width: 1.2,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: SizedBox(
-                  height: 44,
+                  height: 36,
                   child: ElevatedButton.icon(
                     onPressed: () {
                       AccessibilityService.instance.hapticLight();
@@ -870,24 +883,26 @@ class _SosStatusPageState extends State<SosStatusPage>
                     },
                     icon: const Icon(
                       CupertinoIcons.chat_bubble_2_fill,
-                      size: 16,
+                      size: 14,
                       color: Colors.white,
                     ),
                     label: const Text(
                       'Chat WA',
                       style: TextStyle(
-                        fontSize: 12.5,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF16A34A),
+                      backgroundColor: hasPhone
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFF9E9E9E),
                       elevation: 0,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
                     ),
                   ),
                 ),
@@ -1123,169 +1138,239 @@ class _SosStatusPageState extends State<SosStatusPage>
         final tealColor =
             isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
 
-        return Scaffold(
-          backgroundColor: currentBg,
-          appBar: AppBar(
-            backgroundColor: currentBg,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            iconTheme: IconThemeData(color: tealColor),
-            leading: IconButton(
-              icon: Icon(CupertinoIcons.back, color: tealColor),
-              onPressed: () => context.pop(),
-            ),
-            centerTitle: false,
-            titleSpacing: 0,
-            title: Row(
-              children: [
-                Image.asset('assets/images/logo.png', width: 24, height: 24),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Status Keadaan Darurat',
-                    style: TextStyle(
-                      color: tealColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+        final canExit = _isSelesai || _isBatal;
+
+        return PopScope(
+          canPop: canExit,
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Sinyal SOS sedang aktif. Geser slider di bawah jika ingin membatalkan keadaan darurat.',
                 ),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          },
+          child: Scaffold(
+            backgroundColor: currentBg,
+            appBar: AppBar(
+              backgroundColor: currentBg,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              automaticallyImplyLeading: false,
+              iconTheme: IconThemeData(color: tealColor),
+              leading: canExit
+                  ? IconButton(
+                      icon: Icon(CupertinoIcons.back, color: tealColor),
+                      onPressed: () => context.pop(),
+                    )
+                  : null,
+              centerTitle: false,
+              titleSpacing: canExit ? 0 : 16,
+              title: Row(
+                children: [
+                  Image.asset('assets/images/logo.png', width: 22, height: 22),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Status Keadaan Darurat',
+                      style: TextStyle(
+                        color: tealColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 17,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(CupertinoIcons.headphones, size: 20),
+                  color: tealColor,
+                  tooltip: 'Layanan Darurat Nasional',
+                  onPressed: () => _showEmergencyHotlinesModal(isHighContrast),
+                ),
+                const SizedBox(width: 4),
               ],
             ),
-          ),
-          body: SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 12),
-                  Center(
-                    child: AnimatedBuilder(
-                      animation: _pulseAnimation,
-                      builder: (context, child) {
-                        final scale =
-                            (!_isSelesai && !_isBatal) ? _pulseAnimation.value : 1.0;
-                        return Transform.scale(
-                          scale: scale,
-                          child: Container(
-                            width: 110,
-                            height: 110,
-                            decoration: BoxDecoration(
-                              color: _statusColor,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: _statusColor.withValues(alpha: 0.35),
-                                  blurRadius: 24,
-                                  spreadRadius: 4,
-                                ),
-                              ],
+            body: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20.0,
+                  vertical: 8.0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        physics: const ClampingScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const SizedBox(height: 8),
+                            Center(
+                              child: AnimatedBuilder(
+                                animation: _pulseAnimation,
+                                builder: (context, child) {
+                                  final scale = (!_isSelesai && !_isBatal)
+                                      ? _pulseAnimation.value
+                                      : 1.0;
+                                  return Transform.scale(
+                                    scale: scale,
+                                    child: Container(
+                                      width: 84,
+                                      height: 84,
+                                      decoration: BoxDecoration(
+                                        color: _statusColor,
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: _statusColor.withValues(
+                                              alpha: 0.35,
+                                            ),
+                                            blurRadius: 20,
+                                            spreadRadius: 3,
+                                          ),
+                                        ],
+                                      ),
+                                      child: Icon(
+                                        _statusHeaderIcon,
+                                        color: Colors.white,
+                                        size: 40,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
-                            child: Icon(
-                              _statusHeaderIcon,
-                              color: Colors.white,
-                              size: 52,
+                            const SizedBox(height: 14),
+                            Text(
+                              _statusHeaderTitle,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: _statusColor,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              child: Text(
+                                _statusHeaderSubtitle,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AccessibleColors.textSecondary(
+                                    isHighContrast,
+                                  ),
+                                  fontSize: 13,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            if (_isDitangani) ...[
+                              _buildAssignedRelawanCard(isHighContrast),
+                              const SizedBox(height: 12),
+                            ],
+                            _buildTimelineCard(isHighContrast),
+                            const SizedBox(height: 12),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(
+                          height: 44,
+                          child: OutlinedButton.icon(
+                            onPressed: () =>
+                                _showEmergencyHotlinesModal(isHighContrast),
+                            icon: Icon(
+                              CupertinoIcons.headphones,
+                              color: tealColor,
+                              size: 16,
+                            ),
+                            label: Text(
+                              'Kontak Darurat Nasional (112, 110, 119)',
+                              style: TextStyle(
+                                color: tealColor,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(
+                                color: tealColor.withValues(alpha: 0.4),
+                                width: 1.2,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                              ),
                             ),
                           ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    _statusHeaderTitle,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: _statusColor,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _statusHeaderSubtitle,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AccessibleColors.textSecondary(isHighContrast),
-                      fontSize: 14,
-                      height: 1.35,
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  if (_isDitangani) ...[
-                    _buildAssignedRelawanCard(isHighContrast),
-                    const SizedBox(height: 20),
-                  ],
-                  _buildTimelineCard(isHighContrast),
-                  const SizedBox(height: 24),
-                  ElevatedButton.icon(
-                    onPressed: () =>
-                        _showEmergencyHotlinesModal(isHighContrast),
-                    icon: const Icon(CupertinoIcons.headphones,
-                        color: Colors.white, size: 18),
-                    label: const Text(
-                      'Hubungi Layanan Darurat',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryTeal,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      minimumSize: const Size(double.infinity, 48),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (_isSelesai || _isBatal)
-                    ElevatedButton(
-                      onPressed: () => context.pop(),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            _isBatal ? const Color(0xFF6B7280) : primaryTeal,
-                        elevation: 0,
-                        minimumSize: const Size(double.infinity, 50),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
                         ),
-                      ),
-                      child: Text(
-                        _isBatal ? 'Kembali' : 'Selesai',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                        const SizedBox(height: 10),
+                        if (_isSelesai || _isBatal)
+                          ElevatedButton(
+                            onPressed: () => context.pop(),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _isBatal
+                                  ? const Color(0xFF6B7280)
+                                  : primaryTeal,
+                              elevation: 0,
+                              minimumSize: const Size(double.infinity, 50),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: Text(
+                              _isBatal ? 'Kembali' : 'Selesai',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          )
+                        else ...[
+                          SlideToCancelButton(
+                            onCancelled: _cancelSos,
+                            height: 50,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Geser ke kanan untuk membatalkan keadaan darurat.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AccessibleColors.textSecondary(
+                                isHighContrast,
+                              ),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                        SizedBox(
+                          height: MediaQuery.paddingOf(context).bottom + 4,
                         ),
-                      ),
-                    )
-                  else ...[
-                    SlideToCancelButton(
-                      onCancelled: _cancelSos,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Geser ke kanan untuk membatalkan keadaan darurat.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: AccessibleColors.textSecondary(isHighContrast),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      ],
                     ),
                   ],
-                  const SizedBox(height: 24),
-                ],
+                ),
               ),
             ),
           ),
@@ -1295,189 +1380,238 @@ class _SosStatusPageState extends State<SosStatusPage>
   }
 
   Widget _buildTimelineCard(bool isHighContrast) {
+    const step1Done = true;
+    final step2Active = _isDitangani && !_isBatal;
+    final step2Done = _isSelesai;
+    final step3Done = _isSelesai;
+
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
+    String currentDescription;
+    if (_isBatal) {
+      currentDescription = 'Panggilan darurat telah dibatalkan.';
+    } else if (_isSelesai) {
+      currentDescription = 'Proses penanganan darurat telah selesai.';
+    } else if (_isDitangani) {
+      final name = _assignedRelawan?['name'] ?? _assignedRelawan?['nama'];
+      final distanceStr = _relawanDistance != null
+          ? ' (~${_relawanDistance! < 1000 ? '${_relawanDistance!.toStringAsFixed(0)} m' : '${(_relawanDistance! / 1000).toStringAsFixed(1)} km'})'
+          : '';
+      currentDescription = (name != null && name.toString().trim().isNotEmpty)
+          ? '${name.toString().trim()} sedang menuju lokasi Anda$distanceStr.'
+          : 'Relawan telah menerima panggilan dan sedang menuju lokasi$distanceStr.';
+    } else {
+      currentDescription =
+          'Sistem sedang mencarikan relawan terdekat ke lokasi Anda.';
+    }
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: AccessibleColors.cardBackground(isHighContrast),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: AccessibleColors.cardBorder(isHighContrast),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(
               alpha: isHighContrast ? 0.3 : 0.04,
             ),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            'Alur Penanganan Darurat',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AccessibleColors.textPrimary(isHighContrast),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Alur Penanganan Darurat',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: AccessibleColors.textPrimary(isHighContrast),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  _isBatal
+                      ? 'Dibatalkan'
+                      : (_isSelesai
+                          ? 'Selesai'
+                          : (_isDitangani ? 'Menuju Lokasi' : 'Mencari Relawan')),
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: _statusColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _buildStepNode(
+                label: 'Sinyal',
+                icon: CupertinoIcons.checkmark_alt,
+                isDone: step1Done,
+                isActive: false,
+                isHighContrast: isHighContrast,
+              ),
+              Expanded(
+                child: Container(
+                  height: 2.5,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  color: (step2Done || step2Active)
+                      ? tealColor
+                      : (isHighContrast
+                          ? const Color(0xFF4B5563)
+                          : const Color(0xFFE5E7EB)),
+                ),
+              ),
+              _buildStepNode(
+                label: 'Relawan',
+                icon: _isBatal
+                    ? CupertinoIcons.xmark
+                    : (step2Done
+                        ? CupertinoIcons.checkmark_alt
+                        : (step2Active
+                            ? CupertinoIcons.car_detailed
+                            : CupertinoIcons.arrow_right)),
+                isDone: step2Done,
+                isActive: step2Active,
+                isHighContrast: isHighContrast,
+              ),
+              Expanded(
+                child: Container(
+                  height: 2.5,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  color: step3Done
+                      ? tealColor
+                      : (isHighContrast
+                          ? const Color(0xFF4B5563)
+                          : const Color(0xFFE5E7EB)),
+                ),
+              ),
+              _buildStepNode(
+                label: 'Selesai',
+                icon: step3Done
+                    ? CupertinoIcons.checkmark_alt
+                    : CupertinoIcons.flag,
+                isDone: step3Done,
+                isActive: false,
+                isHighContrast: isHighContrast,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: isHighContrast
+                  ? const Color(0xFF1E293B)
+                  : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: isHighContrast
+                    ? const Color(0xFF334155)
+                    : const Color(0xFFE2E8F0),
+                width: 0.8,
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          _buildTimelineStep(
-            icon: CupertinoIcons.checkmark_alt,
-            isCompleted: true,
-            isActive: false,
-            title: 'Sinyal & Lokasi Terkirim',
-            description: 'Koordinat GPS Anda telah diterima oleh sistem server.',
-            showConnector: true,
-            isHighContrast: isHighContrast,
-          ),
-          _buildTimelineStep(
-            icon: _isBatal
-                ? CupertinoIcons.xmark
-                : ((_isDitangani || _isSelesai)
-                    ? CupertinoIcons.checkmark_alt
-                    : CupertinoIcons.refresh),
-            isCompleted: _isSelesai,
-            isActive: _isDitangani && !_isBatal,
-            title: _isBatal
-                ? 'Pencarian Relawan Dibatalkan'
-                : ((_isDitangani || _isSelesai)
-                    ? 'Relawan Menuju Lokasi'
-                    : 'Mencari Relawan Terdekat'),
-            description: _isBatal
-                ? 'Panggilan darurat telah dibatalkan.'
-                : (_isDitangani
-                    ? (_assignedRelawan?['name'] != null ||
-                            _assignedRelawan?['nama'] != null
-                        ? '${_assignedRelawan?['name'] ?? _assignedRelawan?['nama']} telah menerima panggilan dan sedang menuju lokasi${_relawanDistance != null ? ' (~${_relawanDistance!.toStringAsFixed(0)} m)' : ''}.'
-                        : (_relawanDistance != null
-                            ? 'Relawan telah menerima panggilan dan berjarak ${_relawanDistance!.toStringAsFixed(0)} m.'
-                            : 'Relawan telah menerima panggilan dan sedang dalam perjalanan.'))
-                    : (_isSelesai
-                        ? 'Relawan telah tiba di lokasi kejadian.'
-                        : 'Sistem sedang mencarikan relawan terdekat.')),
-            showConnector: true,
-            isHighContrast: isHighContrast,
-          ),
-          _buildTimelineStep(
-            icon: _isBatal
-                ? CupertinoIcons.xmark_circle
-                : (_isSelesai
-                    ? CupertinoIcons.checkmark_alt
-                    : CupertinoIcons.flag),
-            isCompleted: _isSelesai,
-            isActive: false,
-            title: _isBatal ? 'Panggilan Dibatalkan' : 'Bantuan Selesai',
-            description: _isBatal
-                ? 'Permintaan bantuan darurat telah dibatalkan.'
-                : (_isSelesai
-                    ? 'Proses penanganan darurat telah tuntas.'
-                    : 'Menunggu penanganan selesai oleh relawan/tim medis.'),
-            showConnector: false,
-            isHighContrast: isHighContrast,
+            child: Row(
+              children: [
+                Icon(
+                  CupertinoIcons.info_circle_fill,
+                  size: 13,
+                  color: tealColor,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    currentDescription,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AccessibleColors.textSecondary(isHighContrast),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTimelineStep({
+  Widget _buildStepNode({
+    required String label,
     required IconData icon,
-    required bool isCompleted,
+    required bool isDone,
     required bool isActive,
-    required String title,
-    required String description,
-    required bool showConnector,
     required bool isHighContrast,
   }) {
-    Color stepColor;
-    Color stepBgColor;
+    Color nodeColor;
+    Color nodeBgColor;
 
-    if (isCompleted) {
-      stepColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
-      stepBgColor = isHighContrast
+    if (isDone) {
+      nodeColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+      nodeBgColor = isHighContrast
           ? const Color(0xFF004D40)
           : const Color(0xFFE0F2F1);
     } else if (isActive) {
-      stepColor = warningOrange;
-      stepBgColor = isHighContrast
+      nodeColor = warningOrange;
+      nodeBgColor = isHighContrast
           ? const Color(0xFF78350F)
           : const Color(0xFFFEF3C7);
     } else {
-      stepColor = const Color(0xFF9CA3AF);
-      stepBgColor = isHighContrast
+      nodeColor = const Color(0xFF9CA3AF);
+      nodeBgColor = isHighContrast
           ? const Color(0xFF374151)
           : const Color(0xFFF3F4F6);
     }
 
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: stepBgColor,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: stepColor.withValues(alpha: 0.5),
-                    width: 1.5,
-                  ),
-                ),
-                child: Icon(icon, color: stepColor, size: 16),
-              ),
-              if (showConnector)
-                Expanded(
-                  child: Container(
-                    width: 2,
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                    color: isCompleted
-                        ? (isHighContrast
-                            ? const Color(0xFF80CBC4)
-                            : primaryTeal.withValues(alpha: 0.4))
-                        : (isHighContrast
-                            ? const Color(0xFF4B5563)
-                            : const Color(0xFFE5E7EB)),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(bottom: showConnector ? 20.0 : 4.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: (isCompleted || isActive)
-                          ? AccessibleColors.textPrimary(isHighContrast)
-                          : AccessibleColors.textSecondary(isHighContrast),
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AccessibleColors.textSecondary(isHighContrast),
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-              ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            color: nodeBgColor,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: nodeColor.withValues(alpha: 0.6),
+              width: 1.5,
             ),
           ),
-        ],
-      ),
+          child: Icon(icon, color: nodeColor, size: 13),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: (isDone || isActive) ? FontWeight.bold : FontWeight.w500,
+            color: (isDone || isActive)
+                ? AccessibleColors.textPrimary(isHighContrast)
+                : AccessibleColors.textSecondary(isHighContrast),
+          ),
+        ),
+      ],
     );
   }
 }

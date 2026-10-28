@@ -389,7 +389,12 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                     color: tealColor,
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        8,
+                        16,
+                        MediaQuery.of(context).padding.bottom + 110,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -806,9 +811,9 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
         ),
         if (onCopy != null)
           IconButton(
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             padding: EdgeInsets.zero,
-            icon: Icon(CupertinoIcons.doc_on_doc, size: 16, color: tealColor),
+            icon: Icon(CupertinoIcons.doc_on_doc, size: 18, color: tealColor),
             tooltip: 'Salin',
             onPressed: onCopy,
           ),

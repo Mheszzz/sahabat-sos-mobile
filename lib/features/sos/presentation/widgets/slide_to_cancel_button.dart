@@ -6,11 +6,13 @@ import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
 class SlideToCancelButton extends StatefulWidget {
   final Future<void> Function()? onCancelled;
   final String label;
+  final double height;
 
   const SlideToCancelButton({
     super.key,
     required this.onCancelled,
     this.label = 'Geser untuk Batalkan SOS',
+    this.height = 48.0,
   });
 
   @override
@@ -20,7 +22,7 @@ class SlideToCancelButton extends StatefulWidget {
 class _SlideToCancelButtonState extends State<SlideToCancelButton> {
   double _dragPosition = 0.0;
   bool _isCompleted = false;
-  final double _thumbSize = 56.0;
+  double get _thumbSize => widget.height;
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +119,7 @@ class _SlideToCancelButtonState extends State<SlideToCancelButton> {
                               ? const Color(0xFFFCA5A5)
                               : const Color(0xFFD32F2F),
                           fontWeight: FontWeight.bold,
-                          fontSize: 15,
+                          fontSize: _thumbSize > 50 ? 15 : 13.5,
                         ),
                       ),
                     ],
@@ -162,10 +164,10 @@ class _SlideToCancelButtonState extends State<SlideToCancelButton> {
                                   _isCompleted
                                       ? 'Membatalkan SOS...'
                                       : widget.label,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 15,
+                                    fontSize: _thumbSize > 50 ? 15 : 13.5,
                                   ),
                                 ),
                               ],
@@ -203,10 +205,10 @@ class _SlideToCancelButtonState extends State<SlideToCancelButton> {
                           ? const CupertinoActivityIndicator(
                               color: Colors.white,
                             )
-                          : const Icon(
+                          : Icon(
                               CupertinoIcons.chevron_right_2,
                               color: Colors.white,
-                              size: 26,
+                              size: _thumbSize > 50 ? 26 : 22,
                             ),
                     ),
                   ),

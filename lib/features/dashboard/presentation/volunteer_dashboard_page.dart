@@ -924,7 +924,9 @@ class _VolunteerDashboardPageState extends State<VolunteerDashboardPage> {
                           ),
                         ),
                       ),
-                    const SizedBox(height: 80),
+                    SizedBox(
+                      height: MediaQuery.of(context).padding.bottom + 100,
+                    ),
                   ],
                 ),
               ),

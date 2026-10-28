@@ -633,7 +633,9 @@ class _HistoryPageState extends State<HistoryPage> {
                     _buildPagination(isHighContrast),
                   const SizedBox(height: 12),
                   _buildEncryptedFooter(isHighContrast),
-                  const SizedBox(height: 80),
+                  SizedBox(
+                    height: MediaQuery.of(context).padding.bottom + 100,
+                  ),
                 ],
               ),
             ),
@@ -702,6 +704,7 @@ class _HistoryPageState extends State<HistoryPage> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () {
                 AccessibilityService.instance.handleTalkbackTap(
                   id: 'history_filter_type_$index',
@@ -714,76 +717,83 @@ class _HistoryPageState extends State<HistoryPage> {
                   },
                 );
               },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 9,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected ? selectedBg : unselectedBg,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: isSelected
-                        ? tealColor
-                        : AccessibleColors.cardBorderColor(isHighContrast),
-                    width: isSelected || isHighContrast ? 1.5 : 1.0,
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: tealColor.withValues(alpha: 0.22),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : const [],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      icons[index],
-                      size: 16,
-                      color: isSelected ? Colors.white : tealColor,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Center(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 9,
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _typeFilters[index],
-                      style: TextStyle(
+                    decoration: BoxDecoration(
+                      color: isSelected ? selectedBg : unselectedBg,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
                         color: isSelected
-                            ? Colors.white
-                            : AccessibleColors.textPrimary(isHighContrast),
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                        fontSize: 13.5,
+                            ? tealColor
+                            : AccessibleColors.cardBorderColor(isHighContrast),
+                        width: isSelected || isHighContrast ? 1.5 : 1.0,
                       ),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: tealColor.withValues(alpha: 0.22),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : const [],
                     ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? Colors.white.withValues(alpha: 0.22)
-                            : (isHighContrast
-                                ? const Color(0xFF263238)
-                                : const Color(0xFFF3F4F6)),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '$count',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: isSelected
-                              ? Colors.white
-                              : AccessibleColors.textSecondary(isHighContrast),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          icons[index],
+                          size: 16,
+                          color: isSelected ? Colors.white : tealColor,
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _typeFilters[index],
+                          style: TextStyle(
+                            color: isSelected
+                                ? Colors.white
+                                : AccessibleColors.textPrimary(isHighContrast),
+                            fontWeight:
+                                isSelected ? FontWeight.w700 : FontWeight.w600,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Colors.white.withValues(alpha: 0.22)
+                                : (isHighContrast
+                                    ? const Color(0xFF263238)
+                                    : const Color(0xFFF3F4F6)),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '$count',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: isSelected
+                                  ? Colors.white
+                                  : AccessibleColors.textSecondary(
+                                      isHighContrast),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -809,6 +819,7 @@ class _HistoryPageState extends State<HistoryPage> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () {
                 AccessibilityService.instance.handleTalkbackTap(
                   id: 'history_filter_status_$index',
@@ -821,29 +832,35 @@ class _HistoryPageState extends State<HistoryPage> {
                   },
                 );
               },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected ? selectedBg : unselectedBg,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: isSelected
-                        ? tealColor
-                        : AccessibleColors.cardBorderColor(isHighContrast),
-                    width: isSelected || isHighContrast ? 1.5 : 1.0,
-                  ),
-                ),
-                child: Text(
-                  _statusFilters[index],
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected
-                        ? tealColor
-                        : AccessibleColors.textSecondary(isHighContrast),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected ? selectedBg : unselectedBg,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: isSelected
+                            ? tealColor
+                            : AccessibleColors.cardBorderColor(isHighContrast),
+                        width: isSelected || isHighContrast ? 1.5 : 1.0,
+                      ),
+                    ),
+                    child: Text(
+                      _statusFilters[index],
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isSelected
+                            ? tealColor
+                            : AccessibleColors.textSecondary(isHighContrast),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -870,6 +887,7 @@ class _HistoryPageState extends State<HistoryPage> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () {
                 AccessibilityService.instance.handleTalkbackTap(
                   id: 'history_filter_time_$index',
@@ -911,46 +929,53 @@ class _HistoryPageState extends State<HistoryPage> {
                   },
                 );
               },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected ? selectedBg : unselectedBg,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: isSelected
-                        ? tealColor
-                        : AccessibleColors.cardBorderColor(isHighContrast),
-                    width: isSelected || isHighContrast ? 1.5 : 1.0,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      index == 3 && isSelected && _customStartDate != null
-                          ? CupertinoIcons.calendar
-                          : CupertinoIcons.time,
-                      size: 14,
-                      color: isSelected
-                          ? tealColor
-                          : AccessibleColors.textSecondary(isHighContrast),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      index == 3 && isSelected && _customStartDate != null
-                          ? '${_customStartDate!.day}/${_customStartDate!.month} - ${_customEndDate!.day}/${_customEndDate!.month}'
-                          : _timeFilters[index],
-                      style: TextStyle(
+                    decoration: BoxDecoration(
+                      color: isSelected ? selectedBg : unselectedBg,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
                         color: isSelected
                             ? tealColor
-                            : AccessibleColors.textSecondary(isHighContrast),
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        fontSize: 12,
+                            : AccessibleColors.cardBorderColor(isHighContrast),
+                        width: isSelected || isHighContrast ? 1.5 : 1.0,
                       ),
                     ),
-                  ],
+                    child: Row(
+                      children: [
+                        Icon(
+                          index == 3 && isSelected && _customStartDate != null
+                              ? CupertinoIcons.calendar
+                              : CupertinoIcons.time,
+                          size: 14,
+                          color: isSelected
+                              ? tealColor
+                              : AccessibleColors.textSecondary(isHighContrast),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          index == 3 && isSelected && _customStartDate != null
+                              ? '${_customStartDate!.day}/${_customStartDate!.month} - ${_customEndDate!.day}/${_customEndDate!.month}'
+                              : _timeFilters[index],
+                          style: TextStyle(
+                            color: isSelected
+                                ? tealColor
+                                : AccessibleColors.textSecondary(
+                                    isHighContrast),
+                            fontWeight:
+                                isSelected ? FontWeight.w700 : FontWeight.w500,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1432,7 +1457,7 @@ class _HistoryPageState extends State<HistoryPage> {
                 const SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
-                  height: 40,
+                  height: 48,
                   child: OutlinedButton(
                     onPressed: () {
                       AccessibilityService.instance.handleTalkbackTap(

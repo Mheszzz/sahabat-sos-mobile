@@ -266,9 +266,7 @@ class _SosActivitiesSheetState extends State<SosActivitiesSheet> {
                                               Text(
                                                 _formatDate(createdAt),
                                                 style: TextStyle(
-                                                  color: isHighContrast
-                                                      ? const Color(0xFF9CA3AF)
-                                                      : Colors.grey.shade500,
+                                                  color: textSecondary,
                                                   fontSize: 12,
                                                 ),
                                               ),

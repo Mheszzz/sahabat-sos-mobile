@@ -675,7 +675,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                       ? CupertinoIcons.battery_charging
                       : CupertinoIcons.battery_25_percent,
                   label: 'Baterai HP',
-                  value: batteryLevel != null ? '$batteryLevel%' : '—',
+                  value: batteryLevel != null ? '$batteryLevel%' : '-',
                   subValue: isCharging ? 'Charging' : 'Discharge',
                   color: (batteryLevel != null && (batteryLevel as num) < 20)
                       ? const Color(0xFFDC2626)

@@ -526,7 +526,12 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
       onRefresh: _fetchData,
       color: tealColor,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          4,
+          16,
+          MediaQuery.of(context).padding.bottom + 110,
+        ),
         children: [
           if (_activeTask != null) ...[
             Text(
@@ -1009,7 +1014,12 @@ class _VolunteerTaskListPageState extends State<VolunteerTaskListPage>
       onRefresh: _fetchData,
       color: tealColor,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          4,
+          16,
+          MediaQuery.of(context).padding.bottom + 110,
+        ),
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -15,6 +15,7 @@ import 'package:sahabat_sos_mobile/core/widgets/app_loading_indicator.dart';
 import 'package:sahabat_sos_mobile/features/dashboard/data/datasources/dashboard_remote_data_source.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/data/services/tuya_channel_service.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/data/models/tuya_device_model.dart';
+import 'package:sahabat_sos_mobile/core/services/health_connect_service.dart';
 import 'package:sahabat_sos_mobile/routing/routes.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -127,37 +128,51 @@ class _DashboardPageState extends State<DashboardPage>
           backgroundColor: currentBg,
           appBar: _buildAppBar(context, isHighContrast, currentPrimaryTeal),
           body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 12),
-                  Expanded(
-                    flex: 10,
-                    child: _buildSosButton(),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Tekan tombol 5 kali dengan cepat\nuntuk meminta bantuan.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isHighContrast
-                          ? const Color(0xFFD1D5DB)
-                          : const Color(0xFF4B5563),
-                      fontWeight: FontWeight.w500,
-                      height: 1.35,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final sosHeight =
+                    (constraints.maxHeight * 0.36).clamp(180.0, 300.0);
+                return SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: ConstrainedBox(
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: sosHeight,
+                          child: _buildSosButton(),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Tekan tombol 5 kali dengan cepat\nuntuk meminta bantuan.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isHighContrast
+                                ? const Color(0xFFD1D5DB)
+                                : const Color(0xFF4B5563),
+                            fontWeight: FontWeight.w500,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _buildHeartRateBanner(isHighContrast),
+                        _buildDeviceStatusCard(isHighContrast),
+                        const SizedBox(height: 12),
+                        _buildMenuGrid(isHighContrast),
+                        // Space for floating bottom navigation bar
+                        SizedBox(
+                          height: MediaQuery.of(context).padding.bottom + 100,
+                        ),
+                      ],
                     ),
                   ),
-                  const Spacer(flex: 1),
-                  _buildDeviceStatusCard(isHighContrast),
-                  const SizedBox(height: 12),
-                  _buildMenuGrid(isHighContrast),
-                  // Space for floating bottom navigation bar
-                  const SizedBox(height: 120),
-                ],
-              ),
+                );
+              },
             ),
           ),
         );
@@ -546,6 +561,135 @@ class _DashboardPageState extends State<DashboardPage>
     }
   }
 
+  Widget _buildHeartRateBanner(bool isHighContrast) {
+    final healthService = sl<HealthConnectService>();
+    return ValueListenableBuilder<int?>(
+      valueListenable: healthService.currentBpm,
+      builder: (context, bpm, _) {
+        if (bpm == null) return const SizedBox.shrink();
+
+        return ValueListenableBuilder<HeartRateStatus>(
+          valueListenable: healthService.currentStatus,
+          builder: (context, status, _) {
+            Color color;
+            String statusText;
+            switch (status) {
+              case HeartRateStatus.normal:
+                color = isHighContrast
+                    ? const Color(0xFF4ADE80)
+                    : Colors.green;
+                statusText = 'Normal';
+                break;
+              case HeartRateStatus.warning:
+                color = isHighContrast
+                    ? const Color(0xFFFB923C)
+                    : Colors.orange;
+                statusText = 'Waspada';
+                break;
+              case HeartRateStatus.critical:
+                color = isHighContrast
+                    ? const Color(0xFFF87171)
+                    : Colors.red;
+                statusText = 'Kritis';
+                break;
+              case HeartRateStatus.unknown:
+                color = Colors.grey;
+                statusText = 'Terhubung';
+                break;
+            }
+
+            final cardBg = AccessibleColors.cardBackground(isHighContrast);
+            final cardBorder = isHighContrast
+                ? Border.all(color: color, width: 1.5)
+                : Border.all(color: color.withValues(alpha: 0.3));
+
+            return InkWell(
+              onTap: () => unawaited(context.push(AppRoutes.smartband)),
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: cardBorder,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(
+                        alpha: isHighContrast ? 0.3 : 0.03,
+                      ),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.favorite, color: color, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      '$bpm BPM',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: color.withValues(
+                          alpha: isHighContrast ? 0.25 : 0.1,
+                        ),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    ValueListenableBuilder<String>(
+                      valueListenable: healthService.connectedDeviceName,
+                      builder: (context, deviceName, _) {
+                        return Text(
+                          deviceName,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AccessibleColors.textSecondary(isHighContrast),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      CupertinoIcons.chevron_right,
+                      size: 14,
+                      color: isHighContrast
+                          ? const Color(0xFF9CA3AF)
+                          : Colors.grey.shade400,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildDeviceStatusCard(bool isHighContrast) {
     final cardBg = AccessibleColors.cardBackground(isHighContrast);
     final cardBorder = AccessibleColors.cardBorder(isHighContrast);
@@ -675,7 +819,7 @@ class _DashboardPageState extends State<DashboardPage>
       _MenuItemData(
         icon: CupertinoIcons.antenna_radiowaves_left_right,
         label: 'Perangkat Saya',
-        route: AppRoutes.tuyaDevices,
+        route: AppRoutes.smartband,
       ),
       _MenuItemData(
         icon: CupertinoIcons.phone,

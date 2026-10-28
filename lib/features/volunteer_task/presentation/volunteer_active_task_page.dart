@@ -742,6 +742,11 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                               }
                             });
                           },
+                          materialTapTargetSize: MaterialTapTargetSize.padded,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
                           selectedColor: tealColor,
                           backgroundColor: isHighContrast
                               ? const Color(0xFF1E2430)
@@ -1831,7 +1836,9 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                       onCompleted: () => _showCompletionDialog(idSos, isLaporan),
                     ),
                   ),
-                  const SizedBox(height: 80),
+                  SizedBox(
+                    height: MediaQuery.of(context).padding.bottom + 100,
+                  ),
                 ],
               ),
             ),

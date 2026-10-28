@@ -360,7 +360,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           hintStyle: TextStyle(
             fontSize: 13,
             color:
-                isHighContrast ? Colors.grey.shade500 : const Color(0xFF9CA3AF),
+                isHighContrast ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563),
           ),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 14,

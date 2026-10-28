@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/gestures.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sahabat_sos_mobile/routing/routes.dart';
 import 'package:get_it/get_it.dart' as get_it;
 import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
 import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
+import 'package:sahabat_sos_mobile/core/widgets/google_logo.dart';
 import 'package:sahabat_sos_mobile/features/auth/data/datasources/auth_remote_data_source.dart';
 
 class RegisterStep1Page extends StatefulWidget {
@@ -20,6 +22,125 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
   static const Color accentTeal = Color(0xFF0E9F6E);
 
   bool _agreedToTerms = true;
+  late final TapGestureRecognizer _termsRecognizer;
+  late final TapGestureRecognizer _privacyRecognizer;
+
+  @override
+  void initState() {
+    super.initState();
+    _termsRecognizer = TapGestureRecognizer()
+      ..onTap = () => _showTermsDialog(
+            context,
+            'Ketentuan Layanan',
+            'Ketentuan Layanan Sahabat SOS:\n\n'
+            '1. Layanan Sahabat SOS disediakan untuk membantu situasi darurat, pendampingan difabel, dan respons kebencanaan.\n\n'
+            '2. Pengguna wajib memberikan data identitas dan kontak darurat yang benar.\n\n'
+            '3. Tombol SOS hanya boleh digunakan untuk keadaan darurat nyata. Penyalahgunaan sinyal darurat dapat dikenai penonaktifan akun sesuai ketentuan yang berlaku.\n\n'
+            '4. Relawan bertindak sesuai SOP dan panduan keselamatan resmi.',
+          );
+    _privacyRecognizer = TapGestureRecognizer()
+      ..onTap = () => _showTermsDialog(
+            context,
+            'Perlindungan Data Pribadi',
+            'Kebijakan Perlindungan Data Pribadi:\n\n'
+            '1. Data lokasi GPS Anda hanya dikirim dan diakses saat Anda memicu sinyal SOS atau mengirimkan Laporan Cepat.\n\n'
+            '2. Data kontak darurat disimpan secara terenkripsi dan hanya digunakan untuk mengirimkan pemberitahuan otomatis saat terjadi keadaan darurat.\n\n'
+            '3. Rekaman suara dan foto laporan hanya dapat diakses oleh relawan terverifikasi dan operator penanganan kasus.\n\n'
+            '4. Data pribadi Anda tidak diperjualbelikan atau dibagikan ke pihak ketiga di luar penanganan keselamatan darurat.',
+          );
+  }
+
+  @override
+  void dispose() {
+    _termsRecognizer.dispose();
+    _privacyRecognizer.dispose();
+    super.dispose();
+  }
+
+  void _showTermsDialog(BuildContext context, String title, String content) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final bg = isHighContrast ? const Color(0xFF1E1E1E) : Colors.white;
+        final textPrimary =
+            isHighContrast ? Colors.white : const Color(0xFF111827);
+        final textSecondary =
+            isHighContrast ? Colors.grey.shade300 : const Color(0xFF4B5563);
+
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.75,
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(24)),
+            border: isHighContrast
+                ? Border.all(color: const Color(0xFF4B5563))
+                : null,
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 44,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade400,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
+                child: Row(
+                  children: [
+                    const Icon(
+                      CupertinoIcons.doc_text_fill,
+                      color: Color(0xFF00695C),
+                      size: 24,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: textPrimary,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(CupertinoIcons.xmark_circle_fill),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Text(
+                    content,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      color: textSecondary,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -248,16 +369,7 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
                         height: 26,
                         child: CupertinoActivityIndicator(radius: 12),
                       )
-                    : Image.network(
-                        'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png',
-                        width: 26,
-                        height: 26,
-                        errorBuilder: (_, _, _) => const Icon(
-                          CupertinoIcons.exclamationmark_circle,
-                          size: 26,
-                          color: Colors.red,
-                        ),
-                      ),
+                    : const GoogleLogo(size: 26),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -296,48 +408,62 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 22,
-          height: 22,
-          child: Checkbox(
-            value: _agreedToTerms,
-            onChanged: (v) => setState(() => _agreedToTerms = v ?? false),
-            activeColor: tealColor,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
+        Semantics(
+          label: 'Setujui Ketentuan Layanan dan Perlindungan Data Pribadi',
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: Checkbox(
+                  value: _agreedToTerms,
+                  onChanged: (v) => setState(() => _agreedToTerms = v ?? false),
+                  activeColor: tealColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 4),
         Expanded(
-          child: RichText(
-            text: TextSpan(
-              style: TextStyle(
-                fontSize: 13,
-                color: textPrimary,
-                height: 1.4,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: RichText(
+              text: TextSpan(
+                style: TextStyle(
+                  fontSize: 13,
+                  color: textPrimary,
+                  height: 1.4,
+                ),
+                children: [
+                  const TextSpan(text: 'Saya menyetujui '),
+                  TextSpan(
+                    text: 'Ketentuan Layanan',
+                    recognizer: _termsRecognizer,
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w700,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                  const TextSpan(text: ' &\n'),
+                  TextSpan(
+                    text: 'Perlindungan Data Pribadi',
+                    recognizer: _privacyRecognizer,
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w700,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                  const TextSpan(text: ' Sahabat SOS untuk\npenyelamatan darurat.'),
+                ],
               ),
-              children: [
-                const TextSpan(text: 'Saya menyetujui '),
-                TextSpan(
-                  text: 'Ketentuan Layanan',
-                  style: TextStyle(
-                    color: accent,
-                    fontWeight: FontWeight.w700,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-                const TextSpan(text: ' &\n'),
-                TextSpan(
-                  text: 'Perlindungan Data Pribadi',
-                  style: TextStyle(
-                    color: accent,
-                    fontWeight: FontWeight.w700,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-                const TextSpan(text: ' Sahabat SOS untuk\npenyelamatan darurat.'),
-              ],
             ),
           ),
         ),
@@ -347,23 +473,30 @@ class _RegisterStep1PageState extends State<RegisterStep1Page> {
 
   Widget _buildLoginPrompt(Color textSecondary, Color tealColor) {
     return Center(
-      child: GestureDetector(
+      child: InkWell(
         onTap: () {
           context.go(AppRoutes.login);
         },
-        child: RichText(
-          text: TextSpan(
-            style: TextStyle(fontSize: 14, color: textSecondary),
-            children: [
-              const TextSpan(text: 'Sudah memiliki akun? '),
-              TextSpan(
-                text: 'Masuk di Sini',
-                style: TextStyle(
-                  color: tealColor,
-                  fontWeight: FontWeight.w800,
-                ),
+        borderRadius: BorderRadius.circular(8),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: RichText(
+              text: TextSpan(
+                style: TextStyle(fontSize: 14, color: textSecondary),
+                children: [
+                  const TextSpan(text: 'Sudah memiliki akun? '),
+                  TextSpan(
+                    text: 'Masuk di Sini',
+                    style: TextStyle(
+                      color: tealColor,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

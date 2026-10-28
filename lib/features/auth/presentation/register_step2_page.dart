@@ -143,77 +143,75 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                           horizontal: 20,
                           vertical: 12,
                         ),
-                        child: IntrinsicHeight(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildProgressSection(
-                                  isHighContrast, textPrimary, tealColor, accent),
-                              const SizedBox(height: 18),
-                              _buildBrandRow(),
-                              const SizedBox(height: 10),
-                              Text(
-                                'Personalisasi Perlindungan\nDarurat',
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w800,
-                                  color: textPrimary,
-                                ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildProgressSection(
+                                isHighContrast, textPrimary, tealColor, accent),
+                            const SizedBox(height: 18),
+                            _buildBrandRow(),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Personalisasi Perlindungan\nDarurat',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                color: textPrimary,
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Penentuan profil disabilitas, sensor SOS &\nkontak darurat untuk ketepatan bantuan.',
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  color: textSecondary,
-                                  height: 1.4,
-                                ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Penentuan profil disabilitas, sensor SOS &\nkontak darurat untuk ketepatan bantuan.',
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                color: textSecondary,
+                                height: 1.4,
                               ),
+                            ),
+                            const SizedBox(height: 22),
+                            _buildSectionHeader(
+                              CupertinoIcons.person_crop_circle_badge_checkmark,
+                              'Pilih Peran',
+                              textPrimary,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildRoleSelection(
+                                isHighContrast, cardBg, cardBorder, textPrimary),
+                            const SizedBox(height: 22),
+                            _buildSectionHeader(
+                              CupertinoIcons.person,
+                              'Informasi Pribadi',
+                              textPrimary,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildPersonalInfoCard(
+                                isHighContrast,
+                                cardBg,
+                                cardBorder,
+                                inputBg,
+                                textPrimary,
+                                textSecondary),
+                            if (_selectedRole == _RoleType.pengguna) ...[
                               const SizedBox(height: 22),
                               _buildSectionHeader(
-                                CupertinoIcons.person_crop_circle_badge_checkmark,
-                                'Pilih Peran',
+                                CupertinoIcons.person_2,
+                                'Kebutuhan Utama',
                                 textPrimary,
                               ),
                               const SizedBox(height: 12),
-                              _buildRoleSelection(
-                                  isHighContrast, cardBg, cardBorder, textPrimary),
+                              _buildNeedGrid(isHighContrast, cardBg,
+                                  cardBorder, textPrimary),
                               const SizedBox(height: 22),
-                              _buildSectionHeader(
-                                CupertinoIcons.person,
-                                'Informasi Pribadi',
-                                textPrimary,
-                              ),
-                              const SizedBox(height: 12),
-                              _buildPersonalInfoCard(
-                                  isHighContrast,
-                                  cardBg,
-                                  cardBorder,
-                                  inputBg,
-                                  textPrimary,
-                                  textSecondary),
-                              if (_selectedRole == _RoleType.pengguna) ...[
-                                const SizedBox(height: 22),
-                                _buildSectionHeader(
-                                  CupertinoIcons.person_2,
-                                  'Kebutuhan Utama',
-                                  textPrimary,
-                                ),
-                                const SizedBox(height: 12),
-                                _buildNeedGrid(isHighContrast, cardBg,
-                                    cardBorder, textPrimary),
-                                const SizedBox(height: 22),
-                                _buildSensorCard(isHighContrast, textPrimary,
-                                    tealColor, accent),
-                              ],
-                              const Spacer(),
-                              const SizedBox(height: 22),
-                              _buildSubmitButton(isHighContrast, tealColor),
-                              const SizedBox(height: 12),
-                              _buildLogoutButton(isHighContrast, textPrimary,
-                                  textSecondary, cardBg, cardBorder),
+                              _buildSensorCard(isHighContrast, textPrimary,
+                                  tealColor, accent),
                             ],
-                          ),
+                            const SizedBox(height: 28),
+                            _buildSubmitButton(isHighContrast, tealColor),
+                            const SizedBox(height: 12),
+                            _buildLogoutButton(isHighContrast, textPrimary,
+                                textSecondary, cardBg, cardBorder),
+                            const SizedBox(height: 24),
+                          ],
                         ),
                       ),
                     ),
@@ -352,8 +350,8 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                 hintStyle: TextStyle(
                   fontSize: 13,
                   color: isHighContrast
-                      ? const Color(0xFF6B7280)
-                      : const Color(0xFFB0B4C4),
+                      ? const Color(0xFF9CA3AF)
+                      : const Color(0xFF525866),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -399,8 +397,8 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                 hintStyle: TextStyle(
                   fontSize: 13,
                   color: isHighContrast
-                      ? const Color(0xFF6B7280)
-                      : const Color(0xFFB0B4C4),
+                      ? const Color(0xFF9CA3AF)
+                      : const Color(0xFF525866),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -446,8 +444,8 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                 hintStyle: TextStyle(
                   fontSize: 13,
                   color: isHighContrast
-                      ? const Color(0xFF6B7280)
-                      : const Color(0xFFB0B4C4),
+                      ? const Color(0xFF9CA3AF)
+                      : const Color(0xFF525866),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -488,8 +486,8 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                   hintStyle: TextStyle(
                     fontSize: 13,
                     color: isHighContrast
-                        ? const Color(0xFF6B7280)
-                        : const Color(0xFFB0B4C4),
+                        ? const Color(0xFF9CA3AF)
+                        : const Color(0xFF525866),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -535,8 +533,8 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                   hintStyle: TextStyle(
                     fontSize: 13,
                     color: isHighContrast
-                        ? const Color(0xFF6B7280)
-                        : const Color(0xFFB0B4C4),
+                        ? const Color(0xFF9CA3AF)
+                        : const Color(0xFF525866),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,

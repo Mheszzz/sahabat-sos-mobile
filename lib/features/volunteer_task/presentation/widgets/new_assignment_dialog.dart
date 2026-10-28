@@ -784,10 +784,15 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
     String selectedReason = reasons.first;
     final otherController = TextEditingController();
 
+    final isHighContrast = context.isHighContrast;
+    final sheetBg = AccessibleColors.cardBackground(isHighContrast);
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+
     final chosen = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: sheetBg,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -809,8 +814,10 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFEE2E2),
+                        decoration: BoxDecoration(
+                          color: isHighContrast
+                              ? const Color(0xFF450A0A)
+                              : const Color(0xFFFEE2E2),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -820,7 +827,7 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -829,14 +836,14 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFF1E293B),
+                                color: textPrimary,
                               ),
                             ),
                             Text(
                               'Pilih alasan agar sistem mengalihkan ke relawan lain',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Color(0xFF64748B),
+                                color: textSecondary,
                               ),
                             ),
                           ],
@@ -847,56 +854,66 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
                   const SizedBox(height: 16),
                   ...reasons.map((r) {
                     final isSelected = selectedReason == r;
-                    return InkWell(
-                      onTap: () {
-                        setSheetState(() => selectedReason = r);
-                      },
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? const Color(0xFFEFF6FF)
-                              : const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isSelected
-                                ? const Color(0xFF3B82F6)
-                                : const Color(0xFFE2E8F0),
-                            width: isSelected ? 1.5 : 1.0,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              isSelected
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_off,
-                              color: isSelected
-                                  ? const Color(0xFF3B82F6)
-                                  : const Color(0xFF94A3B8),
-                              size: 18,
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: InkWell(
+                        onTap: () {
+                          setSheetState(() => selectedReason = r);
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 48),
+                          child: Container(
+                            alignment: Alignment.center,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                r,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
-                                  color: isSelected
-                                      ? const Color(0xFF1E293B)
-                                      : const Color(0xFF475569),
-                                ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? (isHighContrast
+                                      ? const Color(0xFF1E3A8A)
+                                      : const Color(0xFFEFF6FF))
+                                  : (isHighContrast
+                                      ? const Color(0xFF1E2430)
+                                      : const Color(0xFFF8FAFC)),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF3B82F6)
+                                    : (isHighContrast
+                                        ? const Color(0xFF4B5563)
+                                        : const Color(0xFFE2E8F0)),
+                                width: isSelected ? 1.5 : 1.0,
                               ),
                             ),
-                          ],
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isSelected
+                                      ? Icons.radio_button_checked
+                                      : Icons.radio_button_off,
+                                  color: isSelected
+                                      ? const Color(0xFF3B82F6)
+                                      : textSecondary,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    r,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                      color: textPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     );
@@ -905,18 +922,23 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
                     const SizedBox(height: 4),
                     TextField(
                       controller: otherController,
+                      style: TextStyle(fontSize: 14, color: textPrimary),
                       decoration: InputDecoration(
                         hintText: 'Tuliskan alasan penolakan...',
-                        hintStyle: const TextStyle(
+                        hintStyle: TextStyle(
                           fontSize: 13,
-                          color: Color(0xFF94A3B8),
+                          color: textSecondary,
                         ),
                         filled: true,
-                        fillColor: const Color(0xFFF8FAFC),
+                        fillColor: isHighContrast
+                            ? const Color(0xFF1E2430)
+                            : const Color(0xFFF8FAFC),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFCBD5E1),
+                          borderSide: BorderSide(
+                            color: isHighContrast
+                                ? const Color(0xFF4B5563)
+                                : const Color(0xFFCBD5E1),
                           ),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
@@ -934,6 +956,7 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
                         child: OutlinedButton(
                           onPressed: () => Navigator.pop(ctx),
                           style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 48),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
@@ -956,6 +979,7 @@ class _NewAssignmentDialogState extends State<NewAssignmentDialog> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFDC2626),
                             foregroundColor: Colors.white,
+                            minimumSize: const Size(0, 48),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),

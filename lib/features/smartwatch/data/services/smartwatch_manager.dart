@@ -223,7 +223,7 @@ class SmartwatchManager {
         _syncActiveStateToPairedList(dev.id, true);
       } else if (!isConnected && dev.isConnected) {
         activeDevice.value = dev.copyWith(isConnected: false);
-        connectionStatus.value = 'Terputus — mencoba menyambung ulang...';
+        connectionStatus.value = 'Terputus: mencoba menyambung ulang...';
         _syncActiveStateToPairedList(dev.id, false);
       }
     }

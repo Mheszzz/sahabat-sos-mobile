@@ -20,7 +20,7 @@ val thingSmartSecret: String = System.getenv("THING_SMART_SECRET")
     ?: (localProperties.getProperty("thing.smart.secret") ?: "")
 
 android {
-    namespace = "com.sossahabat.app"
+    namespace = "com.sossahabatsos.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -36,8 +36,8 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.sossahabat.app"
-        minSdk = 24
+        applicationId = "com.sossahabatsos.app"
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

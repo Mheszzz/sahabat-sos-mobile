@@ -566,7 +566,6 @@ class VolunteerSosDetailSheet extends StatelessWidget {
   }
 }
 
-/// Helper function to display the volunteer SOS detail sheet
 void showVolunteerSosDetailSheet({
   required BuildContext context,
   required Map<String, dynamic> sos,

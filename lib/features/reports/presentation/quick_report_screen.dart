@@ -1089,7 +1089,9 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                             _buildSendButton(),
                             const SizedBox(height: 12),
                             _buildFooterNote(isHighContrast),
-                            const SizedBox(height: 85),
+                            SizedBox(
+                              height: MediaQuery.of(context).padding.bottom + 100,
+                            ),
                           ],
                         ),
                       ),
