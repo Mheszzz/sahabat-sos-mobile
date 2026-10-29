@@ -147,6 +147,7 @@ open class MainActivity : FlutterFragmentActivity() {
     private fun handleInitTuya(result: MethodChannel.Result) {
         Log.d(TAG, "initTuya called from Flutter")
         try {
+            TuyaSosApplication.initTuyaSdk(this)
             result.success(mapOf(
                 "status" to "initialized",
                 "message" to "Tuya SDK is ready"

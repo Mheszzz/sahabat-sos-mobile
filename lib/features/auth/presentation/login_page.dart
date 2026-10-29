@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sahabat_sos_mobile/routing/routes.dart';
 import 'package:get_it/get_it.dart' as get_it;
@@ -216,6 +217,18 @@ class _LoginPageState extends State<LoginPage> {
                         } catch (e) {
                           debugPrint("Error fetching user on login: $e");
                         }
+                        if (!mounted) return;
+
+                        try {
+                          final bgService = FlutterBackgroundService();
+                          final isRunning = await bgService.isRunning();
+                          if (!isRunning) {
+                            await bgService.startService();
+                          }
+                        } catch (e) {
+                          debugPrint("Error starting background service on login: $e");
+                        }
+
                         if (!mounted) return;
 
                         final userRole =

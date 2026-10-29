@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:sahabat_sos_mobile/app.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
@@ -19,12 +19,15 @@ import 'package:sahabat_sos_mobile/routing/app_router.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Meminta izin notifikasi untuk Android 13+ agar background service bisa tampil
-  try {
-    await Permission.notification.request();
-  } catch (e) {
-    debugPrint('Notification permission error di main: $e');
-  }
+  // Menangkap unhandled Flutter errors agar tidak force close di release mode
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    debugPrint('🚨 Flutter Error caught: ${details.exception}');
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('🚨 Uncaught Platform Error: $error\n$stack');
+    return true; // Cegah app force close
+  };
 
   try {
     await initInjection();
