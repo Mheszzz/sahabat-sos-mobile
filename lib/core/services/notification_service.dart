@@ -51,18 +51,31 @@ class NotificationService {
           AndroidFlutterLocalNotificationsPlugin>();
 
       if (androidPlugin != null) {
-        final alertChannel = AndroidNotificationChannel(
-          channelId,
-          channelName,
-          description: channelDescription,
-          importance: Importance.max,
-          enableVibration: true,
-          vibrationPattern:
-              Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
-          playSound: true,
-          sound: const RawResourceAndroidNotificationSound('siren'),
-        );
-        await androidPlugin.createNotificationChannel(alertChannel);
+        try {
+          final alertChannel = AndroidNotificationChannel(
+            channelId,
+            channelName,
+            description: channelDescription,
+            importance: Importance.max,
+            enableVibration: true,
+            vibrationPattern:
+                Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
+            playSound: true,
+            sound: const RawResourceAndroidNotificationSound('siren'),
+          );
+          await androidPlugin.createNotificationChannel(alertChannel);
+        } catch (e) {
+          debugPrint('Fallback channel without custom sound: $e');
+          const fallbackChannel = AndroidNotificationChannel(
+            channelId,
+            channelName,
+            description: channelDescription,
+            importance: Importance.max,
+            enableVibration: true,
+            playSound: true,
+          );
+          await androidPlugin.createNotificationChannel(fallbackChannel);
+        }
 
         const reportChannel = AndroidNotificationChannel(
           reportChannelId,
@@ -104,23 +117,41 @@ class NotificationService {
           sosData['nama_pelapor'] ??
           'Warga Membutuhkan Bantuan';
 
-      final notificationDetails = NotificationDetails(
-        android: AndroidNotificationDetails(
-          channelId,
-          channelName,
-          channelDescription: channelDescription,
-          importance: Importance.max,
-          priority: Priority.high,
-          ticker: 'Panggilan Darurat Masuk',
-          fullScreenIntent: true,
-          enableVibration: true,
-          vibrationPattern:
-              Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
-          playSound: true,
-          sound: const RawResourceAndroidNotificationSound('siren'),
-          category: AndroidNotificationCategory.alarm,
-        ),
-      );
+      NotificationDetails notificationDetails;
+      try {
+        notificationDetails = NotificationDetails(
+          android: AndroidNotificationDetails(
+            channelId,
+            channelName,
+            channelDescription: channelDescription,
+            importance: Importance.max,
+            priority: Priority.high,
+            ticker: 'Panggilan Darurat Masuk',
+            fullScreenIntent: true,
+            enableVibration: true,
+            vibrationPattern:
+                Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
+            playSound: true,
+            sound: const RawResourceAndroidNotificationSound('siren'),
+            category: AndroidNotificationCategory.alarm,
+          ),
+        );
+      } catch (_) {
+        notificationDetails = const NotificationDetails(
+          android: AndroidNotificationDetails(
+            channelId,
+            channelName,
+            channelDescription: channelDescription,
+            importance: Importance.max,
+            priority: Priority.high,
+            ticker: 'Panggilan Darurat Masuk',
+            fullScreenIntent: true,
+            enableVibration: true,
+            playSound: true,
+            category: AndroidNotificationCategory.alarm,
+          ),
+        );
+      }
 
       await _localNotif.show(
         id: notifId,

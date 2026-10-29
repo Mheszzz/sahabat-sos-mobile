@@ -20,39 +20,54 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Meminta izin notifikasi untuk Android 13+ agar background service bisa tampil
-  await Permission.notification.request();
+  try {
+    await Permission.notification.request();
+  } catch (e) {
+    debugPrint('Notification permission error di main: $e');
+  }
 
-  await initInjection();
+  try {
+    await initInjection();
+  } catch (e) {
+    debugPrint('initInjection error di main: $e');
+  }
 
   // Inisialisasi notifikasi untuk menangani banner alert dan klik notifikasi SOS
-  final notificationService = NotificationService();
-  await notificationService.init();
-  final FlutterLocalNotificationsPlugin localNotif = FlutterLocalNotificationsPlugin();
+  try {
+    final notificationService = NotificationService();
+    await notificationService.init();
+    final FlutterLocalNotificationsPlugin localNotif = FlutterLocalNotificationsPlugin();
 
-  // Cek apakah aplikasi diluncurkan (cold start) dari klik notifikasi
-  final NotificationAppLaunchDetails? launchDetails =
-      await localNotif.getNotificationAppLaunchDetails();
-  if (launchDetails?.didNotificationLaunchApp ?? false) {
-    final payload = launchDetails!.notificationResponse?.payload;
-    if (payload != null && payload.isNotEmpty) {
-      try {
-        final sosData = jsonDecode(payload);
-        // Delay sedikit agar frame pertama selesai dirender sebelum menampilkan popup
-        Future.delayed(const Duration(seconds: 1), () {
-          GlobalEventBus.showSosAssignmentPopup.value = sosData;
-        });
-      } catch (e) {
-        debugPrint('Error parsing initial notification payload: $e');
+    // Cek apakah aplikasi diluncurkan (cold start) dari klik notifikasi
+    final NotificationAppLaunchDetails? launchDetails =
+        await localNotif.getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp ?? false) {
+      final payload = launchDetails!.notificationResponse?.payload;
+      if (payload != null && payload.isNotEmpty) {
+        try {
+          final sosData = jsonDecode(payload);
+          // Delay sedikit agar frame pertama selesai dirender sebelum menampilkan popup
+          Future.delayed(const Duration(seconds: 1), () {
+            GlobalEventBus.showSosAssignmentPopup.value = sosData;
+          });
+        } catch (e) {
+          debugPrint('Error parsing initial notification payload: $e');
+        }
       }
     }
+  } catch (e) {
+    debugPrint('NotificationService init error di main: $e');
   }
 
   // Listen to Tuya in UI (foreground) to navigate when app is open
-  final tuyaListener = GetIt.instance<TuyaBackgroundListener>();
-  
-  tuyaListener.onSosDetected = (event) {
-    AppRouter.router.push('/sos-status');
-  };
+  try {
+    final tuyaListener = GetIt.instance<TuyaBackgroundListener>();
+    tuyaListener.onSosDetected = (event) {
+      AppRouter.router.push('/sos-status');
+    };
+  } catch (e) {
+    debugPrint('TuyaListener error di main: $e');
+  }
 
   // Inisialisasi Health Connect Service & Background Monitoring
   try {
@@ -93,7 +108,11 @@ void main() async {
 
   // Start Background Service
   // (This will also start Tuya and WebSockets in the background isolate)
-  await initializeBackgroundService();
+  try {
+    await initializeBackgroundService();
+  } catch (e) {
+    debugPrint('initializeBackgroundService error di main: $e');
+  }
 
   runApp(const PermissionGate(child: SahabatSosApp()));
 }

@@ -1,6 +1,27 @@
+# App classes
+-keep class com.sossahabat.app.** { *; }
+-keep class com.sossahabatsos.app.** { *; }
+
 # Flutter
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
+
+# Flutter Background Service
+-keep class id.flutter.flutter_background_service.** { *; }
+
+# Flutter Local Notifications
+-keep class com.dexterous.flutterlocalnotifications.** { *; }
+
+# Health Connect
+-keep class cachet.plugins.health.** { *; }
+-keep class androidx.health.** { *; }
+
+# Flutter Blue Plus
+-keep class com.lib.flutter_blue_plus.** { *; }
+
+# Audio & Media
+-keep class xyz.luan.audioplayers.** { *; }
+-keep class com.llfbandit.record.** { *; }
 
 # Google Sign In
 -keep class com.google.android.gms.** { *; }
