@@ -123,7 +123,6 @@ class TuyaBackgroundListener {
     }
   }
 
-  /// Dispose resources
   void dispose() {
     stop();
   }

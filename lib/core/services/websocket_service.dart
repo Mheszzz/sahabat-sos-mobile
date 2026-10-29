@@ -1,5 +1,6 @@
 import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart';
 import 'package:sahabat_sos_mobile/core/services/notification_service.dart';
+import 'package:sahabat_sos_mobile/core/services/sos_rejection_storage.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:laravel_echo/laravel_echo.dart';
@@ -28,29 +29,32 @@ class WebsocketService {
     if (echo != null) return;
 
     final uri = Uri.parse(ApiConstants.baseUrl);
-    // Host dan port diambil dari baseUrl (misal: 192.168.1.22)
-    final host = uri.host;
-    // Laravel Reverb default berjalan di port 8080
-    // Sesuaikan jika kamu menggunakan port lain di .env backend (REVERB_PORT)
-    const int reverbPort = 8080;
+    // Host, port, dan kredensial Reverb mendukung environment variable dengan fallback runtime
+    const envHost = String.fromEnvironment('REVERB_HOST');
+    final host = envHost.isNotEmpty ? envHost : uri.host;
+    final int reverbPort =
+        int.tryParse(const String.fromEnvironment('REVERB_PORT')) ?? 8080;
+    const reverbKey = String.fromEnvironment(
+      'REVERB_APP_KEY',
+      defaultValue: 'sahabat-sos-app-key',
+    );
+    const reverbCluster = String.fromEnvironment(
+      'REVERB_APP_CLUSTER',
+      defaultValue: 'mt1',
+    );
+    const reverbEncrypted = bool.fromEnvironment(
+      'REVERB_ENCRYPTED',
+      defaultValue: false,
+    );
 
     try {
       final options = PusherOptions(
-        // =====================================================================
-        // PENTING: Sesuaikan key dengan REVERB_APP_KEY di file .env backend
-        // Cek di file .env Laravel kamu, cari: REVERB_APP_KEY=...
-        // =====================================================================
-        key: 'sahabat-sos-app-key',
-        cluster: 'mt1',
-
-        // =====================================================================
-        // KUNCI UTAMA: Arahkan koneksi ke server Reverb lokal
-        // =====================================================================
+        key: reverbKey,
+        cluster: reverbCluster,
         host: host,
         wsPort: reverbPort,
         wssPort: reverbPort,
-        encrypted:
-            false, // Set ke true jika menggunakan wss (SSL/HTTPS) di production
+        encrypted: reverbEncrypted,
         autoConnect: false,
 
         // Auth endpoint untuk private channel
@@ -204,6 +208,9 @@ class WebsocketService {
 
   static final Set<int> _recentlyNotifiedSosIds = {};
 
+  static int? _subscribedVolunteerId;
+  static bool _isBroadcastChannelSubscribed = false;
+
   /// Relawan mendengarkan penugasan SOS baru secara realtime
   static void listenToNewSosForVolunteer(
     int volunteerId,
@@ -244,11 +251,17 @@ class WebsocketService {
           payload = sosData;
         }
 
-        if (payload is Map) {
+          if (payload is Map) {
           final payloadMap = Map<String, dynamic>.from(payload);
           final dynamic rawId = payloadMap['id'];
           final int sosId =
               (rawId is int) ? rawId : int.tryParse(rawId?.toString() ?? '0') ?? 0;
+
+          // Cek apakah SOS ini sudah ditolak/dilewati sebelumnya oleh relawan ini
+          if (sosId > 0 && SosRejectionStorage.isRejected(sosId)) {
+            debugPrint("ℹ️ Mengabaikan sinyal SOS #$sosId karena sudah ditolak oleh relawan ini.");
+            return;
+          }
 
           if (sosId > 0) {
             if (_recentlyNotifiedSosIds.contains(sosId)) {
@@ -290,11 +303,155 @@ class WebsocketService {
       void onSosUpdated(dynamic event) {
         debugPrint("🔄 SOSUpdateStatus diterima di $channelName - Refreshing Map!");
         GlobalEventBus.refreshMap.value = !GlobalEventBus.refreshMap.value;
+
+        try {
+          if (event == null) return;
+          dynamic payload;
+          if (event is Map) {
+            final dataStr = event['data'];
+            if (dataStr is String) {
+              payload = jsonDecode(dataStr);
+            } else {
+              payload = dataStr ?? event;
+            }
+          } else {
+            payload = event;
+          }
+
+          if (payload is Map && payload.containsKey('sos')) {
+            final sosData = payload['sos'] is Map
+                ? Map<String, dynamic>.from(payload['sos'])
+                : <String, dynamic>{};
+            payload.forEach((key, value) {
+              if (key != 'sos') {
+                sosData[key] = value;
+              }
+            });
+            payload = sosData;
+          }
+
+          if (payload is Map) {
+            final payloadMap = Map<String, dynamic>.from(payload);
+            final dynamic rawRelawanId = payloadMap['id_relawan'] ??
+                (payloadMap['relawan'] is Map ? payloadMap['relawan']['id'] : null);
+            final int assignedRelawanId = (rawRelawanId is int)
+                ? rawRelawanId
+                : int.tryParse(rawRelawanId?.toString() ?? '0') ?? 0;
+            final String statusSos = payloadMap['status_sos']?.toString() ??
+                payloadMap['status']?.toString() ??
+                '';
+
+            // Jika relawan ini yang ditugaskan oleh admin (dispatch posko)
+            if (volunteerId > 0 &&
+                assignedRelawanId == volunteerId &&
+                (statusSos == 'ditangani' || statusSos == 'proses')) {
+              debugPrint("🚨 Penugasan admin diterima untuk relawan #$volunteerId pada kasus #${payloadMap['id']}");
+              NotificationService().showEmergencyNotification(payloadMap);
+              GlobalEventBus.showSosAssignmentPopup.value = payloadMap;
+              onNewSosReceived(payload);
+            }
+          }
+        } catch (e) {
+          debugPrint("❌ Gagal parsing onSosUpdated: $e");
+        }
       }
 
       channel.bind('SOSUpdateStatus', onSosUpdated);
       channel.bind('.SOSUpdateStatus', onSosUpdated);
       channel.bind('App\\Events\\SOSUpdateStatus', onSosUpdated);
+
+      void onPoskoSirene(dynamic event) {
+        debugPrint("🔊 PoskoSireneTriggered diterima di $channelName");
+        try {
+          dynamic payload;
+          if (event is Map) {
+            final dataStr = event['data'];
+            if (dataStr is String) {
+              payload = jsonDecode(dataStr);
+            } else {
+              payload = dataStr ?? event;
+            }
+          } else {
+            payload = event;
+          }
+
+          if (payload is Map) {
+            final payloadMap = Map<String, dynamic>.from(payload);
+            final bool isActive = payloadMap['sirene_active'] == true ||
+                payloadMap['action'] == 'on' ||
+                payloadMap['action'] == 'trigger';
+            if (isActive) {
+              NotificationService().showEmergencyNotification({
+                'id': 9999,
+                'nama': 'POSKO PUSAT DARURAT',
+                'pesan': payloadMap['pesan'] ?? 'Sirene Posko Pusat Diaktifkan!',
+              });
+            }
+          }
+        } catch (e) {
+          debugPrint("❌ Gagal parsing PoskoSirene: $e");
+        }
+      }
+
+      channel.bind('PoskoSireneTriggered', onPoskoSirene);
+      channel.bind('.PoskoSireneTriggered', onPoskoSirene);
+      channel.bind('App\\Events\\PoskoSireneTriggered', onPoskoSirene);
+
+      void onLaporanCreated(dynamic event) {
+        debugPrint("📝 LaporanCreated diterima di $channelName");
+        GlobalEventBus.refreshMap.value = !GlobalEventBus.refreshMap.value;
+        try {
+          if (event == null) return;
+          dynamic payload;
+          if (event is Map) {
+            final dataStr = event['data'];
+            if (dataStr is String) {
+              payload = jsonDecode(dataStr);
+            } else {
+              payload = dataStr ?? event;
+            }
+          } else {
+            payload = event;
+          }
+
+          if (payload is Map && payload.containsKey('laporan')) {
+            final lapData = payload['laporan'] is Map
+                ? Map<String, dynamic>.from(payload['laporan'])
+                : <String, dynamic>{};
+            payload.forEach((key, value) {
+              if (key != 'laporan') {
+                lapData[key] = value;
+              }
+            });
+            payload = lapData;
+          }
+
+          if (payload is Map) {
+            final payloadMap = Map<String, dynamic>.from(payload);
+            final dynamic rawRelawanId = payloadMap['id_relawan'] ??
+                (payloadMap['relawan'] is Map ? payloadMap['relawan']['id'] : null);
+            final int assignedRelawanId = (rawRelawanId is int)
+                ? rawRelawanId
+                : int.tryParse(rawRelawanId?.toString() ?? '0') ?? 0;
+
+            if (volunteerId > 0 && assignedRelawanId == volunteerId) {
+              debugPrint("📋 Penugasan laporan admin diterima untuk relawan #$volunteerId pada laporan #${payloadMap['id']}");
+              NotificationService().showEmergencyNotification(payloadMap);
+              GlobalEventBus.showSosAssignmentPopup.value = payloadMap;
+              onNewSosReceived(payload);
+            } else if (assignedRelawanId == 0) {
+              debugPrint("📋 Laporan baru non-darurat dari warga diterima: #${payloadMap['id']}");
+              NotificationService().showLaporanNotification(payloadMap);
+            }
+          }
+        } catch (e) {
+          debugPrint("❌ Gagal parsing onLaporanCreated: $e");
+        }
+      }
+
+      channel.bind('LaporanCreated', onLaporanCreated);
+      channel.bind('.LaporanCreated', onLaporanCreated);
+      channel.bind('App\\Events\\LaporanCreated', onLaporanCreated);
 
       // Wildcard listener untuk keamanan ekstra
       channel.bind('*', (eventData) {
@@ -307,32 +464,61 @@ class WebsocketService {
             GlobalEventBus.refreshMap.value = !GlobalEventBus.refreshMap.value;
           } else if (eventName.contains('SOSUpdateStatus')) {
             debugPrint("🔄 Wildcard match [$eventName] di $channelName - Refreshing Map!");
-            GlobalEventBus.refreshMap.value = !GlobalEventBus.refreshMap.value;
+            onSosUpdated(data);
+          } else if (eventName.contains('LaporanCreated')) {
+            debugPrint("📝 Wildcard match [$eventName] di $channelName");
+            onLaporanCreated(data);
+          } else if (eventName.contains('PoskoSireneTriggered')) {
+            onPoskoSirene(data);
           }
         }
       });
     }
 
     // ─── 1. Channel spesifik relawan (jika ID tersedia) ───
-    if (volunteerId > 0) {
+    if (volunteerId > 0 && _subscribedVolunteerId != volunteerId) {
+      if (_subscribedVolunteerId != null && _subscribedVolunteerId! > 0) {
+        _pusher?.unsubscribe('private-relawan.$_subscribedVolunteerId');
+      }
       final privateChannelName = 'private-relawan.$volunteerId';
       debugPrint("👂 Listening private channel: $privateChannelName");
       final privateChannel = _pusher!.subscribe(privateChannelName);
       setupChannelBindings(privateChannel, privateChannelName);
+      _subscribedVolunteerId = volunteerId;
     }
 
     // ─── 2. Channel umum semua relawan ───
-    final publicChannelName = 'private-relawan-channel';
-    debugPrint("👂 Listening private broadcast channel: $publicChannelName");
-    final publicChannel = _pusher!.subscribe(publicChannelName);
-    setupChannelBindings(publicChannel, publicChannelName);
+    if (!_isBroadcastChannelSubscribed) {
+      const publicChannelName = 'private-relawan-channel';
+      debugPrint("👂 Listening private broadcast channel: $publicChannelName");
+      final publicChannel = _pusher!.subscribe(publicChannelName);
+      setupChannelBindings(publicChannel, publicChannelName);
+
+      const poskoChannelName = 'posko-channel';
+      debugPrint("👂 Listening posko broadcast channel: $poskoChannelName");
+      final poskoChannel = _pusher!.subscribe(poskoChannelName);
+      setupChannelBindings(poskoChannel, poskoChannelName);
+
+      const laporanChannelName = 'laporan-channel';
+      debugPrint("👂 Listening laporan broadcast channel: $laporanChannelName");
+      final laporanChannel = _pusher!.subscribe(laporanChannelName);
+      setupChannelBindings(laporanChannel, laporanChannelName);
+
+      _isBroadcastChannelSubscribed = true;
+    }
   }
 
   /// Berhenti mendengarkan penugasan SOS baru
   static void stopListeningNewSosForVolunteer(int volunteerId) {
     if (volunteerId > 0) {
       _pusher?.unsubscribe('private-relawan.$volunteerId');
+      if (_subscribedVolunteerId == volunteerId) {
+        _subscribedVolunteerId = null;
+      }
     }
     _pusher?.unsubscribe('private-relawan-channel');
+    _pusher?.unsubscribe('posko-channel');
+    _pusher?.unsubscribe('laporan-channel');
+    _isBroadcastChannelSubscribed = false;
   }
 }

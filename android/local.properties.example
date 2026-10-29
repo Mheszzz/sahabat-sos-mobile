@@ -1,0 +1,8 @@
+# Example local.properties configuration
+# Copy or merge this file into android/local.properties and fill with your own values
+sdk.dir=/path/to/Android/Sdk
+flutter.sdk=/path/to/flutter
+
+# Tuya / ThingSmart IoT Credentials (Required for Tuya Smartwatch/BLE SDK)
+thing.smart.appkey=YOUR_TUYA_APP_KEY
+thing.smart.secret=YOUR_TUYA_APP_SECRET

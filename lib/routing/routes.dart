@@ -7,10 +7,13 @@ class AppRoutes {
   static const String dashboard = '/dashboard';
   static const String homeUser = '/home-user';
   static const String homeVolunteer = '/home-volunteer';
+  static const String volunteerActiveTask = '/volunteer/active-task';
   static const String quickReport = '/quick-report';
   static const String emergencyContacts = '/emergency-contacts';
+  static const String addEmergencyContact = '/emergency-contacts/add';
   static const String sosStatus = '/sos-status';
   static const String editProfile = '/edit-profile';
+  static const String map = '/map';
 
   // Tuya Device
   static const String tuyaDevices = '/tuya-devices';

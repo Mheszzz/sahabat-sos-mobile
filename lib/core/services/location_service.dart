@@ -16,6 +16,7 @@ class LocationService {
 
   StreamSubscription<Position>? _positionStreamSubscription;
   final ValueNotifier<Position?> currentPosition = ValueNotifier(null);
+  final ValueNotifier<Map<String, dynamic>?> latestReroute = ValueNotifier(null);
   Position? _lastGeocodedPosition;
 
   /// Memeriksa status GPS dan Izin (Permissions).
@@ -115,7 +116,7 @@ class LocationService {
 
       // Throttle geocoding: hanya geocode jika bergerak > 50 meter dari posisi terakhir
       try {
-        bool shouldGeocode =
+        final bool shouldGeocode =
             _lastGeocodedPosition == null ||
             Geolocator.distanceBetween(
                   _lastGeocodedPosition!.latitude,
@@ -126,10 +127,10 @@ class LocationService {
                 50;
 
         if (shouldGeocode) {
-          List<geo.Placemark> placemarks = await geo.Geocoding()
+          final List<geo.Placemark> placemarks = await geo.Geocoding()
               .placemarkFromCoordinates(position.latitude, position.longitude);
           if (placemarks.isNotEmpty) {
-            geo.Placemark place = placemarks.first;
+            final geo.Placemark place = placemarks.first;
             _lastGeocodedAddress =
                 "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
           }
@@ -142,13 +143,15 @@ class LocationService {
       final userRole = prefs.getString('user_role');
 
       if (userRole == 'relawan') {
-        // Relawan: Send directly to specific endpoint for Reverb broadcast
-        await dio.post(
+        // Relawan: Send directly to specific endpoint for Reverb broadcast and off-route checking
+        final response = await dio.post(
           ApiConstants.relawanLocationUpdate,
           data: {
             'latitude': position.latitude,
             'longitude': position.longitude,
-            'heading': position.heading, // Heading provided by position
+            'heading': position.heading,
+            'accuracy': position.accuracy,
+            'akurasi': position.accuracy,
           },
           options: Options(
             headers: {
@@ -157,8 +160,17 @@ class LocationService {
             },
           ),
         );
+
+        if (response.statusCode == 200 && response.data is Map) {
+          final resData = response.data as Map;
+          if (resData['is_rerouted'] == true && resData['new_route'] is Map) {
+            latestReroute.value = Map<String, dynamic>.from(resData['new_route'] as Map);
+            debugPrint('🔄 Dynamic off-route rerouting detected by server! New polyline received.');
+          }
+        }
+
         debugPrint(
-          '✅ Lokasi Relawan berhasil diupdate: Lat ${position.latitude}, Lng ${position.longitude}',
+          '✅ Lokasi Relawan berhasil diupdate: Lat ${position.latitude}, Lng ${position.longitude}, Akurasi ±${position.accuracy.toStringAsFixed(1)}m',
         );
       } else {
         // Pengguna biasa

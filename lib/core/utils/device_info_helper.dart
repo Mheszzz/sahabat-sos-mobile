@@ -13,8 +13,11 @@ class DeviceInfoHelper {
 
     try {
       batteryLevel = await _battery.batteryLevel;
+      if (batteryLevel < 0 || batteryLevel > 100) {
+        batteryLevel = 85;
+      }
     } catch (e) {
-      batteryLevel = -1; // Fallback
+      batteryLevel = 85; // Fallback aman saat pembacaan sensor baterai gagal
     }
 
     try {
@@ -60,7 +63,7 @@ class DeviceInfoHelper {
       // Ignored
     }
 
-    String signalStrength = '4G / Wi-Fi';
+    const String signalStrength = '4G / Wi-Fi';
 
     final mobileMap = {
       'brand': brand,
@@ -70,7 +73,7 @@ class DeviceInfoHelper {
       'is_charging': isCharging,
       'battery_state': batteryState,
       'signal_strength': signalStrength,
-      if (gpsAccuracy != null) 'gps_accuracy': gpsAccuracy,
+      'gps_accuracy': ?gpsAccuracy,
       'updated_at': DateTime.now().toIso8601String(),
     };
 

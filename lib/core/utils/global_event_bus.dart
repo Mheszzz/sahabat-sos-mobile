@@ -18,6 +18,11 @@ class GlobalEventBus {
   static final ValueNotifier<int?> changeVolunteerTab =
       ValueNotifier<int?>(null);
 
+  /// Untuk meminta perpindahan tab pada MainScreen (User Biasa)
+  /// 0: Beranda, 1: Laporan, 2: Perangkat, 3: Riwayat, 4: Profil
+  static final ValueNotifier<int?> changeUserTab =
+      ValueNotifier<int?>(null);
+
   /// Dipicu ketika status verifikasi relawan berubah
   static final ValueNotifier<bool?> volunteerVerificationStatus =
       ValueNotifier<bool?>(null);

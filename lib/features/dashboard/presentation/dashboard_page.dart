@@ -1,20 +1,22 @@
-import 'dart:ui';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
-import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
-import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:sahabat_sos_mobile/core/di/injection.dart';
 import 'package:sahabat_sos_mobile/core/services/location_service.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
+import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
 import 'package:sahabat_sos_mobile/core/utils/device_info_helper.dart';
+import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart';
 import 'package:sahabat_sos_mobile/core/widgets/app_loading_indicator.dart';
+import 'package:sahabat_sos_mobile/features/dashboard/data/datasources/dashboard_remote_data_source.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/data/services/tuya_channel_service.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/data/models/tuya_device_model.dart';
 import 'package:sahabat_sos_mobile/core/services/health_connect_service.dart';
+import 'package:sahabat_sos_mobile/routing/routes.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -26,16 +28,14 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage>
     with SingleTickerProviderStateMixin {
   static const Color primaryTeal = Color(0xFF00695C);
-  static const Color sosRed = Color(
-    0xFFE50000,
-  ); // More vibrant red to match image
+  static const Color sosRed = Color(0xFFDC2626);
+  static const Color bgSurface = Color(0xFFF5F6F8);
 
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   int _tapCount = 0;
   Timer? _tapTimer;
 
-  // Beranda data from API
   String _userName = '';
   bool _isBerandaLoading = true;
   TuyaDeviceModel? _tuyaDevice;
@@ -48,12 +48,11 @@ class _DashboardPageState extends State<DashboardPage>
       vsync: this,
       duration: const Duration(milliseconds: 150),
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.88).animate(
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
     _fetchBeranda();
 
-    // Dengarkan perubahan real-time dari Tuya
     final tuyaService = sl<TuyaChannelService>();
     _deviceSubscription = tuyaService.dpEventStream.listen((event) {
       if (mounted &&
@@ -70,22 +69,9 @@ class _DashboardPageState extends State<DashboardPage>
 
   Future<void> _fetchBeranda() async {
     try {
-      final prefs = sl<SharedPreferences>();
-      final token = prefs.getString('auth_token');
-      if (token == null) return;
+      final dashboardSource = sl<DashboardRemoteDataSource>();
+      final data = await dashboardSource.getBerandaData();
 
-      // Ambil data user
-      final response = await sl<Dio>().get(
-        ApiConstants.beranda,
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Accept': 'application/json',
-          },
-        ),
-      );
-
-      // Ambil data device Tuya
       final tuyaService = sl<TuyaChannelService>();
       var devices = await tuyaService.getDeviceList();
 
@@ -96,8 +82,7 @@ class _DashboardPageState extends State<DashboardPage>
         } catch (_) {}
       }
 
-      if (response.statusCode == 200 && mounted) {
-        final data = response.data;
+      if (mounted) {
         setState(() {
           _userName = data['user']?['name'] ?? '';
           if (devices.isNotEmpty) {
@@ -128,112 +113,166 @@ class _DashboardPageState extends State<DashboardPage>
       return const AppLoadingScreen();
     }
 
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: const Color(0xFFF5F6F8),
-      appBar: _buildAppBar(context),
-      body: Stack(
-        children: [
-          
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 16),
-                  Expanded(flex: 10, child: _buildSosButton()),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Tekan tombol 5 kali dengan cepat\nuntuk meminta bantuan.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.black54,
-                      height: 1.3,
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final currentBg = isHighContrast ? Colors.black : bgSurface;
+        final currentPrimaryTeal =
+            isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
+        return Scaffold(
+          backgroundColor: currentBg,
+          appBar: _buildAppBar(context, isHighContrast, currentPrimaryTeal),
+          body: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final sosHeight =
+                    (constraints.maxHeight * 0.36).clamp(180.0, 300.0);
+                return SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: ConstrainedBox(
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: sosHeight,
+                          child: _buildSosButton(),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Tekan tombol 5 kali dengan cepat\nuntuk meminta bantuan.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isHighContrast
+                                ? const Color(0xFFD1D5DB)
+                                : const Color(0xFF4B5563),
+                            fontWeight: FontWeight.w500,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _buildHeartRateBanner(isHighContrast),
+                        _buildDeviceStatusCard(isHighContrast),
+                        const SizedBox(height: 12),
+                        _buildMenuGrid(isHighContrast),
+                        // Space for floating bottom navigation bar
+                        SizedBox(
+                          height: MediaQuery.of(context).padding.bottom + 100,
+                        ),
+                      ],
                     ),
                   ),
-                  const Spacer(flex: 1),
-                  _buildHeartRateBanner(),
-                  _buildDeviceStatusCard(),
-                  const SizedBox(height: 12),
-                  _buildMenuGrid(),
-                  const SizedBox(
-                    height: 120,
-                  ), // Reserve enough space for the floating navbar
-                ],
-              ),
+                );
+              },
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context) {
+  PreferredSizeWidget _buildAppBar(
+    BuildContext context,
+    bool isHighContrast,
+    Color currentPrimaryTeal,
+  ) {
     return AppBar(
-      backgroundColor: Colors.white.withValues(alpha: 0.15),
+      backgroundColor: isHighContrast ? Colors.black : bgSurface,
       elevation: 0,
-      flexibleSpace: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(color: Colors.transparent),
-        ),
-      ),
+      scrolledUnderElevation: 0,
+      iconTheme: IconThemeData(color: currentPrimaryTeal),
       centerTitle: false,
       titleSpacing: 16,
       title: Row(
         children: [
           Image.asset('assets/images/logo.png', width: 24, height: 24),
           const SizedBox(width: 8),
-          Text(
-            _userName.isNotEmpty ? 'Halo, $_userName' : 'Sahabat SOS',
-            style: const TextStyle(
-              color: primaryTeal,
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
+          Expanded(
+            child: Text(
+              _userName.isNotEmpty ? 'Halo, $_userName' : 'Sahabat SOS',
+              style: TextStyle(
+                color: currentPrimaryTeal,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
       ),
       actions: [
         IconButton(
-          icon: const Icon(CupertinoIcons.refresh, color: primaryTeal),
+          icon: Icon(CupertinoIcons.refresh, color: currentPrimaryTeal),
           tooltip: 'Refresh',
           onPressed: () {
-            setState(() => _isBerandaLoading = true);
-            _fetchBeranda();
+            AccessibilityService.instance.handleTalkbackTap(
+              id: 'dashboard_refresh_btn',
+              speakText: "Memperbarui data beranda",
+              hintText: "Tekan sekali lagi untuk memperbarui data.",
+              onAction: () {
+                setState(() => _isBerandaLoading = true);
+                _fetchBeranda();
+              },
+            );
           },
         ),
         Padding(
-          padding: const EdgeInsets.only(right: 8.0),
+          padding: const EdgeInsets.only(right: 12.0),
           child: Tooltip(
             message: 'Lihat Peta',
-            child: InkWell(
-              onTap: () {
-                context.push('/map'); // We will add this route
-              },
+            child: Material(
+              color: isHighContrast
+                  ? const Color(0xFF1E2430)
+                  : currentPrimaryTeal.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: primaryTeal.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(CupertinoIcons.map, color: primaryTeal, size: 20),
-                    SizedBox(width: 4),
-                    Text(
-                      'Peta',
-                      style: TextStyle(
-                        color: primaryTeal,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
+              child: InkWell(
+                onTap: () {
+                  AccessibilityService.instance.handleTalkbackTap(
+                    id: 'dashboard_map_btn',
+                    speakText: "Membuka Peta",
+                    hintText: "Tekan sekali lagi untuk membuka peta.",
+                    onAction: () => context.push(AppRoutes.map),
+                  );
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isHighContrast
+                          ? const Color(0xFF4B5563)
+                          : currentPrimaryTeal.withValues(alpha: 0.25),
+                      width: isHighContrast ? 1.5 : 1,
                     ),
-                  ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(CupertinoIcons.map,
+                          color: currentPrimaryTeal, size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Peta',
+                        style: TextStyle(
+                          color: currentPrimaryTeal,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -245,206 +284,51 @@ class _DashboardPageState extends State<DashboardPage>
 
   Widget _buildSosButton() {
     return Center(
-      child: Listener(
-        onPointerDown: (_) => _animationController.forward(),
-        onPointerUp: (_) => _animationController.reverse(),
-        onPointerCancel: (_) => _animationController.reverse(),
-        child: GestureDetector(
-          onTap: () async {
-            _tapCount++;
-            if (_tapCount >= 5) {
-              _tapCount = 0;
-
-              try {
-                // Show a loading indicator
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (context) =>
-                      const Center(child: CupertinoActivityIndicator(radius: 16)),
-                );
-
-                // Get location
-                final locationService = sl<LocationService>();
-                bool hasPermission = await locationService.requestPermission();
-                if (!hasPermission) {
-                  if (!mounted) return;
-                  Navigator.of(context, rootNavigator: true).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Izin lokasi dibutuhkan untuk mengirim SOS',
-                      ),
-                    ),
-                  );
-                  return;
-                }
-
-                double latitude = 0.0;
-                double longitude = 0.0;
-
-                try {
-                  final cachedPos = locationService.currentPosition.value;
-                  if (cachedPos != null && cachedPos.latitude != 0.0) {
-                    latitude = cachedPos.latitude;
-                    longitude = cachedPos.longitude;
-                  } else {
-                    final lastPos = await Geolocator.getLastKnownPosition();
-                    if (lastPos != null && lastPos.latitude != 0.0) {
-                      latitude = lastPos.latitude;
-                      longitude = lastPos.longitude;
-                    } else {
-                      final pos = await Geolocator.getCurrentPosition(
-                        locationSettings: const LocationSettings(
-                          accuracy: LocationAccuracy.medium,
-                        ),
-                      ).timeout(const Duration(seconds: 5));
-                      latitude = pos.latitude;
-                      longitude = pos.longitude;
-                    }
-                  }
-                } catch (e) {
-                  // Fallback: coba ambil last known position jika getCurrentPosition timeout
-                  try {
-                    final fallbackPos = await Geolocator.getLastKnownPosition();
-                    if (fallbackPos != null) {
-                      latitude = fallbackPos.latitude;
-                      longitude = fallbackPos.longitude;
-                    }
-                  } catch (_) {}
-                }
-
-                final prefs = sl<SharedPreferences>();
-                final token = prefs.getString('auth_token');
-
-                final telemetryData =
-                    await DeviceInfoHelper.getSosTelemetryData();
-
-                Map<String, dynamic>? tuyaDeviceInfo;
-                if (_tuyaDevice != null) {
-                  tuyaDeviceInfo = {
-                    'device_id': _tuyaDevice!.deviceId,
-                    'device_name': _tuyaDevice!.name,
-                    'product_id': _tuyaDevice!.productId,
-                    'is_online': _tuyaDevice!.isOnline,
-                    'battery_level': _tuyaDevice!.batteryLevel,
-                    'signal_strength': _tuyaDevice!.signalStrengthFormatted,
-                    'trigger_type': 'Tombol Aplikasi Layar',
-                    'last_seen': _tuyaDevice!.lastEventAt?.toIso8601String() ??
-                        DateTime.now().toIso8601String(),
-                    'location_updated_at': DateTime.now().toIso8601String(),
-                  };
-                }
-
-                // Call API
-                final response = await sl<Dio>().post(
-                  ApiConstants.emergencyTrigger,
-                  data: {
-                    'latitude': latitude,
-                    'longitude': longitude,
-                    'lokasi_user': locationService.lastGeocodedAddress,
-                    'trigger_source': 'app_button',
-                    'battery_level': telemetryData['battery_level'],
-                    'signal_strength': telemetryData['signal_strength'],
-                    'device_info': {
-                      'mobile': telemetryData['device_info'],
-                      if (tuyaDeviceInfo != null) 'tuya': tuyaDeviceInfo,
-                    },
-                  },
-                  options: Options(
-                    headers: {
-                      'Authorization': 'Bearer $token',
-                      'Accept': 'application/json',
-                    },
-                  ),
-                );
-
-                // Hide loading
-                if (!mounted) return;
-                Navigator.of(context, rootNavigator: true).pop();
-
-                if (response.statusCode == 200 || response.statusCode == 201) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Sinyal SOS berhasil dikirim.'),
-                    ),
-                  );
-                  context.push('/sos-status');
-                }
-              } catch (e) {
-                // Hide loading
-                if (!mounted) return;
-                Navigator.of(context, rootNavigator: true).pop();
-
-                if (e is DioException && e.response?.statusCode == 422) {
-                  // SOS still active
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        e.response?.data['message'] ?? 'SOS masih aktif',
-                      ),
-                    ),
-                  );
-                  context.push('/sos-status');
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Gagal mengirim SOS: $e')),
-                  );
-                }
-              }
-            }
-
-            _tapTimer?.cancel();
-            _tapTimer = Timer(const Duration(seconds: 2), () {
-              _tapCount = 0;
-            });
-          },
-          child: ScaleTransition(
-            scale: _scaleAnimation,
-            child: FittedBox(
-              fit: BoxFit
-                  .contain, // This allows it to grow or shrink perfectly to fill the flex space
+      child: Semantics(
+        label:
+            'Tombol Darurat SOS. Tekan dan tahan atau ketuk lima kali dengan cepat untuk memicu bantuan darurat.',
+        button: true,
+        child: Listener(
+          onPointerDown: (_) => _animationController.forward(),
+          onPointerUp: (_) => _animationController.reverse(),
+          onPointerCancel: (_) => _animationController.reverse(),
+          child: GestureDetector(
+            onTap: _handleSosTap,
+            onLongPress: _handleSosLongPress,
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              child: FittedBox(
+              fit: BoxFit.contain,
               child: Padding(
-                padding: const EdgeInsets.all(
-                  16.0,
-                ), // Give it some breathing room from the edges
+                padding: const EdgeInsets.all(16.0),
                 child: Container(
-                  width: 320,
-                  height: 320,
+                  width: 300,
+                  height: 300,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      center: const Alignment(
-                        -0.3,
-                        -0.5,
-                      ), // Light source from top-left
-                      radius: 0.8,
+                    gradient: const RadialGradient(
+                      center: Alignment(-0.25, -0.35),
+                      radius: 0.85,
                       colors: [
-                        const Color(0xFFFF6B6B), // Highlight (bright red/pink)
-                        sosRed, // Base color
-                        const Color(0xFF8B0000), // Shadow (dark red)
+                        Color(0xFFEF4444),
+                        sosRed,
+                        Color(0xFFB91C1C),
                       ],
                     ),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.35),
+                      width: 4,
+                    ),
                     boxShadow: [
-                      // Bottom right dark shadow
                       BoxShadow(
-                        color: const Color(0xFF8B0000).withValues(alpha: 0.5),
-                        blurRadius: 20,
-                        spreadRadius: 4,
-                        offset: const Offset(8, 12),
+                        color: const Color(0xFFB91C1C).withValues(alpha: 0.4),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
                       ),
-                      // Top left light highlight (Neumorphic effect)
-                      const BoxShadow(
-                        color: Colors.white,
-                        blurRadius: 16,
+                      BoxShadow(
+                        color: sosRed.withValues(alpha: 0.2),
+                        blurRadius: 36,
                         spreadRadius: 2,
-                        offset: Offset(-6, -6),
-                      ),
-                      // Additional soft glow around
-                      BoxShadow(
-                        color: sosRed.withValues(alpha: 0.3),
-                        blurRadius: 30,
-                        spreadRadius: 10,
                       ),
                     ],
                   ),
@@ -454,28 +338,28 @@ class _DashboardPageState extends State<DashboardPage>
                       Icon(
                         CupertinoIcons.exclamationmark_triangle_fill,
                         color: Colors.white,
-                        size: 80,
+                        size: 72,
                         shadows: [
                           Shadow(
-                            color: Colors.black38,
-                            offset: Offset(2, 3),
-                            blurRadius: 6,
+                            color: Colors.black26,
+                            offset: Offset(0, 2),
+                            blurRadius: 4,
                           ),
                         ],
                       ),
-                      SizedBox(height: 16),
+                      SizedBox(height: 12),
                       Text(
                         'SOS',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
+                          fontSize: 42,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2.0,
                           shadows: [
                             Shadow(
-                              color: Colors.black38,
-                              offset: Offset(2, 3),
-                              blurRadius: 6,
+                              color: Colors.black26,
+                              offset: Offset(0, 2),
+                              blurRadius: 4,
                             ),
                           ],
                         ),
@@ -484,14 +368,14 @@ class _DashboardPageState extends State<DashboardPage>
                         'DARURAT',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 28,
+                          fontSize: 22,
                           fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
+                          letterSpacing: 1.8,
                           shadows: [
                             Shadow(
-                              color: Colors.black38,
-                              offset: Offset(2, 3),
-                              blurRadius: 6,
+                              color: Colors.black26,
+                              offset: Offset(0, 2),
+                              blurRadius: 4,
                             ),
                           ],
                         ),
@@ -504,10 +388,180 @@ class _DashboardPageState extends State<DashboardPage>
           ),
         ),
       ),
-    );
+    ),
+  );
+}
+
+  // 5 taps within 2 seconds are required to prevent accidental triggers
+  void _handleSosTap() async {
+    _tapCount++;
+    if (_tapCount >= 5) {
+      _tapCount = 0;
+      AccessibilityService.instance.hapticHeavy();
+      unawaited(
+        AccessibilityService.instance.speak("Sinyal darurat SOS diaktifkan!"),
+      );
+      await _executeEmergencySos();
+    } else {
+      AccessibilityService.instance.hapticMedium();
+      unawaited(
+        AccessibilityService.instance.speak("Ketukan $_tapCount"),
+      );
+    }
+
+    _tapTimer?.cancel();
+    _tapTimer = Timer(const Duration(seconds: 2), () {
+      _tapCount = 0;
+    });
   }
 
-  Widget _buildHeartRateBanner() {
+  // Alternatif aksesibilitas: Tekan tahan tombol SOS untuk memicu darurat langsung
+  void _handleSosLongPress() async {
+    _tapTimer?.cancel();
+    _tapCount = 0;
+    AccessibilityService.instance.hapticHeavy();
+    unawaited(
+      AccessibilityService.instance.speak("Sinyal darurat SOS diaktifkan melalui tekan tahan!"),
+    );
+    await _executeEmergencySos();
+  }
+
+  Future<void> _executeEmergencySos() async {
+    unawaited(
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) =>
+            const Center(child: CupertinoActivityIndicator(radius: 16)),
+      ),
+    );
+
+    final locationService = sl<LocationService>();
+    bool hasPermission = false;
+    try {
+      hasPermission = await locationService.requestPermission();
+    } catch (_) {}
+
+    // Geolocation fallback hierarchy: cached -> lastKnown -> quick getCurrent -> default (0.0)
+    double latitude = 0.0;
+    double longitude = 0.0;
+
+    if (hasPermission) {
+      try {
+        final cachedPos = locationService.currentPosition.value;
+        if (cachedPos != null && cachedPos.latitude != 0.0) {
+          latitude = cachedPos.latitude;
+          longitude = cachedPos.longitude;
+        } else {
+          final lastPos = await Geolocator.getLastKnownPosition();
+          if (lastPos != null && lastPos.latitude != 0.0) {
+            latitude = lastPos.latitude;
+            longitude = lastPos.longitude;
+          } else {
+            final pos = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(
+                accuracy: LocationAccuracy.medium,
+              ),
+            ).timeout(const Duration(seconds: 4));
+            latitude = pos.latitude;
+            longitude = pos.longitude;
+          }
+        }
+      } catch (_) {
+        try {
+          final fallbackPos = await Geolocator.getLastKnownPosition();
+          if (fallbackPos != null) {
+            latitude = fallbackPos.latitude;
+            longitude = fallbackPos.longitude;
+          }
+        } catch (_) {}
+      }
+    }
+
+    final telemetryData = await DeviceInfoHelper.getSosTelemetryData();
+
+    Map<String, dynamic>? tuyaDeviceInfo;
+    if (_tuyaDevice != null) {
+      tuyaDeviceInfo = {
+        'device_id': _tuyaDevice!.deviceId,
+        'device_name': _tuyaDevice!.name,
+        'product_id': _tuyaDevice!.productId,
+        'is_online': _tuyaDevice!.isOnline,
+        'battery_level': _tuyaDevice!.batteryLevel,
+        'signal_strength': _tuyaDevice!.signalStrengthFormatted,
+        'trigger_type': 'Tombol Aplikasi Layar',
+        'last_seen': _tuyaDevice!.lastEventAt?.toIso8601String() ??
+            DateTime.now().toIso8601String(),
+        'location_updated_at': DateTime.now().toIso8601String(),
+      };
+    }
+
+    try {
+      final dashboardSource = sl<DashboardRemoteDataSource>();
+      final newSosId = await dashboardSource.triggerEmergency(
+        latitude: latitude,
+        longitude: longitude,
+        address: locationService.lastGeocodedAddress,
+        telemetryData: telemetryData,
+        tuyaDeviceInfo: tuyaDeviceInfo,
+      );
+
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+
+      final isGpsLocked = latitude != 0.0 && longitude != 0.0;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isGpsLocked
+                ? 'Sinyal SOS darurat berhasil dikirim.'
+                : 'Sinyal SOS darurat berhasil dikirim menggunakan koordinat fallback profil (GPS tidak aktif/belum terkunci).',
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      unawaited(
+        context.push(
+          AppRoutes.sosStatus,
+          extra: {'sos_id': newSosId},
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+
+      if (e is DioException && e.response?.statusCode == 422) {
+        final message =
+            e.response?.data['message'] ?? 'Sinyal SOS darurat masih aktif';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message.toString()),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+        final existingData = e.response?.data is Map ? e.response?.data['data'] : null;
+        final existingSosId = (existingData is Map && existingData['id'] != null)
+            ? (existingData['id'] as num).toInt()
+            : null;
+
+        // Hanya arahkan ke halaman status jika benar-benar ada ID kasus SOS aktif
+        if (existingSosId != null) {
+          unawaited(
+            context.push(
+              AppRoutes.sosStatus,
+              extra: {'sos_id': existingSosId},
+            ),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal mengirim SOS: $e')),
+        );
+      }
+    }
+  }
+
+  Widget _buildHeartRateBanner(bool isHighContrast) {
     final healthService = sl<HealthConnectService>();
     return ValueListenableBuilder<int?>(
       valueListenable: healthService.currentBpm,
@@ -521,15 +575,21 @@ class _DashboardPageState extends State<DashboardPage>
             String statusText;
             switch (status) {
               case HeartRateStatus.normal:
-                color = Colors.green;
+                color = isHighContrast
+                    ? const Color(0xFF4ADE80)
+                    : Colors.green;
                 statusText = 'Normal';
                 break;
               case HeartRateStatus.warning:
-                color = Colors.orange;
+                color = isHighContrast
+                    ? const Color(0xFFFB923C)
+                    : Colors.orange;
                 statusText = 'Waspada';
                 break;
               case HeartRateStatus.critical:
-                color = Colors.red;
+                color = isHighContrast
+                    ? const Color(0xFFF87171)
+                    : Colors.red;
                 statusText = 'Kritis';
                 break;
               case HeartRateStatus.unknown:
@@ -538,19 +598,29 @@ class _DashboardPageState extends State<DashboardPage>
                 break;
             }
 
+            final cardBg = AccessibleColors.cardBackground(isHighContrast);
+            final cardBorder = isHighContrast
+                ? Border.all(color: color, width: 1.5)
+                : Border.all(color: color.withValues(alpha: 0.3));
+
             return InkWell(
-              onTap: () => context.push('/smartband'),
+              onTap: () => unawaited(context.push(AppRoutes.smartband)),
               borderRadius: BorderRadius.circular(14),
               child: Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.85),
+                  color: cardBg,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: color.withValues(alpha: 0.3)),
+                  border: cardBorder,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
+                      color: Colors.black.withValues(
+                        alpha: isHighContrast ? 0.3 : 0.03,
+                      ),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -575,7 +645,9 @@ class _DashboardPageState extends State<DashboardPage>
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.1),
+                        color: color.withValues(
+                          alpha: isHighContrast ? 0.25 : 0.1,
+                        ),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -595,7 +667,7 @@ class _DashboardPageState extends State<DashboardPage>
                           deviceName,
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey.shade600,
+                            color: AccessibleColors.textSecondary(isHighContrast),
                           ),
                         );
                       },
@@ -604,7 +676,9 @@ class _DashboardPageState extends State<DashboardPage>
                     Icon(
                       CupertinoIcons.chevron_right,
                       size: 14,
-                      color: Colors.grey.shade400,
+                      color: isHighContrast
+                          ? const Color(0xFF9CA3AF)
+                          : Colors.grey.shade400,
                     ),
                   ],
                 ),
@@ -616,78 +690,73 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Widget _buildDeviceStatusCard() {
+  Widget _buildDeviceStatusCard(bool isHighContrast) {
+    final cardBg = AccessibleColors.cardBackground(isHighContrast);
+    final cardBorder = AccessibleColors.cardBorder(isHighContrast);
+    final dividerColor =
+        isHighContrast ? const Color(0xFF4B5563) : const Color(0xFFE5E7EB);
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+
     return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
       decoration: BoxDecoration(
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
+        border: cardBorder,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: isHighContrast ? 0.3 : 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.6),
-                width: 1.5,
+      child: _isBerandaLoading
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(8.0),
+                child: CupertinoActivityIndicator(radius: 12),
               ),
+            )
+          : Row(
+              children: [
+                _buildStatItem(
+                  icon: CupertinoIcons.battery_100,
+                  label: 'Baterai',
+                  value: _tuyaDevice?.batteryLevel != null
+                      ? '${_tuyaDevice!.batteryLevel}%'
+                      : 'N/A',
+                  color: isHighContrast ? const Color(0xFF4ADE80) : const Color(0xFF16A34A),
+                  isHighContrast: isHighContrast,
+                ),
+                Container(
+                  width: 1,
+                  height: 38,
+                  color: dividerColor,
+                ),
+                _buildStatItem(
+                  icon: CupertinoIcons.wifi,
+                  label: 'Koneksi',
+                  value: _tuyaDevice != null
+                      ? (_tuyaDevice!.isOnline ? 'Terhubung' : 'Terputus')
+                      : 'N/A',
+                  color: tealColor,
+                  isHighContrast: isHighContrast,
+                ),
+                Container(
+                  width: 1,
+                  height: 38,
+                  color: dividerColor,
+                ),
+                _buildStatItem(
+                  icon: CupertinoIcons.antenna_radiowaves_left_right,
+                  label: 'Sinyal',
+                  value: _tuyaDevice?.signalStrengthFormatted ?? 'N/A',
+                  color: isHighContrast ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
+                  isHighContrast: isHighContrast,
+                ),
+              ],
             ),
-            child: _isBerandaLoading
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(8.0),
-                      child: CupertinoActivityIndicator(radius: 12),
-                    ),
-                  )
-                : Row(
-                    children: [
-                      _buildStatItem(
-                        icon: CupertinoIcons.battery_100,
-                        label: 'Baterai',
-                        value: _tuyaDevice?.batteryLevel != null
-                            ? '${_tuyaDevice!.batteryLevel}%'
-                            : 'N/A',
-                        color: Colors.green,
-                      ),
-                      Container(
-                        width: 1,
-                        height: 40,
-                        color: Colors.grey.withValues(alpha: 0.3),
-                      ),
-                      _buildStatItem(
-                        icon: CupertinoIcons.wifi,
-                        label: 'Koneksi',
-                        value: _tuyaDevice != null
-                            ? (_tuyaDevice!.isOnline ? 'Terhubung' : 'Terputus')
-                            : 'N/A',
-                        color: primaryTeal,
-                      ),
-                      Container(
-                        width: 1,
-                        height: 40,
-                        color: Colors.grey.withValues(alpha: 0.3),
-                      ),
-                      _buildStatItem(
-                        icon: CupertinoIcons.antenna_radiowaves_left_right,
-                        label: 'Sinyal',
-                        value: _tuyaDevice?.signalStrengthFormatted ?? 'N/A',
-                        color: Colors.blue,
-                      ),
-                    ],
-                  ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -696,6 +765,7 @@ class _DashboardPageState extends State<DashboardPage>
     required String label,
     required String value,
     required Color color,
+    required bool isHighContrast,
   }) {
     return Expanded(
       child: Column(
@@ -705,7 +775,7 @@ class _DashboardPageState extends State<DashboardPage>
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
+              color: color.withValues(alpha: isHighContrast ? 0.25 : 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: color, size: 16),
@@ -714,7 +784,7 @@ class _DashboardPageState extends State<DashboardPage>
           Text(
             value,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: FontWeight.bold,
               color: color,
             ),
@@ -725,7 +795,11 @@ class _DashboardPageState extends State<DashboardPage>
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(fontSize: 10, color: Colors.black54),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: AccessibleColors.textSecondary(isHighContrast),
+            ),
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -735,98 +809,128 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Widget _buildMenuGrid() {
+  Widget _buildMenuGrid(bool isHighContrast) {
     final items = [
       _MenuItemData(
         icon: CupertinoIcons.exclamationmark_bubble,
         label: 'Kirim Laporan',
-        route: '/quick-report',
+        route: AppRoutes.quickReport,
       ),
       _MenuItemData(
         icon: CupertinoIcons.antenna_radiowaves_left_right,
         label: 'Perangkat Saya',
-        route: '/smartband',
+        route: AppRoutes.smartband,
       ),
       _MenuItemData(
         icon: CupertinoIcons.phone,
         label: 'Kontak Darurat',
-        route: '/emergency-contacts',
+        route: AppRoutes.emergencyContacts,
       ),
-      _MenuItemData(icon: CupertinoIcons.clock, label: 'Riwayat Bantuan'),
+      _MenuItemData(
+        icon: CupertinoIcons.clock,
+        label: 'Riwayat Bantuan',
+        onTap: () {
+          GlobalEventBus.changeUserTab.value = 3;
+        },
+      ),
     ];
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: items.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 1.8, // Make cards flatter to save vertical space
-      ),
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return _buildMenuCard(item.icon, item.label, route: item.route);
-      },
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: _buildMenuCard(items[0], isHighContrast)),
+            const SizedBox(width: 10),
+            Expanded(child: _buildMenuCard(items[1], isHighContrast)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(child: _buildMenuCard(items[2], isHighContrast)),
+            const SizedBox(width: 10),
+            Expanded(child: _buildMenuCard(items[3], isHighContrast)),
+          ],
+        ),
+      ],
     );
   }
 
-  Widget _buildMenuCard(IconData icon, String label, {String? route}) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Material(
-            color: Colors.white.withValues(alpha: 0.4),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(
-                color: Colors.white.withValues(alpha: 0.6),
-                width: 1.5,
+  Widget _buildMenuCard(_MenuItemData item, bool isHighContrast) {
+    final cardBg = AccessibleColors.cardBackground(isHighContrast);
+    final cardBorder = AccessibleColors.cardBorder(isHighContrast);
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final elementId = 'dashboard_menu_${item.label}';
+
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isFocused =
+            AccessibilityService.instance.isElementFocused(elementId);
+        return Container(
+          height: 72,
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: isFocused
+                ? Border.all(
+                    color: isHighContrast
+                        ? const Color(0xFF00FFCC)
+                        : const Color(0xFF00897B),
+                    width: 2.5,
+                  )
+                : cardBorder,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isHighContrast ? 0.3 : 0.04),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
-            ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
               onTap: () {
-                if (route != null) {
-                  context.push(route);
-                }
+                AccessibilityService.instance.handleTalkbackTap(
+                  id: elementId,
+                  speakText: "Membuka ${item.label}",
+                  hintText: "Tekan sekali lagi untuk membuka.",
+                  onAction: () {
+                    if (item.onTap != null) {
+                      item.onTap!();
+                    } else if (item.route != null) {
+                      context.push(item.route!);
+                    }
+                  },
+                );
               },
-              child: Container(
-                padding: const EdgeInsets.all(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(icon, color: primaryTeal, size: 32),
-                    const SizedBox(height: 8),
+                    Icon(item.icon, color: tealColor, size: 28),
+                    const SizedBox(height: 6),
                     Text(
-                      label,
+                      item.label,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                        color: Colors.black87,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                        color: AccessibleColors.textPrimary(isHighContrast),
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -835,5 +939,12 @@ class _MenuItemData {
   final IconData icon;
   final String label;
   final String? route;
-  _MenuItemData({required this.icon, required this.label, this.route});
+  final VoidCallback? onTap;
+
+  _MenuItemData({
+    required this.icon,
+    required this.label,
+    this.route,
+    this.onTap,
+  });
 }

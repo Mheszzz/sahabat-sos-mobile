@@ -8,13 +8,16 @@ import 'package:sahabat_sos_mobile/features/main/presentation/main_volunteer_scr
 import 'package:sahabat_sos_mobile/features/dashboard/presentation/map_page.dart';
 import 'package:sahabat_sos_mobile/features/reports/presentation/quick_report_screen.dart';
 import 'package:sahabat_sos_mobile/features/sos/presentation/emergency_contacts_page.dart';
+import 'package:sahabat_sos_mobile/features/sos/presentation/add_emergency_contact_page.dart';
 import 'package:sahabat_sos_mobile/features/sos/presentation/sos_status_page.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_list_screen.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_scan_screen.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_wifi_scan_screen.dart';
 import 'package:sahabat_sos_mobile/features/tuya_device/presentation/screens/tuya_device_detail_screen.dart';
-import 'package:sahabat_sos_mobile/features/device/presentation/screens/smartband_screen.dart';
 import 'package:sahabat_sos_mobile/features/profile/presentation/screens/edit_profile_screen.dart';
+import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/volunteer_active_task_page.dart';
+import 'package:sahabat_sos_mobile/features/device/presentation/screens/smartband_screen.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
 
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -68,11 +71,21 @@ class AppRouter {
     routes: [
       GoRoute(
         path: AppRoutes.splash,
-        builder: (context, state) => Scaffold(
-          backgroundColor: const Color(0xFFF5F6F8),
-          body: Center(
-            child: Image.asset('assets/images/logo.png', width: 120),
-          ),
+        builder: (context, state) => ListenableBuilder(
+          listenable: AccessibilityService.instance,
+          builder: (context, _) {
+            final isHighContrast =
+                AccessibilityService.instance.isHighContrastEnabled ||
+                Theme.of(context).brightness == Brightness.dark ||
+                MediaQuery.of(context).highContrast;
+            return Scaffold(
+              backgroundColor:
+                  isHighContrast ? Colors.black : const Color(0xFFF5F6F8),
+              body: Center(
+                child: Image.asset('assets/images/logo.png', width: 120),
+              ),
+            );
+          },
         ),
       ),
       GoRoute(
@@ -103,7 +116,14 @@ class AppRouter {
           return MainVolunteerScreen(initialIndex: tabIndex);
         },
       ),
-      GoRoute(path: '/map', builder: (context, state) => const MapPage()),
+      GoRoute(
+        path: AppRoutes.volunteerActiveTask,
+        builder: (context, state) {
+          final task = state.extra as Map<String, dynamic>?;
+          return VolunteerActiveTaskPage(initialTask: task);
+        },
+      ),
+      GoRoute(path: AppRoutes.map, builder: (context, state) => const MapPage()),
       GoRoute(
         path: AppRoutes.quickReport,
         builder: (context, state) => const QuickReportScreen(),
@@ -113,8 +133,24 @@ class AppRouter {
         builder: (context, state) => const EmergencyContactsPage(),
       ),
       GoRoute(
+        path: AppRoutes.addEmergencyContact,
+        builder: (context, state) {
+          final contact = state.extra as Map<String, dynamic>?;
+          return AddEmergencyContactPage(contact: contact);
+        },
+      ),
+      GoRoute(
         path: AppRoutes.sosStatus,
-        builder: (context, state) => const SosStatusPage(),
+        builder: (context, state) {
+          final extra = state.extra;
+          int? id;
+          if (extra is Map) {
+            id = extra['sos_id'] as int?;
+          } else if (extra is int) {
+            id = extra;
+          }
+          return SosStatusPage(initialSosId: id);
+        },
       ),
       GoRoute(
         path: AppRoutes.editProfile,
@@ -143,9 +179,11 @@ class AppRouter {
           return TuyaDeviceDetailScreen(deviceId: deviceId);
         },
       ),
+      // Smartband
       GoRoute(
         path: AppRoutes.smartband,
-        builder: (context, state) => const SmartbandScreen(showBackButton: true),
+        builder: (context, state) =>
+            const SmartbandScreen(showBackButton: true),
       ),
     ],
   );

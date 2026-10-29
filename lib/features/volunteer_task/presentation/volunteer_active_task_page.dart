@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:sahabat_sos_mobile/core/di/injection.dart';
-import 'package:sahabat_sos_mobile/features/volunteer_task/data/datasources/volunteer_remote_data_source.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
+import 'package:sahabat_sos_mobile/core/services/location_service.dart';
+import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
 import 'package:sahabat_sos_mobile/core/utils/global_event_bus.dart'
     as import_event_bus;
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:dio/dio.dart';
-import 'package:sahabat_sos_mobile/core/services/location_service.dart';
-import 'package:sahabat_sos_mobile/core/constants/api_constants.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sahabat_sos_mobile/features/volunteer_task/data/datasources/volunteer_remote_data_source.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'dart:ui';
-import 'package:sahabat_sos_mobile/features/volunteer_task/presentation/widgets/glass_container.dart';
 
 class VolunteerActiveTaskPage extends StatefulWidget {
   final Map<String, dynamic>? initialTask;
@@ -25,21 +24,21 @@ class VolunteerActiveTaskPage extends StatefulWidget {
 
 class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
   static const Color primaryTeal = Color(0xFF006D77);
-  static const Color sosRed = Color(0xFFC62828);
-  static const Color bgColor = Color(0xFFF5F6F8);
-  static const Color glassTeal = Color(0xFFE0F2F1);
-  static const Color glassBlue = Color(0xFFE3F2FD);
+  static const Color sosRed = Color(0xFFDC2626);
 
   final _dataSource = sl<VolunteerRemoteDataSource>();
   final _locationService = sl<LocationService>();
+  final GlobalKey<SlideToCompleteButtonState> _sliderKey = GlobalKey();
   Map<String, dynamic>? _activeTask;
   bool _isLoading = true;
   bool _isCompleting = false;
 
   LatLng? _effectiveVolPos;
   List<LatLng> _routePoints = [];
-  String _etaText = 'Hitung...';
+  String _etaText = 'Menghitung...';
   bool _isFetchingRoute = false;
+  DateTime? _lastRouteRecalculation;
+  LatLng? _lastRouteCalcPos;
   final MapController _mapController = MapController();
 
   @override
@@ -55,47 +54,96 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
     _fetchTask();
     import_event_bus.GlobalEventBus.refreshMap.addListener(_fetchTask);
 
-    // Memastikan tracking live GPS relawan aktif dan marker relawan terupdate secara real-time
     _locationService.startTracking();
     _locationService.currentPosition.addListener(_onLivePositionChanged);
+    _locationService.latestReroute.addListener(_onServerRerouteReceived);
   }
 
   @override
   void dispose() {
     _locationService.currentPosition.removeListener(_onLivePositionChanged);
+    _locationService.latestReroute.removeListener(_onServerRerouteReceived);
     import_event_bus.GlobalEventBus.refreshMap.removeListener(_fetchTask);
     _mapController.dispose();
     super.dispose();
+  }
+
+  void _onServerRerouteReceived() {
+    final newRoute = _locationService.latestReroute.value;
+    if (newRoute == null || !mounted) return;
+
+    final polylineData = newRoute['polyline'] as List?;
+    final durationStr = newRoute['duration_formatted']?.toString();
+    final distanceStr = newRoute['distance_formatted']?.toString();
+
+    if (polylineData != null && polylineData.isNotEmpty) {
+      setState(() {
+        if (durationStr != null && distanceStr != null) {
+          _etaText = '$durationStr ($distanceStr)';
+        }
+        _routePoints = polylineData.map((coord) {
+          final num latVal = coord[1] as num;
+          final num lngVal = coord[0] as num;
+          return LatLng(latVal.toDouble(), lngVal.toDouble());
+        }).toList();
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Rute diperbarui otomatis (rerouting terdeteksi server)'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  double? _extractCoordinate(String key) {
+    if (_activeTask == null) return null;
+    final val = _activeTask![key];
+    if (val != null) {
+      final parsed = double.tryParse(val.toString());
+      if (parsed != null) return parsed;
+    }
+    final lokasi = _activeTask!['lokasi'];
+    if (lokasi is Map && lokasi[key] != null) {
+      return double.tryParse(lokasi[key].toString());
+    }
+    return null;
   }
 
   void _onLivePositionChanged() {
     final pos = _locationService.currentPosition.value;
     if (pos == null || !mounted) return;
 
-    final lat = double.tryParse(
-      _activeTask?['latitude']?.toString() ??
-          _activeTask?['lokasi']?['latitude']?.toString() ??
-          '',
-    );
-    final lng = double.tryParse(
-      _activeTask?['longitude']?.toString() ??
-          _activeTask?['lokasi']?['longitude']?.toString() ??
-          '',
-    );
+    final currentPos = LatLng(pos.latitude, pos.longitude);
+    setState(() {
+      _effectiveVolPos = currentPos;
+    });
 
-    double vLat = pos.latitude;
-    double vLng = pos.longitude;
+    final targetLat = _extractCoordinate('latitude');
+    final targetLng = _extractCoordinate('longitude');
 
-    if (lat != null && lng != null) {
-      if ((vLat - lat).abs() > 1 || (vLng - lng).abs() > 1) {
-        vLat = lat - 0.015;
-        vLng = lng - 0.015;
+    if (targetLat != null && targetLng != null && !_isFetchingRoute) {
+      final now = DateTime.now();
+      final shouldRecalculate = _routePoints.isEmpty ||
+          _lastRouteRecalculation == null ||
+          now.difference(_lastRouteRecalculation!).inSeconds >= 30 ||
+          (_lastRouteCalcPos != null &&
+              const Distance().as(
+                    LengthUnit.Meter,
+                    _lastRouteCalcPos!,
+                    currentPos,
+                  ) >=
+                  50);
+
+      if (shouldRecalculate) {
+        _lastRouteRecalculation = now;
+        _lastRouteCalcPos = currentPos;
+        _fetchRoute(currentPos, LatLng(targetLat, targetLng));
       }
     }
-
-    setState(() {
-      _effectiveVolPos = LatLng(vLat, vLng);
-    });
   }
 
   Future<void> _fetchRoute(LatLng start, LatLng end) async {
@@ -103,78 +151,71 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
     setState(() {
       _isFetchingRoute = true;
     });
-    try {
-      final dio = Dio();
-      final url =
-          'https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?geometries=geojson';
-      final response = await dio.get(url);
 
-      if (response.statusCode == 200 && mounted) {
-        if (response.data['routes'] == null ||
-            (response.data['routes'] as List).isEmpty) {
+    try {
+      final routeData = await _dataSource.fetchDrivingRoute(
+        startLat: start.latitude,
+        startLng: start.longitude,
+        endLat: end.latitude,
+        endLng: end.longitude,
+      );
+
+      if (mounted) {
+        final routes = routeData['routes'] as List?;
+        if (routes == null || routes.isEmpty) {
           setState(() {
-            _etaText = 'Gagal';
+            _etaText = 'Tidak ditemukan';
           });
           return;
         }
-        final routes = response.data['routes'] as List;
-        if (routes.isEmpty) {
-          setState(() {
-            _etaText = 'Gagal';
-          });
+
+        final geometry = routes[0]['geometry'];
+        final coords = geometry['coordinates'] as List;
+
+        final durationSeconds = routes[0]['duration'] as num;
+        final durationMins = (durationSeconds / 60).round();
+        final distanceMeters = routes[0]['distance'] as num;
+
+        String eta = '';
+        if (durationMins > 0) {
+          eta = '$durationMins Menit';
         } else {
-          final geometry = routes[0]['geometry'];
-          final coords = geometry['coordinates'] as List;
-
-          final durationSeconds = routes[0]['duration'] as num;
-          final durationMins = (durationSeconds / 60).round();
-          final distanceMeters = routes[0]['distance'] as num;
-
-          String eta = '';
-          if (durationMins > 0) {
-            eta = '$durationMins Menit';
-          } else {
-            eta = '< 1 Menit';
-          }
-          if (distanceMeters > 1000) {
-            eta += ' (${(distanceMeters / 1000).toStringAsFixed(1)}km)';
-          } else {
-            eta += ' (${distanceMeters.round()}m)';
-          }
-
-          setState(() {
-            _etaText = eta;
-            _routePoints = coords.map((coord) {
-              final num latVal = coord[1] as num;
-              final num lngVal = coord[0] as num;
-              return LatLng(latVal.toDouble(), lngVal.toDouble());
-            }).toList();
-          });
-
-          // Tunggu sedikit agar map widget ter-render sebelum fitCamera
-          Future.delayed(const Duration(milliseconds: 300), () {
-            if (mounted && _routePoints.length > 1) {
-              final bounds = LatLngBounds.fromPoints(_routePoints);
-              _mapController.fitCamera(
-                CameraFit.bounds(
-                  bounds: bounds,
-                  padding: const EdgeInsets.all(24.0),
-                  maxZoom: 16.0,
-                ),
-              );
-            }
-          });
+          eta = '< 1 Menit';
         }
-      } else if (mounted) {
+
+        if (distanceMeters > 1000) {
+          eta += ' (${(distanceMeters / 1000).toStringAsFixed(1)}km)';
+        } else {
+          eta += ' (${distanceMeters.round()}m)';
+        }
+
         setState(() {
-          _etaText = 'Gagal';
+          _etaText = eta;
+          _routePoints = coords.map((coord) {
+            final num latVal = coord[1] as num;
+            final num lngVal = coord[0] as num;
+            return LatLng(latVal.toDouble(), lngVal.toDouble());
+          }).toList();
+        });
+
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted && _routePoints.length > 1) {
+            final bounds = LatLngBounds.fromPoints(_routePoints);
+            _mapController.fitCamera(
+              CameraFit.bounds(
+                bounds: bounds,
+                padding: const EdgeInsets.all(24.0),
+                maxZoom: 16.0,
+              ),
+            );
+          }
         });
       }
     } catch (e) {
       debugPrint('Error fetching route: $e');
       if (mounted) {
         setState(() {
-          _etaText = 'Gagal';
+          _etaText = 'Gagal memuat rute';
         });
       }
     } finally {
@@ -189,34 +230,16 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
   void _initTaskRoute() {
     if (_activeTask == null || !mounted) return;
 
-    final lat = double.tryParse(
-      _activeTask!['latitude']?.toString() ??
-          _activeTask!['lokasi']?['latitude']?.toString() ??
-          '',
-    );
-    final lng = double.tryParse(
-      _activeTask!['longitude']?.toString() ??
-          _activeTask!['lokasi']?['longitude']?.toString() ??
-          '',
-    );
+    final lat = _extractCoordinate('latitude');
+    final lng = _extractCoordinate('longitude');
     final volPos = _locationService.currentPosition.value;
 
     if (lat != null && lng != null) {
-      double vLat;
-      double vLng;
       if (volPos != null) {
-        vLat = volPos.latitude;
-        vLng = volPos.longitude;
-        if ((vLat - lat).abs() > 1 || (vLng - lng).abs() > 1) {
-          vLat = lat - 0.015;
-          vLng = lng - 0.015;
-        }
+        _effectiveVolPos = LatLng(volPos.latitude, volPos.longitude);
       } else {
-        // Fallback jika GPS belum siap: gunakan offset dekat titik tujuan
-        vLat = lat - 0.008;
-        vLng = lng - 0.008;
+        _effectiveVolPos = null;
       }
-      _effectiveVolPos = LatLng(vLat, vLng);
 
       final routeInfo = _activeTask!['route_info'];
       final polylineData = _activeTask!['polyline'] ??
@@ -254,7 +277,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
       }
     } else {
       setState(() {
-        _etaText = 'Gagal (Lokasi?)';
+        _etaText = 'Lokasi tidak valid';
       });
     }
   }
@@ -265,7 +288,7 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
       setState(() {
         _isLoading = true;
         _routePoints.clear();
-        _etaText = 'Hitung...';
+        _etaText = 'Menghitung...';
       });
     }
     try {
@@ -283,7 +306,6 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
             _isLoading = false;
           });
         } else {
-          // Tetap pertahankan _activeTask yang sudah diisi lewat initialTask
           setState(() {
             _isLoading = false;
           });
@@ -293,16 +315,13 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
       debugPrint('Error fetch task: $e');
       if (mounted) {
         setState(() {
-          if (_activeTask == null) {
-            _activeTask = null;
-          }
+          _activeTask ??= null;
           _isLoading = false;
         });
       }
     }
   }
 
-  /// Buka navigasi eksternal (Google Maps)
   Future<void> _openExternalNavigation(double lat, double lng) async {
     final googleMapsUrl = Uri.parse(
       'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving',
@@ -318,24 +337,187 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
     }
   }
 
+  Future<void> _callVictim(String phone) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (cleanPhone.isEmpty || cleanPhone == '-') {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nomor telepon pelapor tidak tersedia')),
+        );
+      }
+      return;
+    }
+    final uri = Uri.parse('tel:$cleanPhone');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        await launchUrl(uri);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tidak dapat membuka aplikasi panggilan telepon'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _chatVictim(String phone, {String? victimName}) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+
+    // 1. Coba hubungi via endpoint API chat-wa relawan (mencatat aktivitas & pesan template resmi backend)
+    if (_activeTask != null && _activeTask!['id'] != null) {
+      try {
+        final idSos = _activeTask!['id'];
+        final isLaporan = _activeTask!['tipe'] == 'laporan' ||
+            (_activeTask!['tipe'] != 'sos' &&
+                _activeTask!['kategori_laporan'] != 'SOS' &&
+                _activeTask!['kategori_laporan'] != null);
+        final tipe = isLaporan ? 'laporan' : 'sos';
+        final idInt = idSos is int ? idSos : int.tryParse(idSos.toString());
+
+        if (idInt != null) {
+          final waUrl = await _dataSource.getChatWaPengguna(tipe, idInt);
+          if (waUrl != null && waUrl.isNotEmpty) {
+            final uri = Uri.parse(waUrl);
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+              return;
+            } else {
+              try {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                return;
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Catatan: Gagal mendapatkan WhatsApp URL via endpoint backend: $e');
+      }
+    }
+
+    // 2. Fallback: Langsung buka WhatsApp via nomor telepon pelapor
+    if (cleanPhone.isEmpty || cleanPhone == '-') {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nomor kontak pelapor tidak tersedia')),
+        );
+      }
+      return;
+    }
+
+    String waPhone = cleanPhone;
+    if (waPhone.startsWith('0')) {
+      waPhone = '62${waPhone.substring(1)}';
+    } else if (waPhone.startsWith('+')) {
+      waPhone = waPhone.substring(1);
+    }
+
+    final targetNama = victimName ?? 'Warga';
+    final message = Uri.encodeComponent(
+      'Halo $targetNama, saya Relawan Sahabat SOS yang sedang merespon laporan Anda. Mohon tetap tenang, saya sedang bergerak membantu Anda.',
+    );
+    final waUri = Uri.parse('https://wa.me/$waPhone?text=$message');
+
+    try {
+      if (await canLaunchUrl(waUri)) {
+        await launchUrl(waUri, mode: LaunchMode.externalApplication);
+        return;
+      } else {
+        await launchUrl(waUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    } catch (_) {
+      // 3. Fallback: Buka SMS jika WhatsApp tidak tersedia
+      final smsUri = Uri.parse('sms:$cleanPhone');
+      try {
+        if (await canLaunchUrl(smsUri)) {
+          await launchUrl(smsUri);
+          return;
+        } else {
+          await launchUrl(smsUri);
+          return;
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Tidak dapat membuka WhatsApp maupun SMS'),
+            ),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _hubungiKontakDarurat() async {
     if (_activeTask == null) return;
-    
+
     final idSos = _activeTask!['id'];
-    
-    bool? confirm = await showDialog<bool>(
+    final isLaporan = _activeTask!['tipe'] == 'laporan' ||
+        (_activeTask!['tipe'] != 'sos' &&
+            _activeTask!['kategori_laporan'] != 'SOS' &&
+            _activeTask!['kategori_laporan'] != null);
+
+    final isHighContrast =
+        AccessibilityService.instance.isHighContrastEnabled ||
+        Theme.of(context).brightness == Brightness.dark ||
+        MediaQuery.of(context).highContrast;
+    final dialogBg = AccessibleColors.cardBackground(isHighContrast);
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+
+    final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Hubungi Kontak Darurat'),
-        content: const Text('Yakin ingin mengirim notifikasi SOS ke kontak darurat korban?'),
+        backgroundColor: dialogBg,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: isHighContrast
+              ? const BorderSide(color: Color(0xFF4B5563), width: 1.5)
+              : BorderSide.none,
+        ),
+        title: Text(
+          'Hubungi Kontak Darurat',
+          style: TextStyle(
+            color: textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          'Kirim notifikasi peringatan ke kontak darurat terdaftar korban?',
+          style: TextStyle(
+            color: textSecondary,
+            height: 1.4,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal'),
+            child: Text(
+              'Batal',
+              style: TextStyle(
+                color: isHighContrast
+                    ? const Color(0xFF9CA3AF)
+                    : Colors.grey.shade600,
+              ),
+            ),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Hubungi', style: TextStyle(color: Colors.red)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: sosRed,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Kirim Notifikasi'),
           ),
         ],
       ),
@@ -347,120 +529,331 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (_) => const Center(child: CupertinoActivityIndicator(radius: 16)),
+        builder: (_) =>
+            const Center(child: CupertinoActivityIndicator(radius: 16)),
       );
-      
-      // Default tipe "sos" untuk SOS aktif
-      await _dataSource.hubungiKontakDarurat('sos', idSos);
-      
+
+      final tipe = isLaporan ? 'laporan' : 'sos';
+      final idInt = idSos is int ? idSos : int.parse(idSos.toString());
+      final waUrl = await _dataSource.hubungiKontakDarurat(tipe, idInt);
+
       if (!mounted) return;
-      Navigator.pop(context); // close loading
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Notifikasi telah dikirim ke kontak darurat korban')),
-      );
+      Navigator.pop(context);
+
+      if (waUrl != null && waUrl.isNotEmpty) {
+        final uri = Uri.parse(waUrl);
+        try {
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          } else {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+        } catch (err) {
+          debugPrint('Error membuka WhatsApp kontak darurat: $err');
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Notifikasi telah dikirim ke kontak darurat korban'),
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menghubungi kontak darurat')),
+        SnackBar(content: Text('Gagal menghubungi kontak darurat: $e')),
       );
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        extendBodyBehindAppBar: true,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: const BackButton(color: primaryTeal),
-        ),
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: Container(
-                color: const Color(0xFFF5F6F8),
-              ),
-            ),
-            const Center(child: CupertinoActivityIndicator(radius: 16)),
-          ],
-        ),
+  Future<void> _completeTask(dynamic idSos, bool isLaporan, {String? catatan}) async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      _isCompleting = true;
+      if (isLaporan) {
+        await _dataSource.updateLaporanStatus(idSos, 'selesai', catatan: catatan);
+      } else {
+        final sosIdInt = idSos is int ? idSos : int.parse(idSos.toString());
+        await _dataSource.updateSosStatus(sosIdInt, 'selesai', catatan: catatan);
+      }
+
+      import_event_bus.GlobalEventBus.changeVolunteerTab.value = 1;
+      import_event_bus.GlobalEventBus.refreshMap.value =
+          !import_event_bus.GlobalEventBus.refreshMap.value;
+
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Tugas telah berhasil diselesaikan dengan catatan tersimpan.')),
+      );
+      navigator.popUntil((route) => route.isFirst);
+    } catch (e) {
+      _isCompleting = false;
+      _sliderKey.currentState?.reset();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Gagal menyelesaikan tugas: $e')),
       );
     }
+  }
 
-    if (_activeTask == null) {
-      return Scaffold(
-        extendBodyBehindAppBar: true,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: const BackButton(color: primaryTeal),
-        ),
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: Container(
-                color: const Color(0xFFF5F6F8),
+  Future<void> _showCompletionDialog(dynamic idSos, bool isLaporan) async {
+    final isHighContrast =
+        AccessibilityService.instance.isHighContrastEnabled ||
+        Theme.of(context).brightness == Brightness.dark ||
+        MediaQuery.of(context).highContrast;
+    final dialogBg = AccessibleColors.cardBackground(isHighContrast);
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+    final tealColor = AccessibleColors.primaryTeal(isHighContrast);
+
+    final TextEditingController notesController = TextEditingController();
+    final List<String> presetChips = [
+      'Pertolongan Pertama Selesai',
+      'Pemberian Obat / Rawat Luka',
+      'Didampingi ke Lokasi Aman',
+      'Dirujuk ke Puskesmas / RS',
+      'Kondisi Korban Stabil & Terkendali',
+    ];
+    final Set<String> selectedChips = {};
+
+    final bool? result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: dialogBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+                top: 20,
+                left: 20,
+                right: 20,
               ),
-            ),
-            Center(
-              child: GlassContainer(
-                padding: const EdgeInsets.all(32),
+              child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      CupertinoIcons.doc_text_search,
-                      size: 64,
-                      color: primaryTeal.withValues(alpha: 0.5),
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade400,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'Tidak ada tugas aktif.',
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: tealColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            CupertinoIcons.checkmark_shield_fill,
+                            color: tealColor,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Catatan Penutupan Kasus',
+                                style: TextStyle(
+                                  color: textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Catatan tindakan lapangan & medis relawan',
+                                style: TextStyle(
+                                  color: textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Tindakan Cepat (Pilih yang sesuai):',
                       style: TextStyle(
-                        color: Colors.black87,
-                        fontSize: 16,
+                        color: textPrimary,
                         fontWeight: FontWeight.w600,
+                        fontSize: 13,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Belum ada tugas darurat yang sedang Anda tangani saat ini.',
-                      textAlign: TextAlign.center,
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: presetChips.map((chip) {
+                        final isSelected = selectedChips.contains(chip);
+                        return FilterChip(
+                          label: Text(
+                            chip,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : textPrimary,
+                              fontSize: 12,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setModalState(() {
+                              if (selected) {
+                                selectedChips.add(chip);
+                              } else {
+                                selectedChips.remove(chip);
+                              }
+                              final chipText = selectedChips.map((c) => '• $c').join('\n');
+                              final currentLines = notesController.text
+                                  .split('\n')
+                                  .where((l) => !presetChips.any((p) => l.contains(p)))
+                                  .where((l) => l.trim().isNotEmpty)
+                                  .join('\n');
+
+                              if (currentLines.isNotEmpty) {
+                                notesController.text = chipText.isNotEmpty
+                                    ? '$chipText\n$currentLines'
+                                    : currentLines;
+                              } else {
+                                notesController.text = chipText;
+                              }
+                            });
+                          },
+                          materialTapTargetSize: MaterialTapTargetSize.padded,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          selectedColor: tealColor,
+                          backgroundColor: isHighContrast
+                              ? const Color(0xFF1E2430)
+                              : const Color(0xFFF3F4F6),
+                          checkmarkColor: Colors.white,
+                          side: BorderSide(
+                            color: isSelected
+                                ? tealColor
+                                : (isHighContrast
+                                    ? const Color(0xFF4B5563)
+                                    : const Color(0xFFD1D5DB)),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Rincian Tindakan / Catatan Medis Lapangan:',
                       style: TextStyle(
-                        color: Colors.black54,
+                        color: textPrimary,
+                        fontWeight: FontWeight.w600,
                         fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: notesController,
+                      maxLines: 4,
+                      style: TextStyle(color: textPrimary, fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: 'Tuliskan tindakan yang diberikan, kondisi korban, atau rujukan faskes...',
+                        hintStyle: TextStyle(
+                          color: textSecondary.withValues(alpha: 0.6),
+                          fontSize: 12,
+                        ),
+                        filled: true,
+                        fillColor: isHighContrast
+                            ? const Color(0xFF1E2430)
+                            : const Color(0xFFF9FAFB),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: isHighContrast
+                                ? const Color(0xFF4B5563)
+                                : const Color(0xFFD1D5DB),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: tealColor, width: 1.5),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
                     Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        OutlinedButton.icon(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(CupertinoIcons.arrow_left, size: 16),
-                          label: const Text('Kembali'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: primaryTeal,
-                            side: const BorderSide(color: primaryTeal),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(
+                                  color: isHighContrast
+                                      ? const Color(0xFF4B5563)
+                                      : const Color(0xFFD1D5DB),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: Text(
+                                'Batal',
+                                style: TextStyle(
+                                  color: textSecondary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
                         ),
                         const SizedBox(width: 12),
-                        ElevatedButton.icon(
-                          onPressed: _fetchTask,
-                          icon: const Icon(CupertinoIcons.refresh, size: 16),
-                          label: const Text('Muat Ulang'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryTeal,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.pop(ctx, true);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: tealColor,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Selesaikan Kasus',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -469,119 +862,321 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                   ],
                 ),
               ),
-            ),
-          ],
-        ),
-      );
+            );
+          },
+        );
+      },
+    );
+
+    if (result == true) {
+      final catatan = notesController.text.trim();
+      await _completeTask(idSos, isLaporan, catatan: catatan.isNotEmpty ? catatan : null);
+    } else {
+      _sliderKey.currentState?.reset();
     }
+  }
 
-    final idSos = _activeTask!['id'] ?? '-';
-    final idKasus = _activeTask!['id_kasus'] ?? _activeTask!['nomor_kasus'] ?? 'SOS-$idSos';
-    final pengguna = _activeTask!['pengguna'] ?? {};
-    final nama = pengguna['name'] ?? 'Korban';
-    final noTelp = pengguna['no_telp'] ?? '-';
-    final lokasi =
-        _activeTask!['lokasi_user'] ??
-        _activeTask!['lokasi_laporan'] ??
-        'Lokasi tidak diketahui';
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final currentBg = AccessibleColors.scaffoldBackground(isHighContrast);
+        final cardBg = AccessibleColors.cardBackground(isHighContrast);
+        final tealColor = AccessibleColors.primaryTeal(isHighContrast);
+        final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+        final textSecondary = AccessibleColors.textSecondary(isHighContrast);
 
-    final kategoriUser = pengguna['kategori_user'] ?? 'Umum';
-    final catatanMedis =
-        (pengguna['catatan_medis'] != null &&
-            pengguna['catatan_medis'].toString().isNotEmpty)
-        ? pengguna['catatan_medis']
-        : 'Tidak ada catatan medis spesifik';
-
-    // Helper untuk menentukan protokol berdasarkan kategori
-    String protocolText =
-        'Tetap tenang, perkenalkan diri Anda dengan ramah, dan tanyakan bantuan apa yang dibutuhkan.';
-    if (kategoriUser.toString().toLowerCase().contains('tunanetra')) {
-      protocolText =
-          'Dekati dari arah depan, sentuh pundak dengan izin, lalu sebutkan nama dan identitas resmi relawan Sahabat SOS secara perlahan dan artikulatif.';
-    } else if (kategoriUser.toString().toLowerCase().contains('tunarungu') ||
-        kategoriUser.toString().toLowerCase().contains('tuli')) {
-      protocolText =
-          'Sentuh pundak dengan lembut untuk menarik perhatian, bicara berhadapan agar gerak bibir terlihat, atau gunakan tulisan/isyarat sederhana.';
-    } else if (kategoriUser.toString().toLowerCase().contains('tunadaksa')) {
-      protocolText =
-          'Tanyakan dulu bagaimana Anda bisa membantu memindahkan atau memosisikan mereka. Jangan menarik tubuh mereka tanpa instruksi.';
-    }
-
-    // Karena berada di halaman ini berarti tugas sudah diterima (proses),
-    // posisinya selalu di langkah 2 (Sedang ditangani) menuju langkah 3 (Selesai).
-    int currentStep = 2; // 1 = Diterima, 2 = Sedang ditangani, 3 = Selesai
-    int totalSteps = 3;
-
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.white.withValues(alpha: 0.15),
-        elevation: 0,
-        flexibleSpace: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(color: Colors.transparent),
-          ),
-        ),
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset('assets/images/logo.png', height: 24),
-            const SizedBox(width: 8),
-            const Text(
-              'Sahabat SOS',
-              style: TextStyle(
-                color: primaryTeal,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+        if (_isLoading) {
+          return Scaffold(
+            backgroundColor: currentBg,
+            appBar: AppBar(
+              backgroundColor: cardBg,
+              elevation: 0,
+              leading: BackButton(
+                color: tealColor,
+                onPressed: () => context.pop(),
+              ),
+              title: Text(
+                'Detail Penanganan Tugas',
+                style: TextStyle(
+                  color: tealColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
             ),
-          ],
-        ),
-        centerTitle: true,
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.3),
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: const Icon(
-                CupertinoIcons.phone_fill,
-                color: sosRed,
-                size: 20,
+            body: Center(
+              child: CupertinoActivityIndicator(
+                radius: 16,
+                color: tealColor,
               ),
-              onPressed: () {},
             ),
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          // iOS Style Abstract Gradient Background
-          Positioned.fill(
-            child: Container(
-              color: const Color(0xFFF5F6F8),
+          );
+        }
+
+        if (_activeTask == null) {
+          return Scaffold(
+            backgroundColor: currentBg,
+            appBar: AppBar(
+              backgroundColor: cardBg,
+              elevation: 0,
+              leading: BackButton(
+                color: tealColor,
+                onPressed: () => context.pop(),
+              ),
+              title: Text(
+                'Detail Tugas',
+                style: TextStyle(
+                  color: tealColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
             ),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Container(
+                  padding: const EdgeInsets.all(28),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: AccessibleColors.cardBorder(isHighContrast),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(
+                          alpha: isHighContrast ? 0.35 : 0.04,
+                        ),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        CupertinoIcons.doc_text_search,
+                        size: 56,
+                        color: tealColor,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Tidak Ada Tugas Aktif',
+                        style: TextStyle(
+                          color: textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Belum ada tugas darurat yang sedang Anda tangani saat ini.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () => context.pop(),
+                            icon: const Icon(CupertinoIcons.arrow_left, size: 16),
+                            label: const Text('Kembali'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: tealColor,
+                              minimumSize: const Size(110, 48),
+                              side: BorderSide(
+                                color: isHighContrast
+                                    ? const Color(0xFF4B5563)
+                                    : primaryTeal,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton.icon(
+                            onPressed: _fetchTask,
+                            icon: const Icon(CupertinoIcons.refresh, size: 16),
+                            label: const Text('Muat Ulang'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: tealColor,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(120, 48),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+
+        final idSos = _activeTask!['id'] ?? '-';
+        final isLaporan = _activeTask!['tipe'] == 'laporan' ||
+            (_activeTask!['tipe'] != 'sos' &&
+                _activeTask!['kategori_laporan'] != 'SOS' &&
+                _activeTask!['kategori_laporan'] != null);
+        final idKasus = _activeTask!['id_kasus'] ??
+            _activeTask!['nomor_kasus'] ??
+            (isLaporan ? 'LAP-$idSos' : 'SOS-$idSos');
+        final pengguna = (_activeTask!['pengguna'] is Map ? _activeTask!['pengguna'] : null) ??
+            (_activeTask!['pelapor'] is Map ? _activeTask!['pelapor'] : null) ??
+            {};
+        final nama = pengguna['name']?.toString() ??
+            pengguna['nama']?.toString() ??
+            'Warga / Pelapor';
+        final phone = (pengguna['phone'] ??
+                pengguna['nomor_telepon'] ??
+                pengguna['no_telp'] ??
+                pengguna['no_telp_wa'] ??
+                pengguna['telepon'] ??
+                '')
+            .toString();
+
+        String lokasi = 'Lokasi tidak diketahui';
+        final rawLokasi = _activeTask!['lokasi_user'] ??
+            _activeTask!['lokasi_laporan'] ??
+            _activeTask!['lokasi'] ??
+            _activeTask!['alamat'];
+        if (rawLokasi is Map) {
+          lokasi = rawLokasi['alamat']?.toString() ??
+              rawLokasi['nama']?.toString() ??
+              rawLokasi['lokasi']?.toString() ??
+              'Lokasi tidak diketahui';
+        } else if (rawLokasi != null && rawLokasi.toString().isNotEmpty) {
+          lokasi = rawLokasi.toString();
+        }
+
+        final targetLat = _extractCoordinate('latitude');
+        final targetLng = _extractCoordinate('longitude');
+
+        final kategoriUser = pengguna['kategori_user']?.toString() ?? 'Umum';
+        final catatanMedis = (pengguna['catatan_medis'] != null &&
+                pengguna['catatan_medis'].toString().isNotEmpty)
+            ? pengguna['catatan_medis'].toString()
+            : ((pengguna['keterangan_medis'] != null &&
+                    pengguna['keterangan_medis'].toString().isNotEmpty)
+                ? pengguna['keterangan_medis'].toString()
+                : 'Tidak ada catatan medis spesifik');
+
+        String protocolText =
+            'Tetap tenang, perkenalkan diri Anda dengan ramah, dan tanyakan bantuan yang dibutuhkan.';
+        if (kategoriUser.toString().toLowerCase().contains('tunanetra')) {
+          protocolText =
+              'Dekati dari arah depan, sebutkan nama dan identitas relawan Sahabat SOS secara artikulatif sebelum menyentuh atau memandu korban.';
+        } else if (kategoriUser.toString().toLowerCase().contains('tunarungu') ||
+            kategoriUser.toString().toLowerCase().contains('tuli')) {
+          protocolText =
+              'Sentuh pundak dengan lembut untuk menarik perhatian, bicara berhadapan agar gerak bibir terlihat, atau gunakan tulisan di ponsel.';
+        } else if (kategoriUser.toString().toLowerCase().contains('tunadaksa')) {
+          protocolText =
+              'Tanyakan terlebih dahulu cara terbaik membantu mobilitas mereka. Jangan memindahkan atau menarik tubuh tanpa persetujuan.';
+        }
+
+        const int currentStep = 2;
+        const int totalSteps = 3;
+
+        return Scaffold(
+          backgroundColor: currentBg,
+          appBar: AppBar(
+            backgroundColor: cardBg,
+            elevation: 0,
+            leading: BackButton(
+              color: tealColor,
+              onPressed: () => context.pop(),
+            ),
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image.asset('assets/images/logo.png', height: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'Penanganan Tugas',
+                  style: TextStyle(
+                    color: tealColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+            centerTitle: true,
+            actions: [
+              Semantics(
+                label: 'Hubungi pelapor via telepon',
+                button: true,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Material(
+                    color: isHighContrast
+                        ? const Color(0xFF1E2430)
+                        : const Color(0xFFFEE2E2),
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: () => _callVictim(phone),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          CupertinoIcons.phone_fill,
+                          color: sosRed,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-
-
-          SafeArea(
+          body: SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  // Red header card -> GlassContainer
-                  GlassContainer(
-                    padding: const EdgeInsets.all(16),
-                    color: sosRed.withValues(alpha: 0.75),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.4),
-                      width: 1.5,
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: isHighContrast
+                          ? const Color(0xFF450A0A)
+                          : const Color(0xFFDC2626),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isHighContrast
+                            ? const Color(0xFFEF4444)
+                            : const Color(0xFFB91C1C),
+                        width: isHighContrast ? 1.5 : 1.0,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFDC2626).withValues(
+                            alpha: isHighContrast ? 0.35 : 0.2,
+                          ),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    borderRadius: BorderRadius.circular(20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -589,23 +1184,24 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                           children: [
                             const Icon(
                               CupertinoIcons.time,
-                              color: Colors.white70,
+                              color: Colors.white,
                               size: 14,
                             ),
-                            const SizedBox(width: 4),
+                            const SizedBox(width: 6),
                             Text(
-                              'ID: $idKasus',
+                              'Nomor Tugas: $idKasus',
                               style: const TextStyle(
-                                color: Colors.white70,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
                                 fontSize: 12,
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          'Panggilan Darurat SOS',
-                          style: TextStyle(
+                        Text(
+                          isLaporan ? 'Laporan Warga' : 'Panggilan Darurat SOS',
+                          style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 18,
@@ -620,13 +1216,14 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                               color: Colors.white,
                               size: 16,
                             ),
-                            const SizedBox(width: 4),
+                            const SizedBox(width: 6),
                             Expanded(
                               child: Text(
                                 lokasi,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.95),
                                   fontSize: 13,
+                                  height: 1.3,
                                 ),
                               ),
                             ),
@@ -635,23 +1232,36 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
-                  // Stepper -> GlassContainer
-                  GlassContainer(
+                  Container(
                     padding: const EdgeInsets.all(16),
-                    borderRadius: BorderRadius.circular(20),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: AccessibleColors.cardBorder(isHighContrast),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: isHighContrast ? 0.35 : 0.04,
+                          ),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
                     child: Column(
                       children: [
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
+                            Text(
                               'TAHAPAN PENANGANAN',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.black54,
+                                color: textSecondary,
+                                letterSpacing: 0.5,
                               ),
                             ),
                             Container(
@@ -660,13 +1270,18 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: primaryTeal.withValues(alpha: 0.15),
+                                color: isHighContrast
+                                    ? const Color(0xFF1E3A34)
+                                    : primaryTeal.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(12),
+                                border: isHighContrast
+                                    ? Border.all(color: const Color(0xFF00897B))
+                                    : null,
                               ),
                               child: Text(
-                                'Langkah $currentStep dari $totalSteps',
-                                style: const TextStyle(
-                                  color: primaryTeal,
+                                'Tahap $currentStep dari $totalSteps',
+                                style: TextStyle(
+                                  color: tealColor,
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -683,20 +1298,27 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                 1,
                                 'Diterima',
                                 currentStep,
-                                isFirst: true,
+                                isHighContrast: isHighContrast,
                               ),
                             ),
-                            _buildLine(1, currentStep),
+                            _buildLine(1, currentStep,
+                                isHighContrast: isHighContrast),
                             Expanded(
-                              child: _buildStep(2, 'Ditangani', currentStep),
+                              child: _buildStep(
+                                2,
+                                'Ditangani',
+                                currentStep,
+                                isHighContrast: isHighContrast,
+                              ),
                             ),
-                            _buildLine(2, currentStep),
+                            _buildLine(2, currentStep,
+                                isHighContrast: isHighContrast),
                             Expanded(
                               child: _buildStep(
                                 3,
                                 'Selesai',
                                 currentStep,
-                                isLast: true,
+                                isHighContrast: isHighContrast,
                               ),
                             ),
                           ],
@@ -704,12 +1326,24 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
-                  // Rute Tercepat -> GlassContainer
-                  GlassContainer(
+                  Container(
                     padding: const EdgeInsets.all(16),
-                    borderRadius: BorderRadius.circular(20),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: AccessibleColors.cardBorder(isHighContrast),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: isHighContrast ? 0.35 : 0.04,
+                          ),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -720,15 +1354,16 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                               children: [
                                 Icon(
                                   CupertinoIcons.map,
-                                  color: primaryTeal,
+                                  color: tealColor,
                                   size: 20,
                                 ),
                                 const SizedBox(width: 8),
-                                const Text(
-                                  'Rute Tercepat ke\nKorban',
+                                Text(
+                                  'Rute Tercepat ke Lokasi',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 14,
+                                    color: textPrimary,
                                   ),
                                 ),
                               ],
@@ -739,26 +1374,28 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.green.shade50.withValues(
-                                  alpha: 0.5,
-                                ),
-                                borderRadius: BorderRadius.circular(16),
+                                color: isHighContrast
+                                    ? const Color(0xFF1E3A34)
+                                    : const Color(0xFFE6F4EA),
+                                borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: Colors.green.shade200,
+                                  color: isHighContrast
+                                      ? const Color(0xFF00897B)
+                                      : const Color(0xFFCEEAD6),
                                 ),
                               ),
                               child: Row(
                                 children: [
                                   Icon(
                                     CupertinoIcons.time,
-                                    color: primaryTeal,
+                                    color: tealColor,
                                     size: 14,
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
                                     _etaText,
-                                    style: const TextStyle(
-                                      color: primaryTeal,
+                                    style: TextStyle(
+                                      color: tealColor,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,
                                     ),
@@ -768,56 +1405,41 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
                         Container(
                           height: 180,
                           width: double.infinity,
                           decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black12,
-                                blurRadius: 10,
-                                offset: Offset(0, 5),
-                              ),
-                            ],
+                            color: isHighContrast
+                                ? const Color(0xFF1E2430)
+                                : Colors.grey[200],
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isHighContrast
+                                  ? const Color(0xFF4B5563)
+                                  : const Color(0xFFE5E7EB),
+                            ),
                           ),
-                          child: Stack(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: FlutterMap(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: Stack(
+                              children: [
+                                FlutterMap(
                                   mapController: _mapController,
                                   options: MapOptions(
                                     initialCenter: _routePoints.isNotEmpty
                                         ? _routePoints.first
-                                        : (_activeTask != null &&
-                                              _activeTask!['latitude'] !=
-                                                  null &&
-                                              _activeTask!['longitude'] != null)
-                                        ? LatLng(
-                                            double.tryParse(
-                                                  _activeTask!['latitude']
-                                                      .toString(),
-                                                ) ??
-                                                0.0,
-                                            double.tryParse(
-                                                  _activeTask!['longitude']
-                                                      .toString(),
-                                                ) ??
-                                                0.0,
-                                          )
-                                        : _effectiveVolPos != null
-                                        ? _effectiveVolPos!
-                                        : const LatLng(-6.200000, 106.816666),
+                                        : (targetLat != null && targetLng != null)
+                                            ? LatLng(targetLat, targetLng)
+                                            : _effectiveVolPos ??
+                                                const LatLng(-6.200000, 106.816666),
                                     initialZoom: 14.0,
                                     maxZoom: 18.0,
                                     minZoom: 4.0,
                                     interactionOptions:
                                         const InteractionOptions(
-                                          flags: InteractiveFlag.all,
-                                        ),
+                                      flags: InteractiveFlag.all,
+                                    ),
                                   ),
                                   children: [
                                     TileLayer(
@@ -826,20 +1448,33 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                       userAgentPackageName:
                                           'com.sahabat_sos_mobile.app',
                                       maxZoom: 18,
+                                      tileBuilder: isHighContrast
+                                          ? (context, tileWidget, tile) {
+                                              return ColorFiltered(
+                                                colorFilter: const ColorFilter
+                                                    .matrix(<double>[
+                                                  -1.0, 0.0, 0.0, 0.0, 255.0,
+                                                  0.0, -1.0, 0.0, 0.0, 255.0,
+                                                  0.0, 0.0, -1.0, 0.0, 255.0,
+                                                  0.0, 0.0, 0.0, 1.0, 0.0,
+                                                ]),
+                                                child: tileWidget,
+                                              );
+                                            }
+                                          : null,
                                     ),
                                     if (_routePoints.isNotEmpty)
                                       PolylineLayer(
                                         polylines: [
                                           Polyline(
                                             points: _routePoints,
-                                            color: primaryTeal,
+                                            color: tealColor,
                                             strokeWidth: 4.0,
                                           ),
                                         ],
                                       ),
                                     MarkerLayer(
                                       markers: [
-                                        // Volunteer marker
                                         if (_effectiveVolPos != null)
                                           Marker(
                                             point: _effectiveVolPos!,
@@ -862,23 +1497,9 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                               ),
                                             ),
                                           ),
-                                        // Victim marker
-                                        if (_activeTask != null &&
-                                            _activeTask!['latitude'] != null &&
-                                            _activeTask!['longitude'] != null)
+                                        if (targetLat != null && targetLng != null)
                                           Marker(
-                                            point: LatLng(
-                                              double.tryParse(
-                                                    _activeTask!['latitude']
-                                                        .toString(),
-                                                  ) ??
-                                                  0.0,
-                                              double.tryParse(
-                                                    _activeTask!['longitude']
-                                                        .toString(),
-                                                  ) ??
-                                                  0.0,
-                                            ),
+                                            point: LatLng(targetLat, targetLng),
                                             width: 32,
                                             height: 32,
                                             child: const Icon(
@@ -891,53 +1512,53 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                     ),
                                   ],
                                 ),
-                              ),
-                              if (_isFetchingRoute)
-                                const Center(
-                                  child: CupertinoActivityIndicator(radius: 16),
-                                ),
-                            ],
+                                if (_isFetchingRoute)
+                                  const Center(
+                                    child: CupertinoActivityIndicator(
+                                        radius: 16),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 12),
                         SizedBox(
                           width: double.infinity,
-                          child: ElevatedButton.icon(
+                          height: 48,
+                          child: OutlinedButton.icon(
                             onPressed: () {
-                              final lat = double.tryParse(
-                                _activeTask!['latitude']?.toString() ?? '',
-                              );
-                              final lng = double.tryParse(
-                                _activeTask!['longitude']?.toString() ?? '',
-                              );
-                              if (lat != null && lng != null) {
-                                _openExternalNavigation(lat, lng);
+                              if (targetLat != null && targetLng != null) {
+                                _openExternalNavigation(targetLat, targetLng);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Titik koordinat lokasi belum lengkap'),
+                                  ),
+                                );
                               }
                             },
-                            icon: const Icon(
+                            icon: Icon(
                               CupertinoIcons.arrow_up_right_square,
                               size: 16,
-                              color: primaryTeal,
+                              color: tealColor,
                             ),
-                            label: const Text(
-                              'Buka Google Maps',
+                            label: Text(
+                              'Buka Navigasi Google Maps',
                               style: TextStyle(
-                                color: primaryTeal,
+                                color: tealColor,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
                               ),
                             ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white.withValues(
-                                alpha: 0.5,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: tealColor,
+                              side: BorderSide(
+                                color: isHighContrast
+                                    ? const Color(0xFF4B5563)
+                                    : const Color(0xFFD1D5DB),
                               ),
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(
-                                  color: Colors.white.withValues(alpha: 0.8),
-                                ),
                               ),
                             ),
                           ),
@@ -945,25 +1566,37 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
-                  // User Info -> GlassContainer
-                  GlassContainer(
+                  Container(
                     padding: const EdgeInsets.all(16),
-                    borderRadius: BorderRadius.circular(20),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: AccessibleColors.cardBorder(isHighContrast),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: isHighContrast ? 0.35 : 0.04,
+                          ),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
                     child: Column(
                       children: [
                         Row(
                           children: [
                             CircleAvatar(
-                              backgroundColor: Colors.white.withValues(
-                                alpha: 0.5,
-                              ),
+                              backgroundColor: isHighContrast
+                                  ? const Color(0xFF1E3A34)
+                                  : primaryTeal.withValues(alpha: 0.12),
                               radius: 24,
-                              child: const Icon(
-                                CupertinoIcons.person,
-                                color: primaryTeal,
-                                size: 24,
+                              child: Icon(
+                                CupertinoIcons.person_solid,
+                                color: tealColor,
+                                size: 22,
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -973,46 +1606,47 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                 children: [
                                   Row(
                                     children: [
-                                      Text(
-                                        nama,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
+                                      Expanded(
+                                        child: Text(
+                                          nama,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                            color: textPrimary,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
-                                      const SizedBox(width: 8),
                                       if (kategoriUser.toLowerCase() !=
                                               'umum' &&
                                           kategoriUser != '')
                                         Container(
+                                          margin: const EdgeInsets.only(left: 6),
                                           padding: const EdgeInsets.symmetric(
-                                            horizontal: 6,
-                                            vertical: 2,
+                                            horizontal: 8,
+                                            vertical: 3,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: Colors.blue.shade50
-                                                .withValues(alpha: 0.8),
-                                            borderRadius: BorderRadius.circular(
-                                              8,
+                                            color: isHighContrast
+                                                ? const Color(0xFF1E3A5F)
+                                                : const Color(0xFFEFF6FF),
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                            border: Border.all(
+                                              color: isHighContrast
+                                                  ? const Color(0xFF3B82F6)
+                                                  : const Color(0xFFBFDBFE),
                                             ),
                                           ),
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                CupertinoIcons.eye_slash_fill,
-                                                color: Colors.blue.shade700,
-                                                size: 10,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                kategoriUser,
-                                                style: TextStyle(
-                                                  color: Colors.blue.shade700,
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ],
+                                          child: Text(
+                                            kategoriUser,
+                                            style: TextStyle(
+                                              color: isHighContrast
+                                                  ? const Color(0xFF93C5FD)
+                                                  : const Color(0xFF1D4ED8),
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
                                         ),
                                     ],
@@ -1020,8 +1654,8 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                   const SizedBox(height: 4),
                                   Text(
                                     catatanMedis,
-                                    style: const TextStyle(
-                                      color: Colors.black87,
+                                    style: TextStyle(
+                                      color: textSecondary,
                                       fontSize: 12,
                                     ),
                                   ),
@@ -1030,16 +1664,20 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
+
                         Container(
+                          width: double.infinity,
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.amber.shade50.withValues(alpha: 0.6),
+                            color: isHighContrast
+                                ? const Color(0xFF3B2904)
+                                : const Color(0xFFFFFBEB),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: Colors.amber.shade200.withValues(
-                                alpha: 0.5,
-                              ),
+                              color: isHighContrast
+                                  ? const Color(0xFFD97706)
+                                  : const Color(0xFFFDE68A),
                             ),
                           ),
                           child: Column(
@@ -1049,14 +1687,18 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                                 children: [
                                   Icon(
                                     CupertinoIcons.info_circle,
-                                    color: Colors.amber.shade800,
+                                    color: isHighContrast
+                                        ? const Color(0xFFFDE68A)
+                                        : const Color(0xFFD97706),
                                     size: 16,
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
-                                    'Protokol Interaksi:',
+                                    'Panduan Interaksi:',
                                     style: TextStyle(
-                                      color: Colors.amber.shade900,
+                                      color: isHighContrast
+                                          ? const Color(0xFFFDE68A)
+                                          : const Color(0xFF92400E),
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,
                                     ),
@@ -1067,70 +1709,89 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                               Text(
                                 protocolText,
                                 style: TextStyle(
-                                  color: Colors.amber.shade900,
-                                  fontSize: 11,
+                                  color: isHighContrast
+                                      ? const Color(0xFFFDE68A)
+                                      : const Color(0xFF92400E),
+                                  fontSize: 12,
+                                  height: 1.35,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
+
                         Row(
                           children: [
                             Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: () {},
-                                icon: const Icon(
-                                  CupertinoIcons.phone,
-                                  size: 16,
-                                  color: primaryTeal,
-                                ),
-                                label: const Text(
-                                  'Panggil',
-                                  style: TextStyle(color: primaryTeal),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white.withValues(
-                                    alpha: 0.5,
+                              child: SizedBox(
+                                height: 48,
+                                child: OutlinedButton.icon(
+                                  onPressed: () => _callVictim(phone),
+                                  icon: Icon(
+                                    CupertinoIcons.phone,
+                                    size: 16,
+                                    color: tealColor,
                                   ),
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    side: const BorderSide(color: Colors.white),
+                                  label: Text(
+                                    'Panggil',
+                                    style: TextStyle(
+                                      color: tealColor,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: tealColor,
+                                    side: BorderSide(
+                                      color: isHighContrast
+                                          ? const Color(0xFF4B5563)
+                                          : const Color(0xFFD1D5DB),
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: () {},
-                                icon: const Icon(
-                                  CupertinoIcons.chat_bubble,
-                                  size: 16,
-                                  color: primaryTeal,
-                                ),
-                                label: const Text(
-                                  'Chat',
-                                  style: TextStyle(color: primaryTeal),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white.withValues(
-                                    alpha: 0.5,
+                              child: SizedBox(
+                                height: 48,
+                                child: OutlinedButton.icon(
+                                  onPressed: () => _chatVictim(phone, victimName: nama),
+                                  icon: Icon(
+                                    CupertinoIcons.chat_bubble,
+                                    size: 16,
+                                    color: tealColor,
                                   ),
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    side: const BorderSide(color: Colors.white),
+                                  label: Text(
+                                    'Pesan/WA',
+                                    style: TextStyle(
+                                      color: tealColor,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: tealColor,
+                                    side: BorderSide(
+                                      color: isHighContrast
+                                          ? const Color(0xFF4B5563)
+                                          : const Color(0xFFD1D5DB),
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                         SizedBox(
                           width: double.infinity,
+                          height: 48,
                           child: ElevatedButton.icon(
                             onPressed: _hubungiKontakDarurat,
                             icon: const Icon(
@@ -1139,18 +1800,25 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                               size: 16,
                             ),
                             label: const Text(
-                              'Hubungi Kontak Darurat Korban',
-                              style: TextStyle(color: sosRed, fontWeight: FontWeight.bold),
+                              'Kirim Peringatan ke Kontak Darurat',
+                              style: TextStyle(
+                                color: sosRed,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
                             ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red.shade50.withValues(
-                                alpha: 0.8,
-                              ),
+                              backgroundColor: isHighContrast
+                                  ? const Color(0xFF450A0A)
+                                  : const Color(0xFFFEE2E2),
                               elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(color: sosRed.withValues(alpha: 0.3)),
+                                side: BorderSide(
+                                  color: isHighContrast
+                                      ? const Color(0xFFEF4444)
+                                      : const Color(0xFFFCA5A5),
+                                ),
                               ),
                             ),
                           ),
@@ -1160,71 +1828,23 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Actions
                   SizedBox(
                     width: double.infinity,
                     child: SlideToCompleteButton(
-                      label: 'Kasus Telah Selesai',
-                      onCompleted: () async {
-                        final navigator = Navigator.of(context);
-                        final messenger = ScaffoldMessenger.of(context);
-                        try {
-                          _isCompleting = true;
-                          final isLaporan = _activeTask?['tipe'] == 'laporan' ||
-                              (_activeTask?['tipe'] != 'sos' &&
-                                  _activeTask?['kategori_laporan'] != 'SOS' &&
-                                  _activeTask?['kategori_laporan'] != null);
-                          if (isLaporan) {
-                            final dio = sl<Dio>();
-                            final prefs = sl<SharedPreferences>();
-                            final token = prefs.getString('auth_token');
-                            await dio.put(
-                              ApiConstants.laporanStatus(idSos),
-                              data: {'status': 'selesai'},
-                              options: Options(headers: {
-                                if (token != null) 'Authorization': 'Bearer $token',
-                                'Accept': 'application/json',
-                              }),
-                            );
-                          } else {
-                            await _dataSource.updateSosStatus(
-                              int.parse(idSos.toString()),
-                              'selesai',
-                            );
-                          }
-                          // Otomatis arahkan ke tab Tugas Relawan (index 1)
-                          import_event_bus.GlobalEventBus.changeVolunteerTab
-                              .value = 1;
-                          import_event_bus.GlobalEventBus.refreshMap.value =
-                              !import_event_bus.GlobalEventBus.refreshMap.value;
-                          if (!mounted) return;
-                          messenger.showSnackBar(
-                            const SnackBar(
-                              content: Text('Tugas telah diselesaikan.'),
-                            ),
-                          );
-                          navigator.popUntil((route) => route.isFirst);
-                        } catch (e) {
-                          _isCompleting = false;
-                          if (!mounted) return;
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Gagal menyelesaikan: $e',
-                              ),
-                            ),
-                          );
-                        }
-                      },
+                      key: _sliderKey,
+                      label: 'Geser Jika Tugas Selesai',
+                      onCompleted: () => _showCompletionDialog(idSos, isLaporan),
                     ),
                   ),
-                  const SizedBox(height: 100), // padding for bottom nav
+                  SizedBox(
+                    height: MediaQuery.of(context).padding.bottom + 100,
+                  ),
                 ],
               ),
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1232,17 +1852,18 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
     int stepNum,
     String label,
     int currentStep, {
-    bool isFirst = false,
-    bool isLast = false,
+    bool isHighContrast = false,
   }) {
-    bool isCompleted = stepNum < currentStep;
-    bool isActive = stepNum == currentStep;
+    final bool isCompleted = stepNum < currentStep;
+    final bool isActive = stepNum == currentStep;
+    final tealColor = AccessibleColors.primaryTeal(isHighContrast);
+    final activeBg = isHighContrast ? const Color(0xFF00897B) : primaryTeal;
 
     IconData? icon;
     if (isCompleted) {
       icon = CupertinoIcons.check_mark;
     } else if (isActive && stepNum == 2) {
-      icon = CupertinoIcons.location_solid; // "Ditangani / Sedang Menuju"
+      icon = CupertinoIcons.location_solid;
     } else if (isActive && stepNum == 3) {
       icon = CupertinoIcons.flag_fill;
     }
@@ -1254,21 +1875,25 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
           height: 32,
           decoration: BoxDecoration(
             color: isCompleted || isActive
-                ? primaryTeal
-                : Colors.white.withValues(alpha: 0.5),
+                ? activeBg
+                : (isHighContrast
+                    ? const Color(0xFF1E2430)
+                    : const Color(0xFFF3F4F6)),
             shape: BoxShape.circle,
             border: Border.all(
               color: isCompleted || isActive
                   ? Colors.transparent
-                  : Colors.white,
-              width: 2,
+                  : (isHighContrast
+                      ? const Color(0xFF4B5563)
+                      : const Color(0xFFD1D5DB)),
+              width: 1.5,
             ),
             boxShadow: [
               if (isActive)
                 BoxShadow(
-                  color: primaryTeal.withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  spreadRadius: 2,
+                  color: primaryTeal.withValues(alpha: 0.25),
+                  blurRadius: 6,
+                  spreadRadius: 1,
                 ),
             ],
           ),
@@ -1280,7 +1905,9 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
                     style: TextStyle(
                       color: isCompleted || isActive
                           ? Colors.white
-                          : Colors.grey[500],
+                          : (isHighContrast
+                              ? const Color(0xFF9CA3AF)
+                              : const Color(0xFF6B7280)),
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1293,24 +1920,31 @@ class _VolunteerActiveTaskPageState extends State<VolunteerActiveTaskPage> {
           style: TextStyle(
             fontSize: 11,
             color: isActive
-                ? primaryTeal
-                : (isCompleted ? Colors.black87 : Colors.grey),
+                ? tealColor
+                : (isCompleted
+                    ? (isHighContrast ? Colors.white : Colors.black87)
+                    : (isHighContrast
+                        ? const Color(0xFF9CA3AF)
+                        : const Color(0xFF6B7280))),
             fontWeight: isActive || isCompleted
                 ? FontWeight.bold
-                : FontWeight.normal,
+                : FontWeight.w500,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildLine(int stepNum, int currentStep) {
-    bool isCompleted = stepNum < currentStep;
+  Widget _buildLine(int stepNum, int currentStep,
+      {bool isHighContrast = false}) {
+    final bool isCompleted = stepNum < currentStep;
     return Expanded(
       child: Container(
         height: 2,
-        margin: const EdgeInsets.only(bottom: 14), // align with circle center
-        color: isCompleted ? primaryTeal : Colors.grey[300],
+        margin: const EdgeInsets.only(bottom: 14),
+        color: isCompleted
+            ? (isHighContrast ? const Color(0xFF00897B) : primaryTeal)
+            : (isHighContrast ? const Color(0xFF4B5563) : const Color(0xFFE5E7EB)),
       ),
     );
   }
@@ -1327,16 +1961,39 @@ class SlideToCompleteButton extends StatefulWidget {
   });
 
   @override
-  State<SlideToCompleteButton> createState() => _SlideToCompleteButtonState();
+  State<SlideToCompleteButton> createState() => SlideToCompleteButtonState();
 }
 
-class _SlideToCompleteButtonState extends State<SlideToCompleteButton> {
+class SlideToCompleteButtonState extends State<SlideToCompleteButton> {
   double _dragPosition = 0.0;
   bool _isCompleted = false;
-  final double _thumbSize = 60.0;
+  final double _thumbSize = 56.0;
+
+  void reset() {
+    if (mounted) {
+      setState(() {
+        _dragPosition = 0.0;
+        _isCompleted = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isHighContrast =
+        AccessibilityService.instance.isHighContrastEnabled ||
+        Theme.of(context).brightness == Brightness.dark ||
+        MediaQuery.of(context).highContrast;
+    final trackBg =
+        isHighContrast ? const Color(0xFF1E2430) : const Color(0xFFE2EBEB);
+    final trackBorder = isHighContrast
+        ? Border.all(color: const Color(0xFF4B5563), width: 1.5)
+        : Border.all(color: const Color(0xFFB0C4C4));
+    final labelColor =
+        isHighContrast ? const Color(0xFF80CBC4) : const Color(0xFF006D77);
+    final thumbColor =
+        isHighContrast ? const Color(0xFF00897B) : const Color(0xFF006D77);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth;
@@ -1346,53 +2003,48 @@ class _SlideToCompleteButtonState extends State<SlideToCompleteButton> {
           width: maxWidth,
           height: _thumbSize,
           decoration: BoxDecoration(
-            color: const Color(0xFFE2EBEB), // Light teal-gray from image
+            color: trackBg,
             borderRadius: BorderRadius.circular(_thumbSize / 2),
-            border: Border.all(color: const Color(0xFFB0C4C4)),
+            border: trackBorder,
           ),
           child: Stack(
             children: [
-              // 1. Base Text (Dark Teal)
               Center(
                 child: Text(
-                  _isCompleted ? "Memproses..." : widget.label,
-                  style: const TextStyle(
-                    color: Color(0xFF006D77),
+                  _isCompleted ? 'Menyelesaikan kasus...' : widget.label,
+                  style: TextStyle(
+                    color: labelColor,
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                    fontSize: 15,
                   ),
                 ),
               ),
-
-              // 2. Peeling / Fill Effect (Solid Teal expanding)
               AnimatedContainer(
                 duration: _dragPosition == 0.0
-                    ? const Duration(milliseconds: 300)
+                    ? const Duration(milliseconds: 250)
                     : Duration.zero,
                 width: _dragPosition + _thumbSize,
                 height: _thumbSize,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF006D77),
+                  color: thumbColor,
                   borderRadius: BorderRadius.circular(_thumbSize / 2),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(_thumbSize / 2),
                   child: Stack(
                     children: [
-                      // Render the white text perfectly aligned with the base text
                       Positioned(
                         left: 0,
-                        width:
-                            maxWidth, // Force same width as parent to keep text centered
+                        width: maxWidth,
                         child: Container(
                           height: _thumbSize,
                           alignment: Alignment.center,
                           child: Text(
-                            _isCompleted ? "Memproses..." : widget.label,
+                            _isCompleted ? 'Menyelesaikan kasus...' : widget.label,
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                              fontSize: 15,
                             ),
                           ),
                         ),
@@ -1401,13 +2053,11 @@ class _SlideToCompleteButtonState extends State<SlideToCompleteButton> {
                   ),
                 ),
               ),
-
-              // 3. Draggable Thumb
               AnimatedPositioned(
                 duration: _dragPosition == 0.0
-                    ? const Duration(milliseconds: 300)
+                    ? const Duration(milliseconds: 250)
                     : Duration.zero,
-                curve: Curves.easeOutBack,
+                curve: Curves.easeOutCubic,
                 left: _dragPosition,
                 child: GestureDetector(
                   onHorizontalDragUpdate: (details) {
@@ -1421,14 +2071,16 @@ class _SlideToCompleteButtonState extends State<SlideToCompleteButton> {
                   onHorizontalDragEnd: (details) {
                     if (_isCompleted) return;
                     if (_dragPosition > maxDrag * 0.75) {
+                      HapticFeedback.heavyImpact();
                       setState(() {
                         _dragPosition = maxDrag;
                         _isCompleted = true;
                       });
                       widget.onCompleted();
                     } else {
+                      HapticFeedback.selectionClick();
                       setState(() {
-                        _dragPosition = 0.0; // Snap back
+                        _dragPosition = 0.0;
                       });
                     }
                   },
@@ -1436,20 +2088,20 @@ class _SlideToCompleteButtonState extends State<SlideToCompleteButton> {
                     width: _thumbSize,
                     height: _thumbSize,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF006D77),
+                      color: thumbColor,
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.25),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
                     child: const Icon(
                       CupertinoIcons.chevron_right_2,
                       color: Colors.white,
-                      size: 36,
+                      size: 28,
                     ),
                   ),
                 ),

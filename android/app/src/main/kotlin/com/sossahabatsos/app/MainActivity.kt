@@ -237,8 +237,8 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
 
-            override fun onError(errorCode: String?, error: String?) {
-                Log.e(TAG, "Query home list error: $errorCode - $error")
+            override fun onError(errorCode: String?, errorMsg: String?) {
+                Log.e(TAG, "Query home list error: $errorCode - $errorMsg")
                 callback(-1L)
             }
         })
@@ -427,7 +427,7 @@ class MainActivity : FlutterFragmentActivity() {
 
                     currentActivator = ThingHomeSdk.getActivatorInstance().newMultiActivator(builder)
                     currentActivator?.start()
-                    
+
                     runOnUiThread {
                         result.success(mapOf("status" to "pairing_started", "mode" to "ez"))
                     }

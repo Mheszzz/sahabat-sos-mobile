@@ -5,7 +5,13 @@ import '../../features/auth/data/datasources/auth_remote_data_source.dart';
 import '../../features/profile/data/datasources/profile_remote_data_source.dart';
 import '../../features/volunteer_task/data/datasources/volunteer_remote_data_source.dart';
 import '../../features/sos/data/datasources/emergency_contact_remote_data_source.dart';
+import '../../features/sos/data/datasources/sos_remote_data_source.dart';
+import '../../features/dashboard/data/datasources/dashboard_remote_data_source.dart';
+import '../../features/reports/data/datasources/report_remote_data_source.dart';
+import '../../features/history/data/datasources/history_remote_data_source.dart';
 import '../services/location_service.dart';
+import '../services/accessibility_service.dart';
+import '../services/sos_rejection_storage.dart';
 import '../services/health_connect_service.dart';
 import '../../features/tuya_device/data/services/tuya_channel_service.dart';
 import '../../features/tuya_device/data/services/emergency_trigger_service.dart';
@@ -17,6 +23,11 @@ Future<void> initInjection() async {
   // External
   final sharedPreferences = await SharedPreferences.getInstance();
   sl.registerLazySingleton(() => sharedPreferences);
+  await AccessibilityService.instance.init(sharedPreferences);
+  await SosRejectionStorage.init(sharedPreferences);
+  sl.registerLazySingleton<AccessibilityService>(
+    () => AccessibilityService.instance,
+  );
   sl.registerLazySingleton(
     () => Dio(
       BaseOptions(
@@ -32,7 +43,7 @@ Future<void> initInjection() async {
     () => AuthRemoteDataSourceImpl(dio: sl(), prefs: sl()),
   );
   sl.registerLazySingleton<ProfileRemoteDataSource>(
-    () => ProfileRemoteDataSourceImpl(prefs: sl()),
+    () => ProfileRemoteDataSourceImpl(dio: sl(), prefs: sl()),
   );
   sl.registerLazySingleton<VolunteerRemoteDataSource>(
     () => VolunteerRemoteDataSourceImpl(dio: sl(), prefs: sl()),
@@ -40,11 +51,25 @@ Future<void> initInjection() async {
   sl.registerLazySingleton<EmergencyContactRemoteDataSource>(
     () => EmergencyContactRemoteDataSourceImpl(dio: sl(), prefs: sl()),
   );
+  sl.registerLazySingleton<DashboardRemoteDataSource>(
+    () => DashboardRemoteDataSourceImpl(dio: sl(), prefs: sl()),
+  );
+  sl.registerLazySingleton<SosRemoteDataSource>(
+    () => SosRemoteDataSourceImpl(dio: sl(), prefs: sl()),
+  );
+  sl.registerLazySingleton<ReportRemoteDataSource>(
+    () => ReportRemoteDataSourceImpl(dio: sl(), prefs: sl()),
+  );
+  sl.registerLazySingleton<HistoryRemoteDataSource>(
+    () => HistoryRemoteDataSourceImpl(dio: sl(), prefs: sl()),
+  );
 
   // Services
   sl.registerLazySingleton<LocationService>(
     () => LocationService(dio: sl(), prefs: sl()),
   );
+
+  // Health Connect Service
   sl.registerLazySingleton<HealthConnectService>(() => HealthConnectService());
 
   // Tuya Services

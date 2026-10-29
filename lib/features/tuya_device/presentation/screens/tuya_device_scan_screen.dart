@@ -1,10 +1,11 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:get_it/get_it.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'package:sahabat_sos_mobile/core/di/injection.dart';
+import 'package:sahabat_sos_mobile/core/services/accessibility_service.dart';
+import 'package:sahabat_sos_mobile/core/theme/accessible_colors.dart';
 import '../../data/services/tuya_channel_service.dart';
 
 class TuyaDeviceScanScreen extends StatefulWidget {
@@ -16,7 +17,10 @@ class TuyaDeviceScanScreen extends StatefulWidget {
 
 class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
     with SingleTickerProviderStateMixin {
-  final _tuyaService = GetIt.instance<TuyaChannelService>();
+  static const Color primaryTeal = Color(0xFF00695C);
+  static const Color primaryLightTeal = Color(0xFFE0F2F1);
+
+  final _tuyaService = sl<TuyaChannelService>();
 
   bool _isScanning = false;
   final List<Map<String, dynamic>> _foundDevices = [];
@@ -32,13 +36,16 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
+    _pulseAnimation = Tween<double>(begin: 0.88, end: 1.12).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+    unawaited(
+      AccessibilityService.instance
+          .speak('Halaman pemindaian perangkat Bluetooth SOS'),
     );
   }
 
   Future<void> _startScan() async {
-    // Request permissions first
     final permissionsToRequest = [
       Permission.location,
       Permission.bluetoothScan,
@@ -52,8 +59,11 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
       }
     }
 
-    // If running on Android 12+, bluetoothScan is required. On older devices, location is required.
-    // It's safe to proceed if they aren't explicitly permanently denied.
+    AccessibilityService.instance.hapticSelection();
+    unawaited(
+      AccessibilityService.instance
+          .speak('Memulai pemindaian perangkat Bluetooth'),
+    );
 
     setState(() {
       _isScanning = true;
@@ -61,25 +71,25 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
     });
 
     try {
-      // Start listening for BLE device discoveries via EventChannel
       _tuyaService.startEventListening();
-
-      // Listen for BLE device found events on bleDeviceStream
       _listenForBleDevices();
-
-      // Start actual BLE scan on native side
       await _tuyaService.startBLEScan();
 
       // Auto-stop after 60 seconds
       Future.delayed(const Duration(seconds: 60), () {
         if (mounted && _isScanning) {
           _stopScan();
+          AccessibilityService.instance.hapticMedium();
+          unawaited(
+            AccessibilityService.instance
+                .speak('Pemindaian selesai. Pastikan perangkat dalam mode pairing.'),
+          );
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
                 'Scanning selesai. Pastikan perangkat Tuya dalam mode pairing.',
               ),
-              backgroundColor: Color(0xFF005C61),
+              backgroundColor: primaryTeal,
             ),
           );
         }
@@ -87,70 +97,93 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
     } catch (e) {
       if (mounted) {
         setState(() => _isScanning = false);
+        AccessibilityService.instance.hapticMedium();
+        unawaited(
+          AccessibilityService.instance.speak('Gagal memulai pemindaian: $e'),
+        );
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
         );
       }
     }
   }
 
-  /// Listen for BLE device discovery events from native via EventChannel
   void _listenForBleDevices() {
     _scanSubscription?.cancel();
     _scanSubscription = _tuyaService.bleDeviceStream.listen(
       (event) {
         if (!mounted) return;
-        // Add discovered BLE device to the list
         final deviceInfo = {
           'id': event.deviceId,
           'name': event.dps['name'] ?? event.deviceId,
           'product_id': event.dps['product_id'] ?? '',
           'rssi': event.dps['rssi'],
         };
-        // Avoid duplicates
         final exists = _foundDevices.any((d) => d['id'] == deviceInfo['id']);
         if (!exists) {
+          AccessibilityService.instance.hapticSelection();
+          unawaited(
+            AccessibilityService.instance
+                .speak('Ditemukan perangkat ${deviceInfo['name']}'),
+          );
           setState(() {
             _foundDevices.add(deviceInfo);
           });
         }
       },
-      onError: (error) {
-        // Errors during scan are non-critical
-      },
+      onError: (error) {},
     );
   }
 
   Future<void> _stopScan() async {
+    AccessibilityService.instance.hapticSelection();
+    unawaited(AccessibilityService.instance.speak('Pemindaian dihentikan'));
     try {
       await _tuyaService.stopBLEScan();
     } catch (_) {}
-    _scanSubscription?.cancel();
+    await _scanSubscription?.cancel();
     _scanSubscription = null;
     if (mounted) setState(() => _isScanning = false);
   }
 
   Future<void> _pairDevice(Map<String, dynamic> device) async {
-    final deviceName = device['name'] ?? 'Unknown';
+    final deviceName = device['name'] ?? 'Perangkat Tuya';
+    AccessibilityService.instance.hapticSelection();
+    unawaited(
+      AccessibilityService.instance.speak('Menghubungkan ke $deviceName'),
+    );
     setState(() => _pairingDeviceId = device['id']);
 
     try {
       await _tuyaService.pairDevice(device['id'] ?? '');
       if (mounted) {
+        AccessibilityService.instance.hapticSelection();
+        unawaited(
+          AccessibilityService.instance
+              .speak('Berhasil terhubung dengan $deviceName'),
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Berhasil pairing dengan $deviceName'),
-            backgroundColor: const Color(0xFF005C61),
+            content: Text('Berhasil pairing dengan $deviceName'),
+            backgroundColor: primaryTeal,
           ),
         );
-        Navigator.of(context).pop(true); // Return success
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {
+        AccessibilityService.instance.hapticMedium();
+        unawaited(
+          AccessibilityService.instance
+              .speak('Gagal menghubungkan ke $deviceName: $e'),
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Gagal pairing: $e'),
-            backgroundColor: Colors.red,
+            content: Text('Gagal pairing: $e'),
+            backgroundColor: const Color(0xFFDC2626),
           ),
         );
       }
@@ -167,113 +200,133 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: const Color(0xFFF5F6F8),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFF5F6F8),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(CupertinoIcons.back, color: Color(0xFF00695C)),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            Image.asset('assets/images/logo.png', width: 24, height: 24),
-            const SizedBox(width: 8),
-            const Text(
-              'Sahabat SOS',
-              style: TextStyle(
-                color: Color(0xFF00695C),
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-              ),
-            ),
-          ],
-        ),
-      ),
-      body: Container(
-        color: const Color(0xFFF5F6F8),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Scan Perangkat BLE',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // Scan Animation / Button
-                _buildScanCard(),
-                const SizedBox(height: 16),
-
-                // Instructions
-                _buildInstructionCard(),
-                const SizedBox(height: 16),
-
-                // Found Devices
-                if (_foundDevices.isNotEmpty) _buildFoundDevicesCard(),
-
-                // Empty state during scan
-                if (_isScanning && _foundDevices.isEmpty)
-                  _buildScanningIndicator(),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGlassContainer({
+  Widget _buildCard({
     required Widget child,
     EdgeInsetsGeometry? padding,
+    bool isHighContrast = false,
   }) {
     return Container(
+      padding: padding ?? const EdgeInsets.all(16),
       decoration: BoxDecoration(
+        color: AccessibleColors.cardBackground(isHighContrast),
         borderRadius: BorderRadius.circular(16),
+        border: AccessibleColors.cardBorder(isHighContrast),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(
+              alpha: isHighContrast ? 0.3 : 0.04,
+            ),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: padding ?? const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.6),
-                width: 1.5,
-              ),
-            ),
-            child: child,
-          ),
-        ),
-      ),
+      child: child,
     );
   }
 
-  Widget _buildScanCard() {
-    return _buildGlassContainer(
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AccessibilityService.instance,
+      builder: (context, _) {
+        final isHighContrast =
+            AccessibilityService.instance.isHighContrastEnabled ||
+            Theme.of(context).brightness == Brightness.dark ||
+            MediaQuery.of(context).highContrast;
+        final currentBg =
+            isHighContrast ? Colors.black : const Color(0xFFF8FAFC);
+        final tealColor =
+            isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+        final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+        final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+
+        return Scaffold(
+          backgroundColor: currentBg,
+          appBar: AppBar(
+            backgroundColor: currentBg,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            iconTheme: IconThemeData(color: tealColor),
+            leading: IconButton(
+              icon: Icon(CupertinoIcons.back, color: tealColor),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            centerTitle: false,
+            titleSpacing: 0,
+            title: Row(
+              children: [
+                Image.asset('assets/images/logo.png', width: 24, height: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'Sahabat SOS',
+                  style: TextStyle(
+                    color: tealColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Scan Perangkat BLE',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: textPrimary,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Pindai perangkat Bluetooth Low Energy di sekitar Anda.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Scan Animation / Button
+                  _buildScanCard(isHighContrast),
+                  const SizedBox(height: 14),
+
+                  // Instructions
+                  _buildInstructionCard(isHighContrast),
+                  const SizedBox(height: 14),
+
+                  // Found Devices
+                  if (_foundDevices.isNotEmpty)
+                    _buildFoundDevicesCard(isHighContrast),
+
+                  // Empty state during scan
+                  if (_isScanning && _foundDevices.isEmpty)
+                    _buildScanningIndicator(isHighContrast),
+
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildScanCard(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+
+    return _buildCard(
+      isHighContrast: isHighContrast,
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
@@ -283,49 +336,66 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
               return Transform.scale(
                 scale: _isScanning ? _pulseAnimation.value : 1.0,
                 child: Container(
-                  width: 100,
-                  height: 100,
+                  width: 90,
+                  height: 90,
                   decoration: BoxDecoration(
                     color: _isScanning
-                        ? const Color(0xFF007AFF).withValues(alpha: 0.1)
-                        : const Color(0xFFF2F2F7),
+                        ? (isHighContrast
+                            ? const Color(0xFF1E3A34)
+                            : primaryLightTeal)
+                        : (isHighContrast
+                            ? const Color(0xFF1E2430)
+                            : const Color(0xFFF3F4F6)),
                     shape: BoxShape.circle,
+                    border: isHighContrast
+                        ? Border.all(
+                            color: _isScanning
+                                ? const Color(0xFF80CBC4)
+                                : const Color(0xFF4B5563),
+                            width: 1.5,
+                          )
+                        : null,
                   ),
                   child: Icon(
-                    _isScanning
-                        ? CupertinoIcons.bluetooth
-                        : CupertinoIcons.bluetooth,
-                    size: 48,
+                    CupertinoIcons.bluetooth,
+                    size: 42,
                     color: _isScanning
-                        ? const Color(0xFF007AFF)
-                        : Colors.black54,
+                        ? tealColor
+                        : (isHighContrast
+                            ? const Color(0xFF9CA3AF)
+                            : const Color(0xFF9CA3AF)),
                   ),
                 ),
               );
             },
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
           Text(
             _isScanning
                 ? 'Mencari perangkat... (${_foundDevices.length} ditemukan)'
-                : 'Siap untuk scan',
+                : 'Siap Memindai',
             style: TextStyle(
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               fontSize: 16,
-              color: _isScanning ? const Color(0xFF007AFF) : Colors.black87,
+              color: _isScanning ? tealColor : textPrimary,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             _isScanning
-                ? 'Pastikan perangkat Tuya berada dalam jangkauan Bluetooth'
-                : 'Tekan tombol di bawah untuk mulai mencari perangkat Tuya terdekat',
+                ? 'Pastikan perangkat Tuya berada dalam jangkauan Bluetooth HP'
+                : 'Tekan tombol di bawah untuk mulai memindai tombol darurat terdekat',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, color: Colors.black54),
+            style: TextStyle(
+              fontSize: 13,
+              color: textSecondary,
+              height: 1.4,
+            ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
+            height: 48,
             child: ElevatedButton.icon(
               onPressed: _isScanning ? _stopScan : _startScan,
               icon: Icon(
@@ -336,21 +406,32 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
                 size: 18,
               ),
               label: Text(
-                _isScanning ? 'Berhenti Scan' : 'Mulai Scan BLE',
+                _isScanning ? 'Hentikan Pemindaian' : 'Mulai Pindai BLE',
                 style: const TextStyle(
                   color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14.5,
                 ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _isScanning
-                    ? const Color(0xFFFF3B30)
-                    : const Color(0xFF007AFF),
+                    ? (isHighContrast
+                        ? const Color(0xFFEF4444)
+                        : const Color(0xFFDC2626))
+                    : (isHighContrast
+                        ? const Color(0xFF00897B)
+                        : primaryTeal),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
+                  side: isHighContrast
+                      ? BorderSide(
+                          color: _isScanning
+                              ? const Color(0xFFF87171)
+                              : const Color(0xFF80CBC4),
+                          width: 1.5,
+                        )
+                      : BorderSide.none,
                 ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
                 elevation: 0,
               ),
             ),
@@ -360,8 +441,13 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
     );
   }
 
-  Widget _buildInstructionCard() {
-    return _buildGlassContainer(
+  Widget _buildInstructionCard(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+
+    return _buildCard(
+      isHighContrast: isHighContrast,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -370,74 +456,97 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF34C759).withValues(alpha: 0.1),
+                  color: isHighContrast
+                      ? const Color(0xFF1E3A34)
+                      : primaryLightTeal,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(
+                child: Icon(
                   CupertinoIcons.info_circle_fill,
-                  color: Color(0xFF34C759),
+                  color: tealColor,
                   size: 18,
                 ),
               ),
               const SizedBox(width: 12),
-              const Text(
-                'Cara Pairing Perangkat',
+              Text(
+                'Petunjuk Pairing Bluetooth',
                 style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                  color: Colors.black87,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: textPrimary,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          const Text(
-            '1. Pastikan Bluetooth di HP aktif\n'
-            '2. Tekan & tahan tombol pada perangkat Tuya selama 5 detik hingga LED berkedip\n'
-            '3. Perangkat akan muncul di daftar di bawah\n'
-            '4. Tekan "Hubungkan" untuk pairing',
-            style: TextStyle(fontSize: 14, color: Colors.black87, height: 1.5),
+          Text(
+            '1. Pastikan Bluetooth di ponsel sudah menyala.\n'
+            '2. Tekan & tahan tombol darurat Tuya selama 5 detik hingga lampu indikator berkedip.\n'
+            '3. Perangkat akan terdeteksi pada daftar di bawah.\n'
+            '4. Ketuk "Hubungkan" untuk menyelesaikan pairing.',
+            style: TextStyle(
+              fontSize: 13,
+              color: textSecondary,
+              height: 1.5,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildFoundDevicesCard() {
-    return _buildGlassContainer(
+  Widget _buildFoundDevicesCard(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+    final itemBg = isHighContrast
+        ? const Color(0xFF1E2430)
+        : const Color(0xFFF9FAFB);
+    final itemBorder = isHighContrast
+        ? const Color(0xFF4B5563)
+        : const Color(0xFFE5E7EB);
+
+    return _buildCard(
+      isHighContrast: isHighContrast,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Perangkat Ditemukan (${_foundDevices.length})',
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 16,
-              color: Colors.black87,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              color: textPrimary,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           ...List.generate(_foundDevices.length, (index) {
             final device = _foundDevices[index];
             final isPairing = _pairingDeviceId == device['id'];
             return Container(
-              margin: const EdgeInsets.only(bottom: 12),
+              margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF2F2F7),
+                color: itemBg,
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: itemBorder,
+                  width: isHighContrast ? 1.5 : 1.0,
+                ),
               ),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
+                      color: isHighContrast
+                          ? const Color(0xFF1E3A34)
+                          : primaryLightTeal,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       CupertinoIcons.antenna_radiowaves_left_right,
-                      color: Colors.black87,
+                      color: tealColor,
                       size: 20,
                     ),
                   ),
@@ -448,26 +557,26 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
                       children: [
                         Text(
                           device['name'] ?? 'Perangkat Tuya',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                            color: Colors.black87,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14.5,
+                            color: textPrimary,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           'ID: ${device['id'] ?? '-'}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: Colors.black54,
+                            color: textSecondary,
                           ),
                         ),
                         if (device['rssi'] != null)
                           Text(
-                            'Signal: ${device['rssi']} dBm',
-                            style: const TextStyle(
+                            'Sinyal: ${device['rssi']} dBm',
+                            style: TextStyle(
                               fontSize: 11,
-                              color: Colors.black54,
+                              color: textSecondary,
                             ),
                           ),
                       ],
@@ -476,13 +585,19 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
                   ElevatedButton(
                     onPressed: isPairing ? null : () => _pairDevice(device),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF007AFF),
+                      backgroundColor: isHighContrast
+                          ? const Color(0xFF00897B)
+                          : primaryTeal,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
+                        side: isHighContrast
+                            ? const BorderSide(
+                                color: Color(0xFF80CBC4), width: 1.5)
+                            : BorderSide.none,
                       ),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
+                        horizontal: 14,
                         vertical: 10,
                       ),
                       elevation: 0,
@@ -498,8 +613,8 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
                         : const Text(
                             'Hubungkan',
                             style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12.5,
                             ),
                           ),
                   ),
@@ -512,25 +627,30 @@ class _TuyaDeviceScanScreenState extends State<TuyaDeviceScanScreen>
     );
   }
 
-  Widget _buildScanningIndicator() {
-    return _buildGlassContainer(
-      padding: const EdgeInsets.all(32),
-      child: const Column(
+  Widget _buildScanningIndicator(bool isHighContrast) {
+    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
+    final textPrimary = AccessibleColors.textPrimary(isHighContrast);
+    final textSecondary = AccessibleColors.textSecondary(isHighContrast);
+
+    return _buildCard(
+      isHighContrast: isHighContrast,
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+      child: Column(
         children: [
-          CupertinoActivityIndicator(radius: 16),
-          SizedBox(height: 20),
+          CupertinoActivityIndicator(radius: 16, color: tealColor),
+          const SizedBox(height: 16),
           Text(
             'Mencari perangkat BLE terdekat...',
             style: TextStyle(
-              color: Colors.black87,
+              color: textPrimary,
               fontSize: 14,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
-            'Ini mungkin memerlukan beberapa detik',
-            style: TextStyle(color: Colors.black54, fontSize: 12),
+            'Mohon dekatkan perangkat dengan HP Anda',
+            style: TextStyle(color: textSecondary, fontSize: 12),
           ),
         ],
       ),

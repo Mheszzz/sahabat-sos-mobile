@@ -9,3 +9,19 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+
+linter:
+  rules:
+    - avoid_print
+    - prefer_const_constructors
+    - prefer_const_constructors_in_immutables
+    - prefer_const_declarations
+    - prefer_const_literals_to_create_immutables
+    - avoid_unnecessary_containers
+    - sized_box_for_whitespace
+    - prefer_final_locals
+    - unawaited_futures
+    - unnecessary_string_interpolations
+    - avoid_empty_else
+    - cancel_subscriptions
+

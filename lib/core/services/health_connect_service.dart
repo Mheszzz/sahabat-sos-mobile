@@ -63,7 +63,7 @@ class HealthConnectService {
   static const String _prefConnectedDeviceKey = 'health_connect_device_name';
 
   static const MethodChannel _platformChannel =
-      MethodChannel('com.sossahabatsos.app/tuya_channel');
+      MethodChannel('com.sahabatsos.app/tuya_method');
 
   // State Notifiers
   final ValueNotifier<int?> currentBpm = ValueNotifier<int?>(null);
@@ -121,7 +121,7 @@ class HealthConnectService {
       // Check if auto monitoring was enabled previously
       final autoMonitor = prefs.getBool(_prefAutoMonitorKey) ?? false;
       if (autoMonitor && permitted) {
-        startMonitoring();
+        unawaited(startMonitoring());
       }
 
       return status == HealthConnectSdkStatus.sdkAvailable;

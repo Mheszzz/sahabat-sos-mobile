@@ -1,11 +1,26 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(FileInputStream(localPropertiesFile))
+}
+
+val thingSmartAppKey: String = System.getenv("THING_SMART_APPKEY")
+    ?: (localProperties.getProperty("thing.smart.appkey") ?: "")
+
+val thingSmartSecret: String = System.getenv("THING_SMART_SECRET")
+    ?: (localProperties.getProperty("thing.smart.secret") ?: "")
+
 android {
-    namespace = "com.sossahabatsos.app"
+    namespace = "com.sossahabat.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -21,11 +36,14 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.sossahabatsos.app"
+        applicationId = "com.sossahabat.app"
         minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        manifestPlaceholders["THING_SMART_APPKEY"] = thingSmartAppKey
+        manifestPlaceholders["THING_SMART_SECRET"] = thingSmartSecret
 
         multiDexEnabled = true
         ndk {

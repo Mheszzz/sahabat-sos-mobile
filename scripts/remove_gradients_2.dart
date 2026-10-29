@@ -56,7 +56,7 @@ void main() {
       if (gradientIndex == -1) break;
       
       // We found a gradient. Let's find the closing parenthesis.
-      int openParenIndex = content.indexOf('(', gradientIndex);
+      final int openParenIndex = content.indexOf('(', gradientIndex);
       int parenCount = 1;
       int closeParenIndex = openParenIndex + 1;
       
@@ -75,11 +75,11 @@ void main() {
 
     // Now for `gradient: isSelected ? const LinearGradient(...) : const LinearGradient(...)`
     while(true) {
-      int gradientIndex = content.indexOf('gradient: isSelected');
+      final int gradientIndex = content.indexOf('gradient: isSelected');
       if (gradientIndex == -1) break;
       
       // Let's just find the end of the ternary expression, which is usually `)` or `,`
-      int endIndex = content.indexOf('),', gradientIndex);
+      final int endIndex = content.indexOf('),', gradientIndex);
       if (endIndex == -1) break;
       // This is risky, let's just do a specific replace for the tabs in history_screen
       content = content.replaceRange(gradientIndex, endIndex + 1, 'color: isSelected ? const Color(0xFF00695C) : Colors.white');
