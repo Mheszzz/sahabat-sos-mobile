@@ -646,9 +646,15 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
               textAlign: TextAlign.center,
             ),
           ],
-          const SizedBox(height: 12),
-          _buildVerificationBadge(isHighContrast: isHighContrast, isVerified: isVerified, tealColor: tealColor),
-          const SizedBox(height: 20),
+          if (!isVerified || !_isActive) ...[
+            const SizedBox(height: 12),
+            _buildVerificationBadge(
+              isHighContrast: isHighContrast,
+              isVerified: isVerified,
+              tealColor: tealColor,
+            ),
+          ],
+          const SizedBox(height: 16),
           Divider(
             height: 1,
             color: AccessibleColors.cardBorderColor(isHighContrast),
@@ -703,6 +709,10 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     required bool isVerified,
     required Color tealColor,
   }) {
+    if (isVerified && _isActive) {
+      return const SizedBox.shrink();
+    }
+
     Color bg;
     Color border;
     Color text;
@@ -721,12 +731,6 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
       text = isHighContrast ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C);
       icon = CupertinoIcons.slash_circle_fill;
       label = 'Akun Dinonaktifkan';
-    } else if (isVerified) {
-      bg = isHighContrast ? const Color(0xFF064E3B) : const Color(0xFFE6F4EA);
-      border = isHighContrast ? const Color(0xFF10B981) : tealColor;
-      text = isHighContrast ? const Color(0xFFA7F3D0) : primaryTeal;
-      icon = CupertinoIcons.checkmark_shield_fill;
-      label = 'Relawan Terverifikasi';
     } else {
       bg = isHighContrast ? const Color(0xFF451A03) : const Color(0xFFFEF3C7);
       border = isHighContrast ? const Color(0xFFF59E0B) : const Color(0xFFD97706);

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
@@ -37,27 +39,115 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
   final TextEditingController _jobController = TextEditingController();
   final TextEditingController _reasonController = TextEditingController();
   XFile? _kycDocument;
+  bool _kycValidationError = false;
 
   bool _voiceGuidanceEnabled = true;
   bool _hapticVibrationEnabled = true;
   bool _talkbackEnabled = false;
   bool _largeTextEnabled = false;
 
-  Future<void> _pickKycDocument() async {
+  Future<void> _pickKycDocument([ImageSource source = ImageSource.gallery]) async {
     try {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         imageQuality: 85,
+        maxWidth: 1920,
+        maxHeight: 1920,
       );
       if (picked != null) {
         setState(() {
           _kycDocument = picked;
+          _kycValidationError = false;
         });
       }
     } catch (e) {
       debugPrint('Gagal memilih berkas KYC: $e');
     }
+  }
+
+  void _showImageSourcePicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E2430) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade400,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Unggah Foto KTP / Identitas',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Foto KTP wajib dilampirkan agar administrator posko dapat memverifikasi akun relawan Anda.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: primaryDark.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(CupertinoIcons.camera_fill, color: primaryDark, size: 20),
+                  ),
+                  title: const Text('Ambil Foto dengan Kamera', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  subtitle: const Text('Foto fisik KTP Anda langsung secara jelas', style: TextStyle(fontSize: 11)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickKycDocument(ImageSource.camera);
+                  },
+                ),
+                const Divider(height: 8),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: primaryDark.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(CupertinoIcons.photo_fill_on_rectangle_fill, color: primaryDark, size: 20),
+                  ),
+                  title: const Text('Pilih dari Galeri Foto', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  subtitle: const Text('Pilih file gambar KTP yang tersimpan di galeri', style: TextStyle(fontSize: 11)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickKycDocument(ImageSource.gallery);
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -544,17 +634,38 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
               ),
             ),
             const SizedBox(height: 16),
-            Text(
-              'Dokumen Identitas & Kualifikasi (KYC)',
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: textPrimary,
-              ),
+            Row(
+              children: [
+                Text(
+                  'Foto KTP / Identitas Relawan',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Text(
+                    'Wajib',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.red.shade700,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
-              'Lampirkan foto KTP, KTA, atau sertifikat relawan untuk diverifikasi oleh administrator posko.',
+              'Lampirkan foto KTP resmi Anda agar administrator posko dapat memverifikasi keabsahan data sebelum akun disetujui.',
               style: TextStyle(
                 fontSize: 12,
                 color: textSecondary,
@@ -562,76 +673,191 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
               ),
             ),
             const SizedBox(height: 8),
-            Container(
-              decoration: BoxDecoration(
-                color: inputBg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isHighContrast
-                      ? const Color(0xFF4B5563)
-                      : (_kycDocument != null ? const Color(0xFF10B981) : const Color(0xFFCBD0DE)),
-                  width: _kycDocument != null ? 1.5 : 1.0,
-                ),
-              ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                leading: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: _kycDocument != null
-                        ? (isHighContrast ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5))
-                        : (isHighContrast ? const Color(0xFF1E2430) : const Color(0xFFE2E8F0)),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    _kycDocument != null
-                        ? CupertinoIcons.doc_checkmark_fill
-                        : CupertinoIcons.doc_text,
-                    color: _kycDocument != null
-                        ? (isHighContrast ? const Color(0xFF6EE7B7) : const Color(0xFF059669))
-                        : (isHighContrast ? const Color(0xFF9CA3AF) : const Color(0xFF64748B)),
-                    size: 20,
+
+            /* Preview Gambar KTP jika sudah dipilih */
+            if (_kycDocument != null)
+              Container(
+                decoration: BoxDecoration(
+                  color: inputBg,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isHighContrast
+                        ? const Color(0xFF4B5563)
+                        : const Color(0xFF10B981),
+                    width: 1.5,
                   ),
                 ),
-                title: Text(
-                  _kycDocument != null
-                      ? _kycDocument!.name
-                      : 'Pilih Berkas KYC (Foto / Dokumen)',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: _kycDocument != null ? FontWeight.bold : FontWeight.w500,
-                    color: textPrimary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  _kycDocument != null
-                      ? 'Dokumen siap dilampirkan'
-                      : 'Format: JPG, PNG, atau scan dokumen',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: _kycDocument != null
-                        ? (isHighContrast ? const Color(0xFF6EE7B7) : const Color(0xFF059669))
-                        : textSecondary,
-                  ),
-                ),
-                trailing: _kycDocument != null
-                    ? IconButton(
-                        icon: const Icon(CupertinoIcons.clear_circled, size: 20),
-                        color: Colors.redAccent,
-                        tooltip: 'Hapus berkas',
-                        onPressed: () => setState(() => _kycDocument = null),
-                      )
-                    : Icon(
-                        CupertinoIcons.photo_camera,
-                        size: 20,
-                        color: isHighContrast ? const Color(0xFF9CA3AF) : const Color(0xFF64748B),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ClipRRect(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+                      child: Container(
+                        height: 180,
+                        color: Colors.black,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            kIsWeb
+                                ? Image.network(_kycDocument!.path, fit: BoxFit.contain)
+                                : Image.file(File(_kycDocument!.path), fit: BoxFit.contain),
+                            Positioned(
+                              top: 8,
+                              left: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.7),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(CupertinoIcons.checkmark_seal_fill, color: Color(0xFF34D399), size: 14),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Foto KTP Terpilih',
+                                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                onTap: _pickKycDocument,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _kycDocument!.name,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: textPrimary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                const Text(
+                                  'Foto siap diverifikasi oleh admin posko',
+                                  style: TextStyle(fontSize: 11, color: Color(0xFF059669)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: _showImageSourcePicker,
+                            icon: const Icon(CupertinoIcons.arrow_2_circlepath, size: 14),
+                            label: const Text('Ganti', style: TextStyle(fontSize: 12)),
+                            style: TextButton.styleFrom(
+                              foregroundColor: primaryDark,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(CupertinoIcons.trash, size: 18, color: Colors.redAccent),
+                            tooltip: 'Hapus foto',
+                            onPressed: () => setState(() => _kycDocument = null),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              /* Box Upload jika belum ada berkas */
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  InkWell(
+                    onTap: _showImageSourcePicker,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: _kycValidationError ? Colors.red.shade50.withValues(alpha: 0.5) : inputBg,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: _kycValidationError
+                              ? Colors.red.shade400
+                              : (isHighContrast ? const Color(0xFF4B5563) : const Color(0xFFCBD0DE)),
+                          width: _kycValidationError ? 1.5 : 1.0,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: _kycValidationError
+                                  ? Colors.red.shade100
+                                  : primaryDark.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              CupertinoIcons.camera_fill,
+                              color: _kycValidationError ? Colors.red.shade700 : primaryDark,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Ambil atau Pilih Foto KTP',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.bold,
+                              color: _kycValidationError ? Colors.red.shade800 : textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Ketuk untuk membuka kamera atau galeri foto',
+                            style: TextStyle(fontSize: 11.5, color: textSecondary),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: Text(
+                              'Format: JPG, PNG • Maksimal 10 MB',
+                              style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (_kycValidationError) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(CupertinoIcons.exclamationmark_circle_fill, size: 14, color: Colors.red.shade700),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Foto KTP wajib diunggah untuk verifikasi relawan!',
+                            style: TextStyle(fontSize: 11.5, color: Colors.red.shade700, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
               ),
-            ),
           ],
         ],
       ),
@@ -1048,10 +1274,22 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
     }
 
     if (_selectedRole == _RoleType.relawan) {
-      if (_jobController.text.isEmpty || _reasonController.text.isEmpty) {
+      if (_jobController.text.trim().isEmpty || _reasonController.text.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Pekerjaan dan Alasan wajib diisi untuk Relawan!'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      if (_kycDocument == null) {
+        setState(() => _kycValidationError = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Foto KTP / identitas wajib diunggah untuk pendaftaran Relawan!'),
+            backgroundColor: Colors.red,
           ),
         );
         return;
@@ -1164,9 +1402,30 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context); // Tutup Loading
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Terjadi kesalahan: $e')));
+
+      String message = 'Terjadi kesalahan: $e';
+      if (e is DioException) {
+        final resData = e.response?.data;
+        if (resData is Map) {
+          if (resData['message'] != null) {
+            message = resData['message'].toString();
+          } else if (resData['error'] != null) {
+            message = resData['error'].toString();
+          } else if (resData['errors'] is Map) {
+            final firstErrorList = (resData['errors'] as Map).values.first;
+            if (firstErrorList is List && firstErrorList.isNotEmpty) {
+              message = firstErrorList.first.toString();
+            }
+          }
+        }
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
     }
   }
 

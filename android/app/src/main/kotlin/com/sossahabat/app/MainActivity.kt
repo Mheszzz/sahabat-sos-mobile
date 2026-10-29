@@ -1,4 +1,4 @@
-package com.sossahabatsos.app
+package com.sossahabat.app
 
 import android.os.Bundle
 import android.util.Log
@@ -237,8 +237,8 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
 
-            override fun onError(errorCode: String?, error: String?) {
-                Log.e(TAG, "Query home list error: $errorCode - $error")
+            override fun onError(errorCode: String?, errorMsg: String?) {
+                Log.e(TAG, "Query home list error: $errorCode - $errorMsg")
                 callback(-1L)
             }
         })

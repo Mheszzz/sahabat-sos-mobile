@@ -1,4 +1,4 @@
-package com.sossahabatsos.app
+package com.sossahabat.app
 
 import android.app.Application
 import android.content.pm.PackageManager
