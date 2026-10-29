@@ -62,3 +62,9 @@ docker-compose.yml
 fix_*.dart
 fix_*.py
 test_*.dart
+
+# Environment variables
+.env
+.env.*
+!.env.example
+

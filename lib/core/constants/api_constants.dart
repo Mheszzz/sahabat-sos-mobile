@@ -1,11 +1,11 @@
 class ApiConstants {
   // Gunakan IP default jika tidak ada environment atau runtime override
-  // Default ke Android Emulator loopback (10.0.2.2:8000) atau localhost
-  static const String defaultBaseUrl = 'http://192.168.1.7:8000/api';
-  static const String defaultStorageUrl = 'http://192.168.1.7:8000/storage';
+  // Default ke IP Tailscale backend (100.105.166.45:8000)
+  static const String defaultBaseUrl = 'http://100.105.166.45:8000/api';
+  static const String defaultStorageUrl = 'http://100.105.166.45:8000/storage';
 
   // Mendukung String.fromEnvironment:
-  // e.g. flutter run --dart-define=API_BASE_URL=http://192.168.1.10:8000/api
+  // e.g. flutter run --dart-define=API_BASE_URL=http://100.105.166.45:8000/api
   // atau flutter run --dart-define-from-file=.env
   static const String _envBaseUrl = String.fromEnvironment('API_BASE_URL');
   static const String _altEnvBaseUrl = String.fromEnvironment('BASE_URL');
