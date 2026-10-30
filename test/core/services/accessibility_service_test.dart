@@ -152,5 +152,32 @@ void main() {
       expect(service.isHighContrastEnabled, isTrue);
       expect(service.isLargeTextEnabled, isTrue);
     });
+
+    test('Category defaults for umum automatically disables all accessibility features', () async {
+      // First enable tunanetra
+      await service.applyCategoryDefaults('tunanetra', syncBackend: false);
+      expect(service.isTalkbackEnabled, isTrue);
+
+      // Now switch to umum
+      await service.applyCategoryDefaults('umum', syncBackend: false);
+      expect(service.isTalkbackEnabled, isFalse);
+      expect(service.isVoiceGuideEnabled, isFalse);
+      expect(service.isHapticEnabled, isFalse);
+      expect(service.isHighContrastEnabled, isFalse);
+      expect(service.isLargeTextEnabled, isFalse);
+      expect(service.isVisualAlertEnabled, isFalse);
+    });
+
+    test('Disabling voice guide automatically turns off TalkBack', () async {
+      await service.setVoiceGuide(true, syncBackend: false);
+      await service.setTalkback(true, syncBackend: false);
+      expect(service.isVoiceGuideEnabled, isTrue);
+      expect(service.isTalkbackEnabled, isTrue);
+
+      // Turn off voice guide
+      await service.setVoiceGuide(false, syncBackend: false);
+      expect(service.isVoiceGuideEnabled, isFalse);
+      expect(service.isTalkbackEnabled, isFalse);
+    });
   });
 }

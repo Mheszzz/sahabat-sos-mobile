@@ -1,6 +1,6 @@
 {
-    "name": "sahabat_sos_mobile",
-    "short_name": "sahabat_sos_mobile",
+    "name": "Sahabat SOS",
+    "short_name": "Sahabat SOS",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

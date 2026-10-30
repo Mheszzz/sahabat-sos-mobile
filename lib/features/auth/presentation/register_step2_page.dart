@@ -41,8 +41,8 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
   XFile? _kycDocument;
   bool _kycValidationError = false;
 
-  bool _voiceGuidanceEnabled = true;
-  bool _hapticVibrationEnabled = true;
+  bool _voiceGuidanceEnabled = false;
+  bool _hapticVibrationEnabled = false;
   bool _talkbackEnabled = false;
   bool _largeTextEnabled = false;
 
@@ -1078,6 +1078,16 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
                 _hapticVibrationEnabled = true;
                 _talkbackEnabled = false;
                 _largeTextEnabled = true;
+              } else if (type == _NeedType.tunawicara) {
+                _voiceGuidanceEnabled = false;
+                _hapticVibrationEnabled = true;
+                _talkbackEnabled = false;
+                _largeTextEnabled = false;
+              } else if (type == _NeedType.umum) {
+                _voiceGuidanceEnabled = false;
+                _hapticVibrationEnabled = false;
+                _talkbackEnabled = false;
+                _largeTextEnabled = false;
               }
             });
           },
@@ -1154,15 +1164,156 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
         ),
         const SizedBox(height: 16),
         _buildSensorToggleRow(
-          icon: CupertinoIcons.speaker_2,
+          icon: CupertinoIcons.volume_up,
           label: 'Panduan Suara Otomatis',
           value: _voiceGuidanceEnabled,
           isHighContrast: isHighContrast,
           textPrimary: textPrimary,
           accent: accent,
           tealColor: tealColor,
-          onChanged: (v) => setState(() => _voiceGuidanceEnabled = v),
+          onChanged: (v) => setState(() {
+            _voiceGuidanceEnabled = v;
+            if (!v) {
+              _talkbackEnabled = false;
+            }
+          }),
         ),
+        if (_voiceGuidanceEnabled) ...[
+          const SizedBox(height: 10),
+          Container(
+            margin: const EdgeInsets.only(left: 48),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isHighContrast
+                  ? const Color(0xFF1E3A34)
+                  : const Color(0xFFF0FDF4),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isHighContrast
+                    ? const Color(0xFF00897B)
+                    : const Color(0xFFD1FAE5),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      CupertinoIcons.hand_point_right,
+                      size: 13,
+                      color: accent,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'GAYA KETUKAN & NAVIGASI',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                        color: isHighContrast
+                            ? const Color(0xFF94A3B8)
+                            : const Color(0xFF047857),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => setState(() => _talkbackEnabled = false),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          !_talkbackEnabled
+                              ? CupertinoIcons.check_mark_circled_solid
+                              : CupertinoIcons.circle,
+                          size: 18,
+                          color: !_talkbackEnabled ? accent : Colors.grey,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Normal (1x Ketuk)',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: !_talkbackEnabled
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                  color: textPrimary,
+                                ),
+                              ),
+                              Text(
+                                'Sentuh 1x langsung aksi dengan panduan suara',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isHighContrast
+                                      ? Colors.grey.shade400
+                                      : Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => setState(() => _talkbackEnabled = true),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _talkbackEnabled
+                              ? CupertinoIcons.check_mark_circled_solid
+                              : CupertinoIcons.circle,
+                          size: 18,
+                          color: _talkbackEnabled ? accent : Colors.grey,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'TalkBack (2x Ketuk)',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: _talkbackEnabled
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                  color: textPrimary,
+                                ),
+                              ),
+                              Text(
+                                '1x bersuara & fokus, 2x untuk mengeksekusi',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isHighContrast
+                                      ? Colors.grey.shade400
+                                      : Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         _buildSensorToggleRow(
           icon: CupertinoIcons.waveform_path,
@@ -1173,17 +1324,6 @@ class _RegisterStep2PageState extends State<RegisterStep2Page> {
           accent: accent,
           tealColor: tealColor,
           onChanged: (v) => setState(() => _hapticVibrationEnabled = v),
-        ),
-        const SizedBox(height: 16),
-        _buildSensorToggleRow(
-          icon: CupertinoIcons.speaker_2,
-          label: 'TalkBack / Pembaca Layar',
-          value: _talkbackEnabled,
-          isHighContrast: isHighContrast,
-          textPrimary: textPrimary,
-          accent: accent,
-          tealColor: tealColor,
-          onChanged: (v) => setState(() => _talkbackEnabled = v),
         ),
         const SizedBox(height: 16),
         _buildSensorToggleRow(

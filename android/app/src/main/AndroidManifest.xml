@@ -22,7 +22,7 @@
 
 
     <application
-        android:label="sahabat_sos_mobile"
+        android:label="Sahabat SOS"
         android:name=".TuyaSosApplication"
         android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher"
@@ -32,6 +32,7 @@
         tools:replace="android:label">
         <activity
             android:name=".MainActivity"
+            android:label="Sahabat SOS"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""

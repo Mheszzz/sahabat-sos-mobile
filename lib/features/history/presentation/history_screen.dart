@@ -70,15 +70,6 @@ class _HistoryPageState extends State<HistoryPage> {
   late int _selectedTypeFilter;
   final List<String> _typeFilters = ['Semua', 'SOS', 'Laporan'];
 
-  int _selectedStatusFilter = 0;
-  final List<String> _statusFilters = [
-    'Semua Status',
-    'Menunggu',
-    'Ditangani',
-    'Selesai',
-    'Dibatalkan',
-  ];
-
   bool _isLoading = true;
   List<HistoryItem> _allItems = [];
   String? _errorMessage;
@@ -490,17 +481,6 @@ class _HistoryPageState extends State<HistoryPage> {
       items = items.where((i) => i.type == HistoryType.laporan).toList();
     }
 
-    // Filter Status (0: Semua Status, 1: Menunggu, 2: Ditangani, 3: Selesai, 4: Dibatalkan)
-    if (_selectedStatusFilter == 1) {
-      items = items.where((i) => i.status == HistoryStatus.aktif).toList();
-    } else if (_selectedStatusFilter == 2) {
-      items = items.where((i) => i.status == HistoryStatus.ditangani).toList();
-    } else if (_selectedStatusFilter == 3) {
-      items = items.where((i) => i.status == HistoryStatus.selesai).toList();
-    } else if (_selectedStatusFilter == 4) {
-      items = items.where((i) => i.status == HistoryStatus.dibatalkan).toList();
-    }
-
     // Filter Waktu
     if (_selectedTimeFilter != 0) {
       final now = DateTime.now();
@@ -604,8 +584,6 @@ class _HistoryPageState extends State<HistoryPage> {
                   ),
                   const SizedBox(height: 16),
                   _buildTypeFilterTabs(isHighContrast),
-                  const SizedBox(height: 12),
-                  _buildStatusFilterChips(isHighContrast),
                   const SizedBox(height: 12),
                   _buildTimeFilterChips(isHighContrast),
                   const SizedBox(height: 18),
@@ -792,74 +770,6 @@ class _HistoryPageState extends State<HistoryPage> {
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-
-  Widget _buildStatusFilterChips(bool isHighContrast) {
-    final tealColor = isHighContrast ? const Color(0xFF80CBC4) : primaryTeal;
-    final selectedBg =
-        isHighContrast ? const Color(0xFF1E3A34) : primaryLightTeal;
-    final unselectedBg = AccessibleColors.cardBackground(isHighContrast);
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        children: List.generate(_statusFilters.length, (index) {
-          final isSelected = _selectedStatusFilter == index;
-
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
-                AccessibilityService.instance.handleTalkbackTap(
-                  id: 'history_filter_status_$index',
-                  speakText: "Status ${_statusFilters[index]}",
-                  hintText: "Tekan sekali lagi untuk memilih status ini.",
-                  onAction: () {
-                    setState(() {
-                      _selectedStatusFilter = index;
-                    });
-                  },
-                );
-              },
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 48),
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected ? selectedBg : unselectedBg,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: isSelected
-                            ? tealColor
-                            : AccessibleColors.cardBorderColor(isHighContrast),
-                        width: isSelected || isHighContrast ? 1.5 : 1.0,
-                      ),
-                    ),
-                    child: Text(
-                      _statusFilters[index],
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight:
-                            isSelected ? FontWeight.w700 : FontWeight.w500,
-                        color: isSelected
-                            ? tealColor
-                            : AccessibleColors.textSecondary(isHighContrast),
-                      ),
                     ),
                   ),
                 ),

@@ -111,6 +111,13 @@ class AccessibilityService extends ChangeNotifier {
   Future<void> setVoiceGuide(bool value, {bool syncBackend = true}) async {
     _isVoiceGuideEnabled = value;
     await _prefs?.setBool('accessibility_voice_guide', value);
+    if (!value && _isTalkbackEnabled) {
+      _isTalkbackEnabled = false;
+      await _prefs?.setBool('accessibility_talkback', false);
+      _focusedElementId = null;
+      _lastTapTime = null;
+      _focusResetTimer?.cancel();
+    }
     notifyListeners();
 
     if (value) {
@@ -120,7 +127,10 @@ class AccessibilityService extends ChangeNotifier {
     }
 
     if (syncBackend) {
-      _syncToBackend({'panduan_suara': value ? 1 : 0});
+      _syncToBackend({
+        'panduan_suara': value ? 1 : 0,
+        if (!value) 'talkback': 0,
+      });
     }
   }
 
@@ -220,7 +230,20 @@ class AccessibilityService extends ChangeNotifier {
 
       case 'umum':
       default:
-        // Kategori umum: pertahankan preferensi kustom pengguna
+        // Kategori umum: nonaktifkan semua fitur aksesibilitas khusus
+        _isVoiceGuideEnabled = false;
+        _isTalkbackEnabled = false;
+        _isHapticEnabled = false;
+        _isHighContrastEnabled = false;
+        _isLargeTextEnabled = false;
+        _isVisualAlertEnabled = false;
+        await _prefs?.setBool('accessibility_voice_guide', false);
+        await _prefs?.setBool('accessibility_talkback', false);
+        await _prefs?.setBool('accessibility_haptic', false);
+        await _prefs?.setBool('accessibility_high_contrast', false);
+        await _prefs?.setBool('accessibility_large_text', false);
+        await _prefs?.setBool('accessibility_visual_alert', false);
+        await stop();
         break;
     }
 

@@ -371,8 +371,12 @@ class _QuickReportScreenState extends State<QuickReportScreen>
       );
       if (placemarks.isNotEmpty) {
         final place = placemarks.first;
-        _cachedAddress =
-            "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
+        if (mounted) {
+          setState(() {
+            _cachedAddress =
+                "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}";
+          });
+        }
       }
     } catch (e) {
       debugPrint("Gagal pre-fetch lokasi: $e");
@@ -966,73 +970,43 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                           ),
                         ),
                       )
-                    : SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (_isLoadingOptions)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: const LinearProgressIndicator(
-                                    minHeight: 2,
-                                    backgroundColor: Colors.transparent,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      primaryTeal,
-                                    ),
-                                  ),
-                                ),
-                              )
-                            else if (_optionsError != null)
-                              Container(
-                                margin: const EdgeInsets.only(bottom: 14),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isHighContrast
-                                      ? const Color(0xFF1E293B)
-                                      : const Color(0xFFFFFBEB),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: isHighContrast
-                                        ? const Color(0xFFF59E0B)
-                                        : const Color(0xFFFCD34D),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      CupertinoIcons.info_circle_fill,
-                                      size: 16,
-                                      color: isHighContrast
-                                          ? const Color(0xFFFBBF24)
-                                          : const Color(0xFFD97706),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'Mode offline: Form menggunakan opsi darurat bawaan.',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                          color: isHighContrast
-                                              ? const Color(0xFFFDE68A)
-                                              : const Color(0xFF92400E),
-                                        ),
+                    : RefreshIndicator(
+                        color: isHighContrast
+                            ? const Color(0xFF80CBC4)
+                            : primaryTeal,
+                        onRefresh: () async {
+                          await Future.wait([
+                            _fetchOptionsFromApi(),
+                            _fetchLocationInBackground(),
+                          ]);
+                        },
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(
+                            parent: ClampingScrollPhysics(),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (_isLoadingOptions)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: const LinearProgressIndicator(
+                                      minHeight: 2,
+                                      backgroundColor: Colors.transparent,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        primaryTeal,
                                       ),
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            Text(
-                              'Kirim Laporan Cepat',
+                              Text(
+                                'Kirim Laporan Cepat',
                               style: TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.w800,
@@ -1095,6 +1069,7 @@ class _QuickReportScreenState extends State<QuickReportScreen>
                           ],
                         ),
                       ),
+                    ),
           ),
         );
       },

@@ -31,7 +31,6 @@ class SahabatSosApp extends StatelessWidget {
             ),
             useMaterial3: true,
             scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-            platform: TargetPlatform.iOS,
             splashFactory: NoSplash.splashFactory,
             pageTransitionsTheme: const PageTransitionsTheme(
               builders: <TargetPlatform, PageTransitionsBuilder>{
@@ -49,7 +48,6 @@ class SahabatSosApp extends StatelessWidget {
             ),
             useMaterial3: true,
             scaffoldBackgroundColor: Colors.black,
-            platform: TargetPlatform.iOS,
             splashFactory: NoSplash.splashFactory,
             pageTransitionsTheme: const PageTransitionsTheme(
               builders: <TargetPlatform, PageTransitionsBuilder>{

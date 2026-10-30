@@ -1247,23 +1247,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         children: [
           _buildToggleItem(
-            icon: CupertinoIcons.speaker_2,
-            title: 'TalkBack / Pembaca Layar',
-            subtitle: 'Tekan 1x bersuara, tekan lagi untuk melakukan aksi.',
-            value: service.isTalkbackEnabled,
-            isHighContrast: isHighContrast,
-            onChanged: (v) async {
-              await service.setTalkback(v);
-            },
-          ),
-          Divider(
-            height: 1,
-            indent: 56,
-            color: isHighContrast
-                ? const Color(0xFF374151)
-                : const Color(0xFFE5E7EB),
-          ),
-          _buildToggleItem(
             icon: CupertinoIcons.volume_up,
             title: 'Panduan Suara Otomatis (TTS)',
             subtitle: 'Narasi suara otomatis saat membuka layar dan tindakan.',
@@ -1273,6 +1256,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               await service.setVoiceGuide(v);
             },
           ),
+          if (service.isVoiceGuideEnabled) ...[
+            _buildNestedInteractionSelector(service, isHighContrast),
+          ],
           Divider(
             height: 1,
             indent: 56,
@@ -1325,6 +1311,185 @@ class _ProfileScreenState extends State<ProfileScreen> {
             },
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildNestedInteractionSelector(
+    AccessibilityService service,
+    bool isHighContrast,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(left: 56, right: 16, top: 4, bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isHighContrast
+            ? const Color(0xFF1E293B)
+            : const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isHighContrast
+              ? const Color(0xFF334155)
+              : const Color(0xFFD1FAE5),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                CupertinoIcons.hand_point_right,
+                size: 14,
+                color: isHighContrast
+                    ? const Color(0xFF14B8A6)
+                    : primaryTeal,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'GAYA KETUKAN & NAVIGASI',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                  color: isHighContrast
+                      ? const Color(0xFF94A3B8)
+                      : const Color(0xFF047857),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _buildInteractionOption(
+            title: 'Normal (1x Ketuk)',
+            description:
+                'Ketuk 1x langsung menjalankan tombol dengan suara panduan.',
+            isSelected: !service.isTalkbackEnabled,
+            isHighContrast: isHighContrast,
+            onTap: () async {
+              if (service.isTalkbackEnabled) {
+                await service.setTalkback(false);
+              }
+            },
+          ),
+          const SizedBox(height: 8),
+          _buildInteractionOption(
+            title: 'Mode Pembaca Layar / TalkBack (2x Ketuk)',
+            description:
+                'Ketuk 1x untuk mengecek & bersuara, ketuk 2x untuk membuka. Mencegah salah sentuh bagi tunanetra.',
+            isSelected: service.isTalkbackEnabled,
+            isHighContrast: isHighContrast,
+            onTap: () async {
+              if (!service.isTalkbackEnabled) {
+                await service.setTalkback(true);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInteractionOption({
+    required String title,
+    required String description,
+    required bool isSelected,
+    required bool isHighContrast,
+    required VoidCallback onTap,
+  }) {
+    final elementId = 'opt_$title';
+    final isFocused =
+        AccessibilityService.instance.isElementFocused(elementId);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () {
+        AccessibilityService.instance.handleTalkbackTap(
+          id: elementId,
+          speakText: '$title, ${isSelected ? 'terpilih' : 'tidak terpilih'}',
+          hintText: isSelected
+              ? 'Opsi ini sudah aktif.'
+              : 'Tekan sekali lagi untuk memilih opsi ini.',
+          onAction: onTap,
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: isSelected
+              ? (isHighContrast
+                  ? const Color(0xFF0F172A)
+                  : Colors.white)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isFocused
+                ? (isHighContrast
+                    ? const Color(0xFF00FFCC)
+                    : const Color(0xFF00897B))
+                : (isSelected
+                    ? (isHighContrast
+                        ? const Color(0xFF14B8A6)
+                        : primaryTeal)
+                    : (isHighContrast
+                        ? const Color(0xFF334155)
+                        : const Color(0xFFE2E8F0))),
+            width: isFocused ? 2.5 : (isSelected ? 1.5 : 1),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Icon(
+                isSelected
+                    ? CupertinoIcons.check_mark_circled_solid
+                    : CupertinoIcons.circle,
+                size: 18,
+                color: isSelected
+                    ? (isHighContrast
+                        ? const Color(0xFF14B8A6)
+                        : primaryTeal)
+                    : (isHighContrast
+                        ? const Color(0xFF64748B)
+                        : const Color(0xFF9CA3AF)),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight:
+                          isSelected ? FontWeight.w700 : FontWeight.w600,
+                      color: isHighContrast
+                          ? Colors.white
+                          : (isSelected
+                              ? const Color(0xFF065F46)
+                              : const Color(0xFF1F2937)),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isHighContrast
+                          ? const Color(0xFF94A3B8)
+                          : const Color(0xFF6B7280),
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
