@@ -479,6 +479,7 @@ class _DashboardPageState extends State<DashboardPage>
     }
 
     final telemetryData = await DeviceInfoHelper.getSosTelemetryData();
+    final smartwatchDeviceInfo = await DeviceInfoHelper.getSmartwatchTelemetryData();
 
     Map<String, dynamic>? tuyaDeviceInfo;
     if (_tuyaDevice != null) {
@@ -504,6 +505,7 @@ class _DashboardPageState extends State<DashboardPage>
         address: locationService.lastGeocodedAddress,
         telemetryData: telemetryData,
         tuyaDeviceInfo: tuyaDeviceInfo,
+        smartwatchDeviceInfo: smartwatchDeviceInfo,
       );
 
       if (!mounted) return;

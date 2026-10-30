@@ -10,6 +10,7 @@ abstract class DashboardRemoteDataSource {
     required String address,
     required Map<String, dynamic> telemetryData,
     Map<String, dynamic>? tuyaDeviceInfo,
+    Map<String, dynamic>? smartwatchDeviceInfo,
   });
 }
 
@@ -52,6 +53,7 @@ class DashboardRemoteDataSourceImpl implements DashboardRemoteDataSource {
     required String address,
     required Map<String, dynamic> telemetryData,
     Map<String, dynamic>? tuyaDeviceInfo,
+    Map<String, dynamic>? smartwatchDeviceInfo,
   }) async {
     final token = prefs.getString('auth_token');
     if (token == null || token.isEmpty) {
@@ -65,9 +67,13 @@ class DashboardRemoteDataSourceImpl implements DashboardRemoteDataSource {
       'trigger_source': 'app_button',
       'battery_level': telemetryData['battery_level'],
       'signal_strength': telemetryData['signal_strength'],
+      if (smartwatchDeviceInfo != null && smartwatchDeviceInfo['heart_rate'] != null)
+        'heart_rate': smartwatchDeviceInfo['heart_rate'],
       'device_info': {
         'mobile': telemetryData['device_info'],
         'tuya': ?tuyaDeviceInfo,
+        'smartwatch': ?smartwatchDeviceInfo,
+        'smartband': ?smartwatchDeviceInfo,
       },
     };
 

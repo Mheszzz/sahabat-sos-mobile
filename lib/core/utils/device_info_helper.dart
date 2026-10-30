@@ -1,6 +1,9 @@
 import 'dart:io';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:get_it/get_it.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/health_connect_service.dart';
 
 class DeviceInfoHelper {
   static final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
@@ -82,5 +85,39 @@ class DeviceInfoHelper {
       'signal_strength': signalStrength,
       'device_info': mobileMap,
     };
+  }
+
+  /// Ambil telemetri smartwatch atau smartband terkini jika ada
+  static Future<Map<String, dynamic>?> getSmartwatchTelemetryData() async {
+    try {
+      if (GetIt.instance.isRegistered<HealthConnectService>()) {
+        final healthService = GetIt.instance<HealthConnectService>();
+        int? bpm = healthService.currentBpm.value;
+        if (bpm == null || bpm <= 0) {
+          final prefs = await SharedPreferences.getInstance();
+          bpm = prefs.getInt('health_connect_last_bpm');
+        }
+
+        if (bpm != null && bpm > 0) {
+          final rawName = healthService.connectedDeviceName.value;
+          final deviceName = rawName.isNotEmpty ? rawName : 'Smartband / Health Connect';
+          return {
+            'device_id': 'smartband_health_connect',
+            'device_name': deviceName,
+            'device_model': deviceName,
+            'brand': 'huawei_health_connect',
+            'is_online': true,
+            'heart_rate': bpm,
+            'bpm': bpm,
+            'heart_rate_bpm': bpm,
+            'battery_level': null,
+            'battery_status': 'Normal',
+            'trigger_type': 'Sensor Biometrik Smartband',
+            'last_seen': DateTime.now().toIso8601String(),
+          };
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 }

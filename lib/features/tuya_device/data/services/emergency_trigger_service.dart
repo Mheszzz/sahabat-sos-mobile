@@ -149,8 +149,32 @@ class EmergencyTriggerService {
 
     String smartbandName = 'Smartband';
     try {
-      smartbandName = GetIt.instance<HealthConnectService>().connectedDeviceName.value;
+      final name = GetIt.instance<HealthConnectService>().connectedDeviceName.value;
+      if (name.isNotEmpty) {
+        smartbandName = name;
+      }
     } catch (_) {}
+
+    final smartbandTelemetry = <String, dynamic>{
+      'device_id': 'smartband_health_connect',
+      'device_name': '$smartbandName / Health Connect',
+      'device_model': smartbandName,
+      'brand': 'huawei_health_connect',
+      'type': '$smartbandName / Health Connect',
+      'is_online': true,
+      'heart_rate': bpm,
+      'bpm': bpm,
+      'heart_rate_bpm': bpm,
+      'status': bpm < 45 || bpm > 130 ? 'critical' : 'warning',
+      'reason': reason ??
+          (bpm > 130
+              ? 'Detak jantung terlalu tinggi'
+              : 'Detak jantung terlalu rendah'),
+      'trigger_type': 'Deteksi Detak Jantung ($bpm BPM)',
+      'source': 'Health Connect (Huawei Band / Wearable)',
+      'detected_at': DateTime.now().toIso8601String(),
+      'last_seen': DateTime.now().toIso8601String(),
+    };
 
     final payload = <String, dynamic>{
       'device_id': 'smartband_health_connect',
@@ -165,18 +189,8 @@ class EmergencyTriggerService {
       'signal_strength': telemetryData['signal_strength'],
       'device_info': {
         'mobile': telemetryData['device_info'],
-        'smartband': {
-          'type': '$smartbandName / Health Connect',
-          'bpm': bpm,
-          'heart_rate_bpm': bpm,
-          'status': bpm < 45 || bpm > 130 ? 'critical' : 'warning',
-          'reason': reason ??
-              (bpm > 130
-                  ? 'Detak jantung terlalu tinggi'
-                  : 'Detak jantung terlalu rendah'),
-          'source': 'Health Connect (Huawei Band / Wearable)',
-          'detected_at': DateTime.now().toIso8601String(),
-        },
+        'smartwatch': smartbandTelemetry,
+        'smartband': smartbandTelemetry,
       },
     };
 
