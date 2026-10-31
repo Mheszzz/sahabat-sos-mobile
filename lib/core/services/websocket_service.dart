@@ -341,6 +341,11 @@ class WebsocketService {
                 payloadMap['status']?.toString() ??
                 '';
 
+            final dynamic rawSosId = payloadMap['id'];
+            final int updatedSosId = (rawSosId is int)
+                ? rawSosId
+                : int.tryParse(rawSosId?.toString() ?? '0') ?? 0;
+
             // Jika relawan ini yang ditugaskan oleh admin (dispatch posko)
             if (volunteerId > 0 &&
                 assignedRelawanId == volunteerId &&
@@ -349,6 +354,19 @@ class WebsocketService {
               NotificationService().showEmergencyNotification(payloadMap);
               GlobalEventBus.showSosAssignmentPopup.value = payloadMap;
               onNewSosReceived(payload);
+            } else if (updatedSosId > 0 &&
+                (statusSos == 'selesai' ||
+                 statusSos == 'batal' ||
+                 (statusSos == 'ditangani' && assignedRelawanId != volunteerId))) {
+              // Jika kasus sudah ditangani relawan lain / admin atau selesai/batal, batalkan notifikasi & tutup popup
+              NotificationService().cancel(updatedSosId);
+              final currentPopup = GlobalEventBus.showSosAssignmentPopup.value;
+              final currentPopupId = currentPopup?['id'];
+              if (currentPopupId != null &&
+                  (currentPopupId == updatedSosId ||
+                   currentPopupId.toString() == updatedSosId.toString())) {
+                GlobalEventBus.showSosAssignmentPopup.value = null;
+              }
             }
           }
         } catch (e) {
